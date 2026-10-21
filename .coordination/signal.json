@@ -1,6 +1,6 @@
 {
-  "version": 3,
-  "task_id": "TASK-0003",
+  "version": 4,
+  "task_id": "TASK-0004",
   "status": "ready",
-  "task_file": ".coordination/tasks/TASK-0003.md"
+  "task_file": ".coordination/tasks/TASK-0004.md"
 }
