@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0031",
+  "signal_version": 31,
+  "state": "running",
+  "updated_at": "2026-10-21T10:17:20.472Z",
+  "summary": "已串行领取用户模块授权MVP任务，正在审查公开Demo契约及可授权模块边界，先写设计。",
+  "checks": [
+    "TASK-0031:31 ready；本地无执行中任务/outbox，同任务全状态PR为空，远端状态确认404；正式前置确认PR22已合并。"
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0031-user-module-access",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "审查registry/业务路由和现有权限，设计保留公开契约的授权基础；发现需产品决策的冲突或外部main前进时停止报告。"
+}
