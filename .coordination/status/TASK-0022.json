@@ -1,13 +1,21 @@
 {
   "task_id": "TASK-0022",
   "signal_version": 22,
-  "state": "running",
-  "updated_at": "2026-10-21T06:57:41.661Z",
-  "summary": "已领取独立登录布局与后台信息架构重构任务。",
-  "checks": [],
+  "state": "completed",
+  "updated_at": "2026-10-21T07:07:52.862Z",
+  "summary": "独立登录布局与统一后台账户菜单已完成，开发分支及 PR 已提交供审查。",
+  "checks": [
+    "登录页独立于后台导航和工具栏；已确认登录访问登录页会跳回仪表盘。",
+    "后台身份、服务端角色及退出集中到统一账户菜单；正文移除重复身份与权限调试信息，未开放功能明确说明。",
+    "Node 12 passed；前端 build passed；Python 75 passed、5 PostgreSQL online skipped；差异检查通过。",
+    "实际 Chrome 隔离 API 夹具通过 1440/390/360 像素布局、焦点、重定向、刷新、退出失败重试、身份异常、未知角色及导航检查。",
+    "PR 附中文验证说明和四张明确夹具截图；GitHub 确认可合并，无代码冲突。",
+    "GitHub CI 已触发，结果检查中；本地结果不冒充 CI 成功。",
+    "未变更后端认证、依赖、开发数据库或环境配置；原供用户操作的 loopback 服务保留，本任务自有浏览器已清理。"
+  ],
   "blockers": [],
   "branch": "codex/TASK-0022-admin-layout",
-  "pr_url": null,
-  "commit_sha": null,
-  "next_action": "保留真实认证和权限边界，完成页面重构及回归测试。"
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/18",
+  "commit_sha": "b047d1cabf2bdaaf204bc4419d08a9f34a2d9fee",
+  "next_action": "ChatGPT 审查 PR #18；不得自动合并或部署。TASK-0021 仍需独立核验真实管理员刷新保持和退出后受保护接口拒绝，未标记完成。"
 }
