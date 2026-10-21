@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 from backend.config import Settings
+from backend.auth.routes import install_auth
 from backend.database import Database
 from backend.modules import DemoModule, ModuleDetail, ModuleManifest, ModuleRegistry, PlatformModule
 from backend.persistence import ConfigStorageError, ModuleConfigService
@@ -24,7 +25,10 @@ def create_app(
             if database is not None:
                 database.dispose()
 
-    app = FastAPI(title=config.platform_name, version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title=config.platform_name, version="0.1.0", lifespan=lifespan,
+        docs_url="/docs" if config.expose_api_docs else None,
+        redoc_url=None, openapi_url="/openapi.json" if config.expose_api_docs else None)
+    install_auth(app, database, config)
     registry = ModuleRegistry()
     for module in modules if modules is not None else [DemoModule()]:
         registry.register(module)

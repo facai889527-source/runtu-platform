@@ -199,4 +199,4 @@ def test_documented_alembic_cli_uses_environment_url(tmp_path):
         )
         assert result.returncode == 0, result.stderr
         if arguments == ("current",):
-            assert "0001_module_configs" in result.stdout
+            assert "0002_auth_foundation" in result.stdout

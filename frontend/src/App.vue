@@ -5,21 +5,28 @@ import DashboardPage from './pages/DashboardPage.vue'
 import ModulesPage from './pages/ModulesPage.vue'
 import SettingsPage from './pages/SettingsPage.vue'
 import NotFoundPage from './pages/NotFoundPage.vue'
+import LoginPage from './pages/LoginPage.vue'
+import IdentityBar from './components/IdentityBar.vue'
+import { readIdentity } from './api/auth.js'
 import { provideNavigation } from './navigation/context.js'
 import { useResource } from './composables/useResource.js'
 import { readHealth, readModules } from './api/client.js'
 const { route } = provideNavigation()
 const health = useResource(readHealth), modules = useResource(readModules)
+const identity = useResource(readIdentity)
 const connection = computed(() => health.pending.value ? '正在连接' : health.error.value ? '连接失败' : health.data.value?.status === 'degraded' ? '后端已连接 · 服务降级' : '后端已连接')
-function refresh() { health.load(); modules.load() }
-onMounted(refresh)
-onUnmounted(() => { health.cancel(); modules.cancel() })
+function refresh() { health.load(); modules.load(); identity.load() }
+function refreshIdentity() { if (document.visibilityState === 'visible') identity.load() }
+onMounted(() => { refresh(); window.addEventListener('focus', refreshIdentity); document.addEventListener('visibilitychange', refreshIdentity) })
+onUnmounted(() => { health.cancel(); modules.cancel(); identity.cancel(); window.removeEventListener('focus', refreshIdentity); document.removeEventListener('visibilitychange', refreshIdentity) })
 </script>
 <template>
   <AppLayout :page="route.page" :title="route.title" :path="route.path" :connection="connection" :platform="health.data.value?.platform || 'Runtu Platform'" @refresh="refresh">
+    <IdentityBar :identity="identity.data.value" :pending="identity.pending.value" :unavailable="Boolean(identity.error.value)" @changed="identity.load()" />
     <DashboardPage v-if="route.page === 'dashboard'" :health="health" :modules="modules" />
     <ModulesPage v-else-if="route.page === 'modules'" :modules="modules" :module-id="route.moduleId" />
     <SettingsPage v-else-if="route.page === 'settings'" />
+    <LoginPage v-else-if="route.page === 'login'" @authenticated="identity.load()" />
     <NotFoundPage v-else />
   </AppLayout>
 </template>
