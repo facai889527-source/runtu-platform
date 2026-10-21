@@ -49,6 +49,6 @@ const metrics = [
         </li>
       </ul>
     </ResourceState>
-    <div class="panel-footnote"><AppIcon name="info" :size="15" />模块信息由服务端注册，当前工作台仅支持查看。</div>
+    <div class="panel-footnote"><AppIcon name="info" :size="15" /><span>模块信息由服务端注册，当前工作台仅支持查看。<span v-if="counts && counts.total > 5"> 这里展示前 5 个模块，完整目录共 {{ counts.total }} 个。</span></span></div>
   </section>
 </template>

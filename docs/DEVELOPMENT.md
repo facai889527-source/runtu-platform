@@ -297,3 +297,9 @@ pnpm run build
 ```
 
 浏览器验证依然从仓库根运行 `node frontend/tests/browser-smoke.mjs`（先启动本地后端和 Vite）；现在覆盖 1440×900、390×844、360×800、长名称/能力夹具、减少动画偏好。实际图片与隔离浏览器目录改为 `.git/codex-coordination/ui11/`；提交的真实 API 截图在 `docs/images/task-0011/`。夹具图片带 fixture 前缀，不作为真实后端交付图。未增加依赖或修改代理，未连接生产服务器。
+
+## 视觉精修与目录适配（TASK-0012）
+
+本次提升说明/正文的可读性，目录采用单模块横向铺满、多模块自适应网格，保留搜索/筛选/详情返回条件；手机统一44px操作行和紧凑状态行。实际截图、逐项改进及有限无障碍检查见 [UI_REFINEMENT.md](UI_REFINEMENT.md)；后续能力仅规划于 [ROADMAP_NEXT.md](ROADMAP_NEXT.md)，没有实现认证或写API。
+
+验证命令不变。`frontend/tests/browser-smoke.mjs` 现覆盖1440/1280/390/360宽度、真实默认API和明确0/1/3/8模块夹具；测试结果及隔离浏览器目录为 `.git/codex-coordination/ui12/`。夹具仅拦截根路径 `/api/`，禁用测试缓存，不改变产品服务。真实交付图与明确标记的fixture图位于 `docs/images/task-0012/`，二者分开说明。
