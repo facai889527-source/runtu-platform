@@ -1,0 +1,13 @@
+{
+  "task_id": "TASK-0021",
+  "signal_version": 21,
+  "state": "running",
+  "updated_at": "2026-10-21T06:39:23.340Z",
+  "summary": "已领取真实管理员登录验收任务，正在执行只读前置核对。",
+  "checks": [],
+  "blockers": [],
+  "branch": null,
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "核对管理员状态及 loopback 服务，等待用户亲自浏览器登录。"
+}
