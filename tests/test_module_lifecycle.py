@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from backend.app import create_app
+from backend.config import Settings
 from backend.modules import ModuleManifest, PublicModuleConfig
 
 
@@ -30,7 +31,7 @@ def make_module(status="enabled", module_id="example"):
 
 @pytest.mark.parametrize("status", ["enabled", "disabled"])
 def test_lifecycle_metadata_and_route_boundary(status):
-    with TestClient(create_app(modules=[make_module(status)])) as client:
+    with TestClient(create_app(Settings(_env_file=None, expose_api_docs=True), modules=[make_module(status)])) as client:
         manifest = client.get("/api/modules").json()[0]
         assert manifest["status"] == status
         assert manifest["category"] == "tools"
