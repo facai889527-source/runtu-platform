@@ -1,14 +1,17 @@
 from collections.abc import Iterable
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.responses import JSONResponse
 
 from backend.config import Settings
-from backend.auth.routes import install_auth, module_readonly_boundary
+from backend.auth.routes import install_auth, module_readonly_boundary, require_permission
 from backend.database import Database
-from backend.modules import DemoModule, ModuleDetail, ModuleManifest, ModuleRegistry, PlatformModule
-from backend.persistence import ConfigStorageError, ModuleConfigService
+from backend.modules import DemoModule, ModuleDetail, ModuleManifest, ModuleRegistry, PlatformModule, ModuleUpdate
+from backend.persistence import ConfigConflictError, ConfigStorageError, ModuleConfigService, UnknownModuleError
+from backend.module_management import ModuleManagementService, ModulePermissionError, ModuleProtectedError
 
 
 def create_app(
@@ -37,6 +40,20 @@ def create_app(
     app.state.database = database
     config_service = ModuleConfigService(registry, database)
     app.state.config_service = config_service
+    management = ModuleManagementService(registry, database)
+    app.state.module_management = management
+
+    @app.exception_handler(ConfigStorageError)
+    async def storage_unavailable(_request, _error):
+        return JSONResponse({'detail': 'Module configuration storage unavailable'}, status_code=503,
+                            headers={'Cache-Control': 'no-store'})
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_module_write(request, error):
+        if request.url.path.startswith('/api/admin/modules/'):
+            return JSONResponse({'detail': 'Invalid public module configuration'}, status_code=422,
+                                headers={'Cache-Control': 'no-store'})
+        return await request_validation_exception_handler(request, error)
 
     @app.get("/api/health", response_model=None)
     def health():
@@ -50,24 +67,43 @@ def create_app(
         return result
 
     @app.get("/api/modules", response_model=list[ModuleManifest])
-    def list_modules() -> list[ModuleManifest]:
-        return registry.manifests()
+    def list_modules(response: Response) -> list[ModuleManifest]:
+        response.headers['Cache-Control'] = 'no-store'
+        return management.manifests()
 
     @app.get("/api/modules/{module_id}", response_model=ModuleDetail)
-    def module_detail(module_id: str) -> ModuleDetail:
-        detail = registry.detail(module_id)
-        if detail is None:
-            raise HTTPException(status_code=404, detail="Module not found")
+    def module_detail(module_id: str, response: Response) -> ModuleDetail:
+        response.headers['Cache-Control'] = 'no-store'
         try:
-            return detail.model_copy(update={"public_config": config_service.load(module_id)})
-        except ConfigStorageError:
-            raise HTTPException(status_code=503, detail="Module configuration storage unavailable") from None
+            return management.detail(module_id)
+        except UnknownModuleError:
+            raise HTTPException(status_code=404, detail="Module not found")
+
+    @app.put('/api/admin/modules/{module_id}', response_model=ModuleDetail)
+    def update_module(module_id: str, value: ModuleUpdate,
+                      identity=Depends(require_permission('module.manage'))):
+        try:
+            return JSONResponse(management.save(module_id, value, identity.id).model_dump(mode='json'),
+                                headers={'Cache-Control': 'no-store'})
+        except UnknownModuleError:
+            raise HTTPException(404, 'Module not found') from None
+        except (ModuleProtectedError, ModulePermissionError):
+            raise HTTPException(403, 'Module operation not permitted') from None
+        except ConfigConflictError:
+            raise HTTPException(409, 'Module changed; reload before saving') from None
+
+    def enabled_boundary(module_id):
+        def check():
+            if management.detail(module_id).status != 'enabled':
+                raise HTTPException(404, 'Module not available', headers={'Cache-Control': 'no-store'})
+        return check
 
     # Core metadata routes take precedence over module routers, including root routes.
     for module in registry.modules():
         detail = registry.detail(module.manifest.id)
-        if detail is not None and detail.status == "enabled":
+        if detail is not None:
             app.include_router(module.router, prefix=f"/api/modules/{detail.id}",
-                               dependencies=[Depends(module_readonly_boundary)])
+                               include_in_schema=detail.status == 'enabled',
+                               dependencies=[Depends(enabled_boundary(detail.id)), Depends(module_readonly_boundary)])
 
     return app

@@ -24,6 +24,7 @@ try {
   assert.ok(pages?.length)
   socket = new WebSocket(pages.find(page => page.type === 'page').webSocketDebuggerUrl)
   await new Promise(resolve => socket.addEventListener('open', resolve, { once: true }))
+  let loads = 0
   let seq = 0
   const waiting = new Map(), errors = []
   socket.addEventListener('message', event => {
@@ -32,6 +33,7 @@ try {
       const pending = waiting.get(message.id); waiting.delete(message.id)
       message.error ? pending.reject(new Error('Browser command failed')) : pending.resolve(message.result)
     }
+    if (message.method === 'Page.loadEventFired') loads++
     if (message.method === 'Runtime.exceptionThrown') errors.push('Browser runtime exception')
   })
   function send(method, params = {}) {
@@ -68,7 +70,8 @@ try {
     }
   })
   const user = { id: 'layout-fixture-id', username: 'layout-fixture', is_admin: true }
-  const module = { id: 'demo', name: '演示模块', version: '1.0.0', description: '仅用于布局验证的模块夹具。', category: 'tools', status: 'enabled', capabilities: ['inspect'] }
+  let module = { id: 'demo', name: '演示模块', version: '1.0.0', description: '仅用于布局验证的模块夹具。', category: 'tools', status: 'enabled', capabilities: ['inspect'], required: false, revision: 0, public_config: { show_in_navigation: true, refresh_interval_seconds: null } }
+  let saveStatus = 200, viewer = false
   let apiRequests = 0, sessionWrites = 0
   socket.addEventListener('message', async event => {
     const message = JSON.parse(event.data)
@@ -88,13 +91,22 @@ try {
       let code = 200, body
       if (pathname === '/api/health') body = { status: 'ok', platform: 'Runtu Platform', database: 'ready' }
       else if (pathname === '/api/modules') body = [module]
-      else if (pathname === '/api/modules/demo') body = { ...module, public_config: { show_in_navigation: true, refresh_interval_seconds: null } }
+      else if (pathname === '/api/modules/demo') body = module
+      else if (pathname === '/api/admin/modules/demo' && request.method === 'PUT') {
+        code = saveStatus
+        if (code === 200) {
+          const value = JSON.parse(request.postData)
+          assert.equal(value.expected_revision, module.revision)
+          module = { ...module, status: value.enabled ? 'enabled' : 'disabled', public_config: value.public_config, revision: module.revision + 1 }
+        }
+        body = module
+      }
       else if (pathname === '/api/auth/me') {
         code = failIdentity ? 503 : 200
         body = { authenticated, user: authenticated ? user : null }
       } else if (pathname === '/api/admin/me') {
         code = authenticated ? 200 : 401
-        body = { ...user, role: invalidRole ? 'unknown' : 'owner', permissions: ['platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read'] }
+        body = { ...user, role: invalidRole ? 'unknown' : viewer ? 'viewer' : 'owner', permissions: viewer ? ['platform.read', 'module.read'] : ['platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read'] }
       } else if (pathname === '/api/auth/csrf') body = { csrf_token: 'a'.repeat(64) } // Public test proof only.
       else if (pathname === '/api/auth/login' || pathname === '/api/auth/logout') {
         assert.equal(request.method, 'POST')
@@ -114,8 +126,17 @@ try {
   await send('Page.bringToFront')
   await send('Network.enable'); await send('Network.setCacheDisabled', { cacheDisabled: true })
   await send('Fetch.enable', { patterns: [{ urlPattern: origin + '/api/*' }, { urlPattern: origin + '/*SettingsPage*' }] })
+  async function loadPage(method, params = {}) {
+    const before = loads
+    await send(method, params)
+    for (let i = 0; i < 100; i++) {
+      if (loads > before) return
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    throw new Error('Document load timed out')
+  }
   async function visit(pathname) {
-    await send('Page.navigate', { url: origin + pathname })
+    await loadPage('Page.navigate', { url: origin + pathname })
     await until(`document.querySelector('h1') && !document.querySelector('.auth-check')`)
   }
   async function click(selector) { await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`) }
@@ -149,7 +170,7 @@ try {
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
     await until(`document.querySelector('.user-menu') && !document.querySelector('.user-menu').open`)
     assert.equal(await evaluate(`document.activeElement.matches('.user-trigger')`), true)
-    await send('Page.reload')
+    await loadPage('Page.reload')
     await until(`document.querySelector('.user-menu') && document.querySelector('.overview-name')`)
     await screenshot(`dashboard-${width}`)
     // An authenticated visit to /login must leave the authentication layout.
@@ -190,7 +211,7 @@ try {
   await until(`document.querySelector('.account-unavailable')`)
   assert.equal(await evaluate(`!document.querySelector('.user-menu')`), true)
   failIdentity = false; authenticated = true; invalidRole = true
-  await send('Page.reload')
+  await loadPage('Page.reload')
   await until(`document.querySelector('.user-menu')`)
   await click('.user-trigger')
   await until(`document.querySelector('.account-role')?.textContent.includes('角色暂无法确认')`)
@@ -205,7 +226,30 @@ try {
   await until(`document.querySelector('.async-view-state[role=status]')`)
   await until(`document.querySelector('.settings')`)
   delaySettings = false
+  await visit('/modules/demo')
+  await until(`document.querySelector('.module-editor-form')`)
+  await evaluate(`(() => { window.confirm = () => true; const input = document.querySelector('.interval-field input'); input.value = '60'; input.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('.module-editor input[type=checkbox]').click(); document.querySelector('.module-editor-form').requestSubmit(); })()`)
+  await until(`document.querySelector('.save-success') && document.querySelector('.detail-identity').textContent.includes('已禁用')`)
+  await screenshot('module-management-saved')
+  assert.equal(module.public_config.refresh_interval_seconds, 60)
+  await loadPage('Page.reload')
+  await until(`document.querySelector('.interval-field input')?.value === '60'`)
+  assert.equal(await evaluate(`document.querySelector('.module-editor input[type=checkbox]').checked`), false)
+  for (saveStatus of [409, 503]) {
+    await evaluate(`document.querySelector('.module-editor-form').requestSubmit()`)
+    await until(`document.querySelector('.module-editor [role=alert]')`)
+    assert.equal(module.revision, 1)
+  }
+  saveStatus = 200
+  authenticated = false
+  await loadPage('Page.reload')
+  await until(`document.querySelector('.module-editor a')`)
+  assert.equal(await evaluate(`!document.querySelector('.module-editor-form')`), true)
+  authenticated = true; viewer = true
+  await loadPage('Page.reload')
+  await until(`document.querySelector('.module-editor')?.textContent.includes('没有模块管理权限')`)
+  assert.equal(await evaluate(`!document.querySelector('.module-editor-form')`), true)
   assert.ok(apiRequests > 0 && sessionWrites >= 6)
   assert.deepEqual(errors, [])
-  console.log('PASS isolated UI fixtures: independent login, redirect, account role, one logout, failure/retry, reload, logout, 1440/390/360, navigation, no overflow, lazy chunk failure/loading/recovery. No real admin login verified.')
+  console.log('PASS isolated UI fixtures: login, roles, logout, responsive navigation, lazy loading, module save/config/reload/409/503 and anonymous management denial. No real admin login verified.')
 } finally { socket?.close(); child.kill() }

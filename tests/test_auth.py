@@ -203,14 +203,14 @@ def test_missing_auth_schema_fails_closed_and_upgrade_downgrade_preserves_config
     app = create_app(Settings(_env_file=None, database_url=str(db.engine.url), auth_origin=ORIGIN))
     with TestClient(app, base_url=ORIGIN) as client:
         assert client.get('/api/auth/me').status_code == 503
-        assert client.get('/api/modules').status_code == 200
+        assert client.get('/api/modules').status_code == 503  # Missing state migration fails closed.
     migrate_database(db)
     assert 'auth_users' in inspect(db.engine).get_table_names()
     with db.engine.begin() as connection:
         cfg.attributes['connection'] = connection
         command.downgrade(cfg, '0001_module_configs')
     assert 'auth_users' not in inspect(db.engine).get_table_names()
-    assert db.is_ready()
+    assert not db.is_ready()  # New application requires the state columns.
     db.dispose()
 
 

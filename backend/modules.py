@@ -1,7 +1,7 @@
 from typing import Literal, Protocol
 
 from fastapi import APIRouter
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ModuleManifest(BaseModel):
@@ -14,6 +14,13 @@ class ModuleManifest(BaseModel):
     category: str | None = None
     status: Literal["enabled", "disabled"] = "enabled"
     capabilities: tuple[str, ...] = ()
+    required: bool = False
+
+    @model_validator(mode='after')
+    def required_is_enabled(self):
+        if self.required and self.status != 'enabled':
+            raise ValueError('Required modules must be registered enabled')
+        return self
 
 
 class PublicModuleConfig(BaseModel):
@@ -27,6 +34,14 @@ class PublicModuleConfig(BaseModel):
 
 class ModuleDetail(ModuleManifest):
     public_config: PublicModuleConfig = Field(default_factory=PublicModuleConfig)
+    revision: int = 0
+
+
+class ModuleUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    enabled: bool
+    public_config: PublicModuleConfig
+    expected_revision: int = Field(ge=0, le=2147483646)
 
 
 class PlatformModule(Protocol):

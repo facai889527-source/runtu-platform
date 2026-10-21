@@ -20,12 +20,17 @@ function identity(data) {
 
 export async function readIdentity(signal) { return identity(await request('me', signal)) }
 
-async function changeSession(path, data, signal) {
+export async function securityHeaders(signal) {
   // This proof stays in this request's memory. The browser owns the HttpOnly cookie.
   const csrf = await request('csrf', signal)
   if (!/^[0-9a-f]{64}$/.test(csrf?.csrf_token)) throw new Error('安全校验数据异常。')
+  return { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.csrf_token }
+}
+
+async function changeSession(path, data, signal) {
+  const headers = await securityHeaders(signal)
   return identity(await request(path, signal, { method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.csrf_token },
+    headers,
     body: JSON.stringify(data) }))
 }
 

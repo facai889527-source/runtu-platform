@@ -23,6 +23,41 @@ from backend.models import AuthBootstrap, AuthEvent, AuthRateLimit, AuthSession,
 from scripts.pg_guard import GuardRefused, guarded_test_url
 
 
+def test_module_management_persistence_rbac_and_concurrent_revision(pg_auth):
+    from backend.persistence import ConfigConflictError
+    from backend.models import ModuleChangeRecord
+    from tests.test_module_lifecycle import make_module
+    db, _, settings, user_id, password = pg_auth
+    app = create_app(settings, modules=[make_module()])
+    with TestClient(app, base_url='https://runtu.test') as client:
+        proof = client.get('/api/auth/csrf').json()['csrf_token']
+        assert client.post('/api/auth/login', json={'username': 'operator', 'password': password},
+            headers={'Origin': 'https://runtu.test', 'X-CSRF-Token': proof}).status_code == 200
+        value = {'enabled': False, 'expected_revision': 0,
+                 'public_config': {'show_in_navigation': False, 'refresh_interval_seconds': 25}}
+        assert client.put('/api/admin/modules/example', json=value, headers={'Origin': 'https://runtu.test'}).status_code == 403
+        proof = client.get('/api/auth/csrf').json()['csrf_token']
+        assert client.put('/api/admin/modules/example', json=value,
+            headers={'Origin': 'https://runtu.test', 'X-CSRF-Token': proof}).status_code == 200
+        assert client.get('/api/modules/example/ping').status_code == 404
+        def save(interval):
+            other = dict(value, expected_revision=1, public_config={'show_in_navigation': True, 'refresh_interval_seconds': interval})
+            try:
+                app.state.module_management.save('example', other, user_id)
+                return 'saved'
+            except ConfigConflictError:
+                return 'conflict'
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            assert sorted(pool.map(save, [35, 45])) == ['conflict', 'saved']
+        with db.transaction() as session:
+            assert session.scalar(select(func.count()).select_from(ModuleChangeRecord)) == 2
+        restarted = create_app(settings, modules=[make_module()])
+        try:
+            assert restarted.state.module_management.detail('example').revision == 2
+        finally:
+            restarted.state.database.dispose()
+
+
 @pytest.fixture
 def pg_database():
     import os
@@ -74,8 +109,9 @@ def pg_auth(pg_database):
 def test_migrations_constraints_legacy_owner_and_lossy_downgrades(pg_database):
     db = pg_database
     migrate_database(db, '0001_module_configs')
-    with db.transaction() as session:
-        session.add(ModuleConfigRecord(module_id='retained', refresh_interval_seconds=30))
+    with db.engine.begin() as connection:
+        # Use the historical schema, not today's ORM columns, before upgrading.
+        connection.execute(text("INSERT INTO module_configs(module_id,refresh_interval_seconds) VALUES ('retained',30)"))
     migrate_database(db, '0002_auth_foundation')
     with db.engine.begin() as connection:
         for user_id, admin in [('legacy-admin', True), ('legacy-reader', False)]:
@@ -121,7 +157,7 @@ def test_migrations_constraints_legacy_owner_and_lossy_downgrades(pg_database):
         config.attributes['connection'] = connection
         command.downgrade(config, '0001_module_configs')
     assert not any(name.startswith('auth_') for name in inspect(db.engine).get_table_names())
-    assert db.is_ready()
+    assert not db.is_ready()  # Current application needs 0004 state columns.
 
 
 def test_concurrent_bootstrap_exactly_one_owner_and_safe_audit(pg_database):
