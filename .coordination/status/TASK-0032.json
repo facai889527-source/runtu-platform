@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0032",
+  "signal_version": 32,
+  "state": "running",
+  "updated_at": "2026-10-21T11:30:54.873Z",
+  "summary": "Reviewing local synchronization and migration 0005 on disposable test databases only.",
+  "checks": [
+    "No existing task PR, local claim or remote status; outbox empty; no other active task."
+  ],
+  "blockers": [],
+  "branch": null,
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "Inspect Git synchronization and run isolated migration checks; leave development database and services unchanged."
+}
