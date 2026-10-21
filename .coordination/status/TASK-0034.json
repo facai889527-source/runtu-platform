@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0034",
+  "signal_version": 34,
+  "state": "running",
+  "updated_at": "2026-10-21T12:46:08.554Z",
+  "summary": "Implementing registration policy and secure registration foundation on an isolated feature branch.",
+  "checks": [
+    "Ready new version; no existing PR, local execution or remote status; outbox empty and no other active task."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0034-registration-policy",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "Review security design, implement defaults and approval boundary, validate disposable databases and CI; no real database migration or service restart."
+}
