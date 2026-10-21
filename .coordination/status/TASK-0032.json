@@ -1,15 +1,20 @@
 {
   "task_id": "TASK-0032",
   "signal_version": 32,
-  "state": "running",
-  "updated_at": "2026-10-21T11:30:54.873Z",
-  "summary": "Reviewing local synchronization and migration 0005 on disposable test databases only.",
+  "state": "completed",
+  "updated_at": "2026-10-21T11:31:41.055Z",
+  "summary": "Local synchronization reviewed after merged PR23; migration 0005 verified on a disposable SQLite database only.",
   "checks": [
-    "No existing task PR, local claim or remote status; outbox empty; no other active task."
+    "Remote main inspected at 5df080b803fb20a4058fa90d6644245393d2105d; PR23 merged as 8c51b2f. Local working branch remains codex/TASK-0031-user-module-access at 9263ac27703173c4b3d3498bc4b3499797fd1be1 with a clean worktree.",
+    "Product code matches fetched remote main exactly; differences are coordination signal, TASK-0031 status and TASK-0032 task file only. Local main remains 74bcb4c7ed7a7c94e1c47b2155b0bde0a5de81e8; no checkout or synchronization performed.",
+    "Reviewed 0005_user_module_access: creates grant association and minimal grant audit tables only; downgrade drops these two new tables and loses their data.",
+    "Existing isolated migration test passed: 1 passed. Test uses explicit temporary SQLite URL and Settings(_env_file=None); child process database/auth environment overrides cleared. Verified upgrade from 0004, grant creation, Alembic model check, downgrade preserving temporary user, and re-upgrade with empty grants.",
+    "Existing development database and running services were not inspected or modified; no migration, restart, real administrator bootstrap, credentials or protected records accessed.",
+    "No product files changed, no new PR required, no merge/deployment or subsequent task started. One existing TestClient deprecation warning; no dependency changes."
   ],
   "blockers": [],
   "branch": null,
   "pr_url": null,
-  "commit_sha": null,
-  "next_action": "Inspect Git synchronization and run isolated migration checks; leave development database and services unchanged."
+  "commit_sha": "9263ac27703173c4b3d3498bc4b3499797fd1be1",
+  "next_action": "Review this preflight result. Local main synchronization, development database backup/migration to 0005 and service restart remain separate actions requiring explicit authorization; this task performs none of them."
 }
