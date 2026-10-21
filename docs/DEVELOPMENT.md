@@ -66,9 +66,43 @@ pnpm preview
 git diff --check
 ```
 
-测试覆盖健康响应、演示清单、自定义模块路由、空模块集、独立应用状态、重复注册拒绝和环境配置。
+测试覆盖健康响应、演示清单、自定义模块路由、空模块集、独立应用状态、重复注册拒绝、环境配置、禁用路由隔离、只读详情及配置脱敏。
 `backend/modules.py` 定义 ModuleManifest、PlatformModule 协议和内存注册表。模块提供 manifest 与 FastAPI APIRouter，启动时传给 `create_app(modules=[...])`。清单 ID 必须是小写字母开头、后续仅小写字母/数字/下划线，重复 ID 启动失败。模块路由挂在 `/api/modules/<id>`；`GET /api/modules` 列出清单。
 默认仅注册无业务逻辑的 DemoModule；不开放远程写入注册接口。注册在工厂启动时完成，后续添加模块应重新创建应用，以确保清单与路由一致。
+
+### 模块生命周期与公开配置
+
+ModuleManifest 保留原有字段，新增可省略的 `category`（默认 null）、`status`（enabled/disabled，默认 enabled）、`capabilities`（字符串能力声明，默认空列表）。能力声明仅是元信息，不构成登录或权限系统。
+
+应用工厂先注册全部清单并校验重复 ID，再仅为 enabled 模块挂载业务路由。disabled 模块仍出现在清单和详情中，但其 GET/POST 等业务路由及 OpenAPI 路径均不挂载。不存在自动启动/停止钩子、热加载、动态 import 或远程执行机制；修改启用状态需重新创建应用。注册时快照元信息，避免后续修改模块实例造成状态漂移。
+
+`GET /api/modules/{id}` 返回清单和 `public_config`；不存在的 ID 返回 404。详情只读，核心详情处理器优先于模块根路由。`GET /api/modules` 仍返回清单数组，原有字段和默认 demo 保持兼容。状态、分类在前端展示，禁用模块保留展示并标明业务路由不可用；空列表与读取失败分别提示。
+
+新模块示例（在服务端源码中静态接入）：
+
+```python
+from fastapi import APIRouter
+from backend.app import create_app
+from backend.modules import ModuleManifest, PublicModuleConfig
+
+class ExampleModule:
+    manifest = ModuleManifest(
+        id="example", name="Example", version="0.1.0", description="示例",
+        category="tools", status="enabled", capabilities=("example:read",),
+    )
+    router = APIRouter()
+    public_config = PublicModuleConfig(
+        show_in_navigation=True, refresh_interval_seconds=30,
+    )
+
+app = create_app(modules=[ExampleModule()])
+```
+
+原有只提供 manifest/router 的 PlatformModule 仍有效；需要公开配置的模块可实现 ConfiguredPlatformModule 协议，提供 public_config。公开配置目前只允许 `show_in_navigation` 布尔值和 `refresh_interval_seconds`（null 或 1–86400 的整数）；未知字段或错误类型在启动时拒绝。该配置只描述模块公开偏好，本页面尚未据此隐藏模块或开启自动刷新。
+
+不要把模块内部 settings、环境变量、数据库配置或 `model_dump()` 全量结果作为公开配置。注册表只读取明确的 public_config，不扫描其他属性；公开模型禁止额外字段，无自由文本/任意字典入口。未来需要新公开字段时，先扩展类型化白名单及脱敏测试，再接入模块。模块自身业务路由仍需各自审查返回值；本协议不为任意开发者代码提供安全沙箱，也未实现用户授权系统。
+
+TASK-0004 的迁移顺序：先审查合并父 PR #3，再把 TASK-0004 PR 的 base 从 `codex/TASK-0003-platform-bootstrap` 调整到 main；若父 PR 被 squash/rebase，需先重放本任务的增量提交并验证 diff。不要自动合并。本次没有修改三分钟调度。
 
 目前不连接 PostgreSQL，没有 Redis、Docker、登录或服务器安全业务。演示数据随进程退出消失。依赖下载失败应检查网络/平台授权，不要把安装失败视为测试通过。
 
