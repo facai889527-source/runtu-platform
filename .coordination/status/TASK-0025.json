@@ -2,12 +2,17 @@
   "task_id": "TASK-0025",
   "signal_version": 25,
   "state": "running",
-  "updated_at": "2026-10-21T07:38:19.406Z",
-  "summary": "已领取受控模块管理任务；用户真实浏览器登录、刷新保持及退出已由正式任务确认，不重复要求操作。",
-  "checks": [],
+  "updated_at": "2026-10-21T07:56:09.060Z",
+  "summary": "模块管理闭环已提交 PR；本地验证完成，等待真实 PostgreSQL CI 最终结果。用户浏览器登录、刷新保持及退出已由任务确认，无需重复操作。",
+  "checks": [
+    "实现 module.manage、同源会话与防伪保护，owner/admin 可写，viewer/匿名拒绝；required 模块不可禁用。",
+    "状态/公开配置与无秘密值审计同事务，具备版本冲突、幂等、并发与失败回滚。",
+    "Python 85 passed、6 PostgreSQL online skipped；Node 14 passed；build 和 Chrome 隔离 API 夹具通过。",
+    "新增 0004_module_management，可审查且未对用户开发库执行；未改环境配置或已有后端进程。"
+  ],
   "blockers": [],
   "branch": "codex/TASK-0025-module-management",
-  "pr_url": null,
-  "commit_sha": null,
-  "next_action": "以版本控制事务实现受控状态与公开配置写入、权限及回归测试；不迁移用户开发库，仅写自身任务状态。"
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/20",
+  "commit_sha": "75f3e3b2d8835eae8dcfdb252318704360f9657b",
+  "next_action": "等待 CI 后交由 ChatGPT 审查。合并后操作员需要审查迁移、确认目标与备份，再手动升级及重启后端；不自动迁移、合并或部署。"
 }
