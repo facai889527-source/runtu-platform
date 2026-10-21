@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.responses import JSONResponse
@@ -14,6 +14,9 @@ from backend.persistence import ConfigConflictError, ConfigStorageError, ModuleC
 from backend.module_management import ModuleManagementService, ModulePermissionError, ModuleProtectedError
 from backend.module_audit import AuditUnavailable, ModuleAuditPage, ModuleAuditService
 from backend.user_routes import install_user_management
+from backend.module_access import ModuleAccessService, GrantInput, GrantItem, GrantPage, require_module_access
+from backend.auth.routes import require_authenticated, token_from
+from backend.auth.service import digest
 
 
 def create_app(
@@ -45,6 +48,27 @@ def create_app(
     app.state.config_service = config_service
     management = ModuleManagementService(registry, database)
     app.state.module_management = management
+    module_access = ModuleAccessService(registry,database,app.state.auth_service)
+    app.state.module_access = module_access
+
+    @app.get('/api/me/modules',response_model=GrantPage)
+    def my_modules(response:Response,limit:int=Query(20,ge=1,le=50),
+                   after_module:str|None=Query(None,max_length=64,pattern=r'^[a-z][a-z0-9_]*$'),
+                   identity=Depends(require_authenticated)):
+        response.headers['Cache-Control']='no-store'
+        return module_access.page(identity.id,identity.id,limit,after_module,own=True)
+
+    @app.get('/api/admin/users/{user_id}/modules',response_model=GrantPage)
+    def user_modules(user_id:str,response:Response,limit:int=Query(20,ge=1,le=50),
+                     after_module:str|None=Query(None,max_length=64,pattern=r'^[a-z][a-z0-9_]*$'),
+                     identity=Depends(require_permission('users.manage'))):
+        response.headers['Cache-Control']='no-store'
+        return module_access.page(identity.id,user_id,limit,after_module)
+
+    @app.put('/api/admin/users/{user_id}/modules/{module_id}',response_model=GrantItem)
+    def grant_module(user_id:str,module_id:str,value:GrantInput,request:Request,identity=Depends(require_permission('users.manage'))):
+        result=module_access.save(identity.id,user_id,module_id,value,digest(token_from(request,app.state.auth_service)))
+        return JSONResponse(result.model_dump(mode='json'),headers={'Cache-Control':'no-store'})
     audit = ModuleAuditService(registry, database)
     app.state.module_audit = audit
 
@@ -60,7 +84,7 @@ def create_app(
 
     @app.exception_handler(RequestValidationError)
     async def invalid_module_write(request, error):
-        if request.url.path.startswith(('/api/admin/modules/', '/api/admin/users')):
+        if request.url.path.startswith(('/api/admin/modules/', '/api/admin/users', '/api/me/modules')):
             return JSONResponse({'detail': 'Invalid module request'}, status_code=422,
                                 headers={'Cache-Control': 'no-store'})
         return await request_validation_exception_handler(request, error)
@@ -125,6 +149,7 @@ def create_app(
         if detail is not None:
             app.include_router(module.router, prefix=f"/api/modules/{detail.id}",
                                include_in_schema=detail.status == 'enabled',
-                               dependencies=[Depends(enabled_boundary(detail.id)), Depends(module_readonly_boundary)])
+                               dependencies=[Depends(enabled_boundary(detail.id)), Depends(module_readonly_boundary)]
+                               + ([Depends(require_module_access(detail.id))] if detail.access_mode == 'assigned' else []))
 
     return app

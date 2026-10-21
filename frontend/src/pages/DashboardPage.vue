@@ -6,7 +6,8 @@ import RouteLink from '../components/RouteLink.vue'
 import AppIcon from '../components/AppIcon.vue'
 import { databaseLabels, moduleCounts } from '../utils/modules.js'
 import { modulePath } from '../navigation/history.js'
-const props = defineProps({ health: Object, modules: Object })
+import MyModules from '../components/MyModules.vue'
+const props = defineProps({ health: Object, modules: Object, userId: String })
 const counts = computed(() => props.modules.data.value ? moduleCounts(props.modules.data.value) : null)
 const metrics = [
   { key: 'total', label: '已注册模块', icon: 'module', note: '平台已接入的模块' },
@@ -50,4 +51,5 @@ const metrics = [
     </ResourceState>
     <div v-if="counts && counts.total > 5" class="panel-footnote"><AppIcon name="info" :size="15" /><span>展示前 5 个模块，完整目录共 {{ counts.total }} 个。</span></div>
   </section>
+  <MyModules :user-id="userId" />
 </template>

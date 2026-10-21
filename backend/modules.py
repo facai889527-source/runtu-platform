@@ -15,6 +15,7 @@ class ModuleManifest(BaseModel):
     status: Literal["enabled", "disabled"] = "enabled"
     capabilities: tuple[str, ...] = ()
     required: bool = False
+    access_mode: Literal['public', 'assigned'] = 'public'
 
     @model_validator(mode='after')
     def required_is_enabled(self):

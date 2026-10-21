@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onUnmounted } from 'vue'
 import { updateUser } from '../api/users.js'
+import UserModuleAccess from './UserModuleAccess.vue'
 const props = defineProps({ user: { type: Object, required: true }, selfId: String })
 const emit = defineEmits(['updated'])
 const role = ref('viewer'), active = ref(true), busy = ref(false), error = ref(''), success = ref('')
@@ -28,6 +29,7 @@ onUnmounted(() => { controller?.abort(); clearTimeout(timer) })
       <label class="user-active"><input v-model="active" type="checkbox" />启用账户</label>
       <button type="submit" :disabled="busy || (role === user.role && active === user.active)">保存变更</button>
     </fieldset></form><p v-if="error" role="alert">{{ error }}</p><p v-if="success" role="status">{{ success }}</p>
+    <UserModuleAccess :user-id="user.id" :active="user.active" />
   </li>
 </template>
 <style scoped>

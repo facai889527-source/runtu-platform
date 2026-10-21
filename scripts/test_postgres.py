@@ -77,8 +77,8 @@ def main(argv=None):
         print('Disposable online environment: ' + pg_version)
         environment.update(RUNTU_PG_TEST_DSN=dsn, RUNTU_PG_TEST_RUN_ID=run_id,
                            RUNTU_PG_TEST_CONTAINER=container, RUNTU_PG_TEST_ENDPOINT=endpoint)
-        # Eight must execute; no skips, traceback, requests or raw DB diagnostics are emitted.
-        result_code = run_tests(['tests/postgres'], environment=environment, expected_passed=8)
+        # Nine must execute; no skips, traceback, requests or raw DB diagnostics are emitted.
+        result_code = run_tests(['tests/postgres'], environment=environment, expected_passed=9)
     except GuardRefused as failure:
         print('PG online validation blocked: ' + str(failure), file=sys.stderr)
     except (ValueError, KeyError, IndexError, subprocess.TimeoutExpired):
