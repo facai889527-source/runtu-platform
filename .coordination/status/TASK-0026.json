@@ -1,13 +1,21 @@
 {
   "task_id": "TASK-0026",
   "signal_version": 26,
-  "state": "running",
-  "updated_at": "2026-10-21T08:02:54.345Z",
-  "summary": "已领取本地升级预检与在线备份任务；不会执行真实数据库迁移。",
-  "checks": [],
+  "state": "completed",
+  "updated_at": "2026-10-21T08:08:31.088Z",
+  "summary": "本地升级预检及受限权限的一致性在线备份已完成，校验通过；未执行迁移，源库仍为 0003。",
+  "checks": [
+    "干净工作树上安全快进本地 main 至 af84a50，包含 PR #20；任务开发分支保留，未覆盖改动。",
+    "已只读核实数据库为预期隔离开发 SQLite，Alembic 当前为 0003_rbac_roles；只查询迁移/结构元数据，未查询用户表。",
+    "一致性在线备份已完成并通过 integrity_check；磁盘空间充足，新备份目录 ACL 仅允许当前用户和 SYSTEM。备份与位置、大小等详细记录仅保留本地，不上传 GitHub。",
+    "测试后再次确认源库仍为 0003、模块表无 0004 列，备份仍被 Git 忽略。",
+    "既有 loopback 8000/5173 监听进程与自有记录一致，后端健康 HTTP 200 且数据库 ready；按活跃数据库处理，未重启或终止服务，不宣称已排除所有其他连接。",
+    "Python 85 passed、6 PostgreSQL online skipped；Node 14 passed；build passed；测试仅使用临时数据库，工作树干净。",
+    "兼容风险：0004 的 SQLite batch 可能重建配置表；新后端在未迁移时会对模块存储返回不可用；降级会删除状态覆盖和新操作审计。"
+  ],
   "blockers": [],
   "branch": "main",
   "pr_url": null,
-  "commit_sha": null,
-  "next_action": "核实隔离 SQLite、备份安全与兼容风险；迁移需另行明确批准。"
+  "commit_sha": "af84a504fa437e7eccc505c86708e0cebf359ed2",
+  "next_action": "预检结果支持进入下一任务的迁移审批，但不构成迁移授权。必须用户明确批准后，才安排受控停写、确认备份及目标、实施 0004 与升级后验收；本任务没有执行 upgrade/downgrade、源库写入或服务重启。"
 }
