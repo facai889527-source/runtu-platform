@@ -1,17 +1,18 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-import AppLayout from './components/AppLayout.vue'
 import AuthLayout from './components/AuthLayout.vue'
-import UserMenu from './components/UserMenu.vue'
-import DashboardPage from './pages/DashboardPage.vue'
-import ModulesPage from './pages/ModulesPage.vue'
-import SettingsPage from './pages/SettingsPage.vue'
-import NotFoundPage from './pages/NotFoundPage.vue'
 import LoginPage from './pages/LoginPage.vue'
+import { asyncView } from './components/asyncView.js'
 import { readIdentity } from './api/auth.js'
 import { provideNavigation } from './navigation/context.js'
 import { useResource } from './composables/useResource.js'
 import { readHealth, readModules } from './api/client.js'
+const AppLayout = asyncView(() => import('./components/AppLayout.vue'))
+const UserMenu = asyncView(() => import('./components/UserMenu.vue'))
+const DashboardPage = asyncView(() => import('./pages/DashboardPage.vue'))
+const ModulesPage = asyncView(() => import('./pages/ModulesPage.vue'))
+const SettingsPage = asyncView(() => import('./pages/SettingsPage.vue'))
+const NotFoundPage = asyncView(() => import('./pages/NotFoundPage.vue'))
 const { route, navigate } = provideNavigation()
 const health = useResource(readHealth), modules = useResource(readModules)
 const identity = useResource(readIdentity)
