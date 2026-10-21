@@ -1,0 +1,13 @@
+{
+  "task_id": "TASK-0022",
+  "signal_version": 22,
+  "state": "running",
+  "updated_at": "2026-10-21T06:57:41.661Z",
+  "summary": "已领取独立登录布局与后台信息架构重构任务。",
+  "checks": [],
+  "blockers": [],
+  "branch": "codex/TASK-0022-admin-layout",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "保留真实认证和权限边界，完成页面重构及回归测试。"
+}
