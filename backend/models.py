@@ -28,11 +28,13 @@ class ModuleConfigRecord(Base):
 
 class AuthUser(Base):
     __tablename__ = "auth_users"
+    __table_args__ = (CheckConstraint("role IN ('owner', 'admin', 'viewer')", name="ck_auth_users_role"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    role: Mapped[str] = mapped_column(String(16), default='viewer')
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

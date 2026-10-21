@@ -7,6 +7,7 @@ from starlette.concurrency import run_in_threadpool
 
 from backend.auth.service import AuthDenied, AuthService, AuthUnavailable, RateLimited, csrf_token
 from backend.config import is_loopback
+from backend.auth.policy import PERMISSIONS, ROLE_PERMISSIONS, permissions_for
 
 router = APIRouter(prefix='/api/auth', tags=['identity'])
 
@@ -120,14 +121,14 @@ async def logout(request: Request, context=Depends(protected_post)):
 
 
 def require_authenticated(request: Request, service=Depends(auth_service)):
+    identity = service.current(token_from(request, service))
+    if identity is None:
+        raise auth_error(401, 'Authentication required')
     if request.method not in ('GET', 'HEAD', 'OPTIONS'):
         try:
             service.validate_csrf(token_from(request, service), request.headers.get('x-csrf-token'))
         except AuthDenied:
             raise auth_error(403, 'Invalid security context') from None
-    identity = service.current(token_from(request, service))
-    if identity is None:
-        raise auth_error(401, 'Authentication required')
     return identity
 
 
@@ -137,9 +138,40 @@ def require_admin(identity=Depends(require_authenticated)):
     return identity
 
 
+def require_permission(permission):
+    def check(identity=Depends(require_authenticated)):
+        if permission not in PERMISSIONS or permission not in permissions_for(identity.role):
+            raise auth_error(403, 'Permission denied')
+        return identity
+    return check
+
+
+def require_role(*roles):
+    def check(identity=Depends(require_authenticated)):
+        if not roles or any(role not in ROLE_PERMISSIONS for role in roles) or identity.role not in roles:
+            raise auth_error(403, 'Role denied')
+        return identity
+    return check
+
+
+def module_readonly_boundary(request: Request):
+    if request.method not in ('GET', 'HEAD', 'OPTIONS'):
+        raise auth_error(403, 'Module writes are not enabled')
+
+
+admin_router = APIRouter(prefix='/api/admin', tags=['authorization'])
+
+
+@admin_router.get('/me')
+def admin_me(identity=Depends(require_permission('platform.read'))):
+    return JSONResponse({'id': identity.id, 'username': identity.username, 'role': identity.role,
+        'permissions': sorted(permissions_for(identity.role))}, headers={'Cache-Control': 'no-store'})
+
+
 def install_auth(app, database, settings):
     app.state.auth_service = AuthService(database, settings)
     app.include_router(router)
+    app.include_router(admin_router)
 
     @app.exception_handler(AuthUnavailable)
     async def unavailable(_request, _error):

@@ -2,6 +2,7 @@
 import { ref, onUnmounted } from 'vue'
 import RouteLink from './RouteLink.vue'
 import { logout } from '../api/auth.js'
+import AccessSummary from './AccessSummary.vue'
 defineProps({ identity: Object, pending: Boolean, unavailable: Boolean })
 const emit = defineEmits(['changed'])
 const busy = ref(false), error = ref('')
@@ -22,6 +23,7 @@ onUnmounted(() => { clearTimeout(timer); controller?.abort() })
     <button v-if="identity?.authenticated && !unavailable && !pending" :disabled="busy" @click="signOut">{{ busy ? '正在退出…' : '退出登录' }}</button>
     <RouteLink v-else to="/login" class="button-link">管理员登录</RouteLink>
     <p v-if="error" role="alert">{{ error }}</p>
+    <AccessSummary v-if="identity?.authenticated && !pending && !unavailable && !busy" />
   </div>
 </template>
 <style scoped>

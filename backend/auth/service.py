@@ -40,7 +40,12 @@ def csrf_token(token):
 class Identity:
     id: str
     username: str
-    is_admin: bool
+    role: str
+
+    @property
+    def is_admin(self):
+        # Compatibility response field; the old DB boolean is not an authorization source.
+        return self.role in ('owner', 'admin')
 
 
 class AuthUnavailable(RuntimeError):
@@ -152,7 +157,7 @@ class AuthService:
                 session.delete(row)
                 return None
             row.last_seen_at = self.clock()
-            return Identity(user.id, user.username, user.is_admin)
+            return Identity(user.id, user.username, user.role)
 
     def login(self, token, username, password, source):
         username = username.strip().lower()
@@ -183,7 +188,7 @@ class AuthService:
                         last_seen_at=now, expires_at=now + timedelta(seconds=self.settings.auth_session_seconds)))
                     if HASHER.check_needs_rehash(encoded):
                         user.password_hash = HASHER.hash(password)
-                    identity = Identity(user.id, user.username, user.is_admin)
+                    identity = Identity(user.id, user.username, user.role)
             self._event(session, 'login_success' if identity else 'login_failed', source, user_id)
         if identity is None:
             raise AuthDenied('Invalid credentials')
@@ -208,7 +213,7 @@ class AuthService:
                 now, user_id = self.clock(), str(uuid4())
                 session.add(AuthBootstrap(id=1, created_at=now))
                 session.add(AuthUser(id=user_id, username=username, password_hash=encoded,
-                    active=True, is_admin=True, created_at=now))
+                    active=True, is_admin=True, role='owner', created_at=now))
                 self._event(session, 'bootstrap', 'local-cli', user_id)
         except AuthUnavailable:
             # Includes concurrent singleton/username conflict; no partially created administrator.
