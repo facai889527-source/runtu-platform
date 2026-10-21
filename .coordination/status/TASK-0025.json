@@ -1,0 +1,13 @@
+{
+  "task_id": "TASK-0025",
+  "signal_version": 25,
+  "state": "running",
+  "updated_at": "2026-10-21T07:38:19.406Z",
+  "summary": "已领取受控模块管理任务；用户真实浏览器登录、刷新保持及退出已由正式任务确认，不重复要求操作。",
+  "checks": [],
+  "blockers": [],
+  "branch": "codex/TASK-0025-module-management",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "以版本控制事务实现受控状态与公开配置写入、权限及回归测试；不迁移用户开发库，仅写自身任务状态。"
+}
