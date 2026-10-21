@@ -46,7 +46,7 @@ try {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
     // Only safe UI state; never dump DOM inputs, network headers or credentials.
-    console.log(await evaluate(`({path:location.pathname, heading:document.querySelector('h1')?.textContent, status:document.querySelector('.identity-bar [role=status]')?.textContent, alert:document.querySelector('[role=alert]')?.textContent})`))
+    console.log('Auth fixture condition timed out; no credentials dumped.')
     throw new Error('Auth smoke condition timed out')
   }
   async function screenshot(name) {
@@ -58,7 +58,7 @@ try {
   await send('Runtime.enable'); await send('Page.enable')
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false })
   await send('Page.navigate', { url: 'http://127.0.0.1:5173/login' })
-  await until(`document.querySelector('#login-password') && document.body.innerText.includes('匿名浏览')`)
+  await until(`document.querySelector('#login-password') && !document.querySelector('.sidebar')`)
   await screenshot('login-desktop')
   async function submit(password) {
     // Values stay in the isolated browser and this test's memory, never console output.
@@ -68,18 +68,20 @@ try {
   await until(`document.querySelector('[role=alert]')?.textContent.includes('用户名或密码不正确')`)
   assert.equal(await evaluate(`document.querySelector('#login-password').value`), '')
   await submit(credentials.password)
-  await until(`location.pathname === '/' && document.body.innerText.includes('已登录 · browser-test')`)
-  await until(`document.querySelector('.access-role')?.textContent.includes('所有者') && document.querySelector('.access-summary')?.textContent.includes('users.manage')`)
+  await until(`location.pathname === '/' && document.querySelector('.user-name')?.textContent === 'browser-test'`)
+  await until(`document.querySelector('.account-role')?.textContent.includes('所有者')`)
   assert.equal(await evaluate(`document.cookie.includes('runtu_dev_session')`), false)
   assert.equal(await evaluate(`localStorage.length`), 0)
+  await evaluate(`document.querySelector('.user-trigger').click()`)
   await screenshot('authenticated-desktop')
   await screenshot('rbac-desktop')
   await send('Page.reload')
-  await until(`document.body.innerText.includes('已登录 · browser-test')`)
-  await evaluate(`[...document.querySelectorAll('button')].find(el => el.textContent === '退出登录').click()`)
-  await until(`document.body.innerText.includes('匿名浏览 · 当前只读')`)
+  await until(`document.querySelector('.user-name')?.textContent === 'browser-test'`)
+  await evaluate(`document.querySelector('.user-trigger').click()`)
+  await evaluate(`document.querySelector('.sign-out').click()`)
+  await until(`location.pathname === '/login' && document.querySelector('#login-password')`)
   await send('Page.reload')
-  await until(`document.body.innerText.includes('匿名浏览 · 当前只读')`)
+  await until(`location.pathname === '/login' && document.querySelector('#login-password')`)
   for (const [width, height] of [[390, 844], [360, 800]]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: true })
     await send('Page.navigate', { url: 'http://127.0.0.1:5173/login' })
@@ -89,13 +91,14 @@ try {
     await screenshot(`login-mobile-${width}`)
     if (width === 390) {
       await submit(credentials.password)
-      await until(`document.querySelector('.access-role')?.textContent.includes('所有者') && location.pathname === '/'`)
+      await until(`document.querySelector('.account-role')?.textContent.includes('所有者') && location.pathname === '/'`)
       assert.equal(await evaluate(`document.documentElement.scrollWidth <= innerWidth`), true)
       await screenshot('rbac-mobile-390')
-      await evaluate(`[...document.querySelectorAll('button')].find(el => el.textContent === '退出登录').click()`)
-      await until(`document.body.innerText.includes('匿名浏览 · 当前只读') && !document.querySelector('.access-summary')`)
+      await evaluate(`document.querySelector('.user-trigger').click()`)
+      await evaluate(`document.querySelector('.sign-out').click()`)
+      await until(`location.pathname === '/login' && document.querySelector('#login-password')`)
     }
   }
   assert.deepEqual(errors, [])
-  console.log('PASS real auth/RBAC: wrong password, field clearing, login, server owner/permissions, HttpOnly, no localStorage, reload, logout, mobile 390/360')
+  console.log('PASS disposable auth fixture: wrong password, field clearing, login, server owner role, HttpOnly, no localStorage, reload, logout, mobile 390/360; not the real administrator')
 } finally { credentials.password = ''; socket?.close(); child.kill() }

@@ -79,7 +79,7 @@ try {
   await evaluate(`(()=>{const el=document.querySelector('select');el.value='disabled';el.dispatchEvent(new Event('change',{bubbles:true}))})()`)
   await until(`document.body.innerText.includes('找到 0 个模块')`)
   await click('重置筛选');await click('设置')
-  await until(`document.body.innerText.includes('管理配置尚未开放')`)
+  await until(`document.body.innerText.includes('平台设置尚未开放')`)
   await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true})
   await new Promise(r=>setTimeout(r,300)); await click('打开导航')
   await until(`document.querySelector('[role=dialog]') && document.querySelector('.workspace').inert`)
@@ -97,7 +97,7 @@ try {
   // Test actual document navigation and dev history fallback at all four widths.
   for (const [width, height] of [[1440, 900], [1280, 900], [390, 844], [360, 800]]) {
     await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<761})
-    for (const [pathname, text] of [['/','平台健康'],['/modules','模块目录'],['/modules/demo','公开配置'],['/settings','管理配置尚未开放'],['/unknown-route','404 · 找不到这个页面']]) {
+    for (const [pathname, text] of [['/','平台健康'],['/modules','模块目录'],['/modules/demo','公开配置'],['/settings','平台设置尚未开放'],['/unknown-route','404 · 找不到这个页面']]) {
       await loadDocument('Page.navigate',{url:'http://127.0.0.1:5173'+pathname})
       await until(`location.pathname===${JSON.stringify(pathname)} && document.body.innerText.includes(${JSON.stringify(text)})`)
       assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true)

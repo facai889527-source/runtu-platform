@@ -16,14 +16,13 @@ const metrics = [
 </script>
 
 <template>
-  <p class="lead">掌握平台状态，查看已接入的模块。</p>
   <section class="panel health-panel" aria-labelledby="health-title">
-    <div class="section-heading compact-heading"><h2 id="health-title">平台健康</h2><span class="subtle">当前检查结果</span></div>
+    <div class="section-heading compact-heading"><h2 id="health-title">平台健康</h2></div>
     <ResourceState :pending="health.pending.value" :error="health.error.value" @retry="health.load()">
       <div v-if="health.data.value" class="health-summary">
         <div class="health-content">
           <span class="health-symbol" :class="{ warning: health.data.value.status !== 'ok' }"><AppIcon :name="health.data.value.status === 'ok' ? 'check' : 'alert'" :size="22" /></span>
-          <div><h3>{{ health.data.value.status === 'ok' ? '后端运行正常' : '后端已连接，服务降级' }}</h3><p>状态来自当前后端检查</p></div>
+          <div><h3>{{ health.data.value.status === 'ok' ? '后端运行正常' : '后端已连接，服务降级' }}</h3></div>
         </div>
         <div class="database-summary" :class="{ warning: health.data.value.database === 'not_configured', danger: health.data.value.database === 'unavailable' }">
           <AppIcon name="database" :size="19" /><div><span class="database-label">数据库状态</span><p>{{ databaseLabels[health.data.value.database] }}</p></div>
@@ -49,6 +48,6 @@ const metrics = [
         </li>
       </ul>
     </ResourceState>
-    <div class="panel-footnote"><AppIcon name="info" :size="15" /><span>模块信息由服务端注册，当前工作台仅支持查看。<span v-if="counts && counts.total > 5"> 这里展示前 5 个模块，完整目录共 {{ counts.total }} 个。</span></span></div>
+    <div v-if="counts && counts.total > 5" class="panel-footnote"><AppIcon name="info" :size="15" /><span>展示前 5 个模块，完整目录共 {{ counts.total }} 个。</span></div>
   </section>
 </template>

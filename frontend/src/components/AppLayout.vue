@@ -3,7 +3,7 @@ import { ref, nextTick, watch, onMounted, onUnmounted, useTemplateRef } from 'vu
 import RouteLink from './RouteLink.vue'
 import AppIcon from './AppIcon.vue'
 import BrandMark from './BrandMark.vue'
-const props = defineProps({ page: String, title: String, path: String, connection: String, platform: String })
+const props = defineProps({ page: String, title: String, path: String, platform: String })
 defineEmits(['refresh'])
 const collapsed = ref(false), mobileOpen = ref(false)
 const sidebar = useTemplateRef('sidebar'), menu = useTemplateRef('menu'), content = useTemplateRef('content')
@@ -46,11 +46,11 @@ onUnmounted(() => { media.removeEventListener('change', resize); document.remove
       <button class="mobile-only drawer-close" @click="close"><AppIcon name="close" />关闭导航</button>
       <p class="nav-caption nav-label">工作空间</p>
       <nav aria-label="主导航"><RouteLink v-for="entry in entries" :key="entry.id" :to="entry.path" :aria-label="entry.name" :title="entry.name" :aria-current="page === entry.id ? 'page' : undefined" @navigate="focusPage"><AppIcon :name="entry.icon" /><span class="nav-label">{{ entry.name }}</span></RouteLink></nav>
-      <div class="sidebar-foot"><div class="access-note nav-label"><AppIcon name="lock" :size="16" /><span>只读工作台<small>管理能力，循序接入</small></span></div><button class="desktop-only collapse-button" :aria-expanded="!collapsed" aria-controls="navigation" :aria-label="collapsed ? '展开侧栏' : '折叠侧栏'" @click="collapsed = !collapsed"><AppIcon :name="collapsed ? 'right' : 'left'" :size="18" /><span class="nav-label">折叠侧栏</span></button></div>
+      <div class="sidebar-foot"><button class="desktop-only collapse-button" :aria-expanded="!collapsed" aria-controls="navigation" :aria-label="collapsed ? '展开侧栏' : '折叠侧栏'" @click="collapsed = !collapsed"><AppIcon :name="collapsed ? 'right' : 'left'" :size="18" /><span class="nav-label">折叠侧栏</span></button></div>
     </aside>
     <div class="workspace" :inert="mobileOpen">
-      <header class="toolbar"><div class="toolbar-title"><button ref="menu" class="mobile-only icon-button" aria-label="打开导航" :aria-expanded="mobileOpen" aria-controls="navigation" @click="open"><AppIcon name="menu" /></button><span class="breadcrumb-parent">工作空间</span><AppIcon class="breadcrumb-divider" name="right" :size="14" /><span class="breadcrumb-current">{{ title }}</span></div><div class="toolbar-actions"><span class="connection" :class="{ 'is-loading': connection === '正在连接', 'is-error': connection.includes('失败'), 'is-warning': connection.includes('降级') }" role="status"><i aria-hidden="true" />{{ connection }}</span><button class="refresh-button" @click="$emit('refresh')"><AppIcon name="refresh" :size="16" />刷新数据</button></div></header>
-      <main id="main-content" ref="content" tabindex="-1"><div class="page-intro"><p class="platform-name">{{ platform }}</p><h1>{{ title }}</h1></div><slot /></main>
+      <header class="toolbar"><div class="toolbar-title"><button ref="menu" class="mobile-only icon-button" aria-label="打开导航" :aria-expanded="mobileOpen" aria-controls="navigation" @click="open"><AppIcon name="menu" /></button><span class="breadcrumb-parent">工作空间</span><AppIcon class="breadcrumb-divider" name="right" :size="14" /><span class="breadcrumb-current">{{ title }}</span></div><div class="toolbar-actions"><button class="refresh-button" aria-label="刷新数据" title="刷新数据" @click="$emit('refresh')"><AppIcon name="refresh" :size="16" /></button><slot name="account" /></div></header>
+      <main id="main-content" ref="content" tabindex="-1"><div class="page-intro"><h1>{{ title }}</h1></div><slot /></main>
       <footer><span>Runtu Platform</span><span>模块化管理 · 专注于连接</span></footer>
     </div>
   </div>
