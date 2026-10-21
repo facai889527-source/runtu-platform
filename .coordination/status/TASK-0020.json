@@ -1,13 +1,20 @@
 {
   "task_id": "TASK-0020",
   "signal_version": 20,
-  "state": "running",
-  "updated_at": "2026-10-21T06:22:36.007Z",
-  "summary": "已领取双向状态回传任务；正在核对现有自动化与安全回传能力。",
-  "checks": [],
+  "state": "completed",
+  "updated_at": "2026-10-21T06:27:50.407Z",
+  "summary": "双向状态回传协议已落地，历史结果已补回；现有自动任务已保存强制回传说明。",
+  "checks": [
+    "实际通过 GitHub Contents API 写入 running 并回读确认。",
+    "TASK-0018 completed、TASK-0019 blocked_user_action 及 PROTOCOL.md 均已写入并回读确认。",
+    "automation_update 已更新既有 prompt；本地持久配置复核 ACTIVE、三分钟规则、目标会话均未改变。",
+    "重复触发检查模拟 4/4 拒绝重跑：已完成、等待交互、执行中、已有 PR；模拟未调用业务命令。",
+    "本地 HEAD 未变化，工作树干净；未触碰产品代码、环境秘密、数据库或管理员引导。",
+    "后续定时触发采用新提示尚待观察；备用状态分支路径未实际触发，不宣称已验收。"
+  ],
   "blockers": [],
   "branch": null,
   "pr_url": null,
-  "commit_sha": null,
-  "next_action": "实现协议、补回历史状态、验证远端读取及调度提示更新。"
+  "commit_sha": "9f910f0cd41da12140aa2ffeb2f92866bd931951",
+  "next_action": "ChatGPT 直接读取本任务及 TASK-0019 状态；后续心跳核验新协议执行。TASK-0019 仍等待用户亲自进行 TTY 引导和真实登录验收。"
 }
