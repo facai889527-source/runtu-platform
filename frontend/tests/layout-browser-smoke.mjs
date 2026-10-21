@@ -4,7 +4,9 @@ import { spawn } from 'node:child_process'
 import { writeFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import assert from 'node:assert/strict'
-const output = path.resolve('.git/codex-coordination/layout22')
+const origin = process.env.RUNTU_UI_BASE_URL || 'http://127.0.0.1:5173'
+assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:4173'].includes(origin), 'Only explicit loopback dev/preview origins are supported')
+const output = path.resolve('.git/codex-coordination/layout23', new URL(origin).port)
 await mkdir(output, { recursive: true })
 let occupied = false
 try { occupied = (await fetch('http://127.0.0.1:9229/json')).ok } catch { /* Free port. */ }
@@ -56,6 +58,15 @@ try {
     await writeFile(path.join(output, name + '.png'), Buffer.from(shot.data, 'base64'))
   }
   let authenticated = false, failLogout = false, failIdentity = false, invalidRole = false
+  let failSettings = false, delaySettings = false
+  const scriptRequests = new Set()
+  socket.addEventListener('message', event => {
+    const message = JSON.parse(event.data)
+    if (message.method === 'Network.requestWillBeSent' && message.params.type === 'Script') {
+      const url = new URL(message.params.request.url)
+      if (url.origin === origin) scriptRequests.add(url.pathname)
+    }
+  })
   const user = { id: 'layout-fixture-id', username: 'layout-fixture', is_admin: true }
   const module = { id: 'demo', name: '演示模块', version: '1.0.0', description: '仅用于布局验证的模块夹具。', category: 'tools', status: 'enabled', capabilities: ['inspect'] }
   let apiRequests = 0, sessionWrites = 0
@@ -65,6 +76,14 @@ try {
     const { requestId, request } = message.params
     try {
       const pathname = new URL(request.url).pathname
+      if (!pathname.startsWith('/api/')) {
+        if (failSettings) await send('Fetch.failRequest', { requestId, errorReason: 'ConnectionFailed' })
+        else {
+          if (delaySettings) await new Promise(resolve => setTimeout(resolve, 600))
+          await send('Fetch.continueRequest', { requestId })
+        }
+        return
+      }
       apiRequests++
       let code = 200, body
       if (pathname === '/api/health') body = { status: 'ok', platform: 'Runtu Platform', database: 'ready' }
@@ -93,9 +112,10 @@ try {
   })
   await send('Runtime.enable'); await send('Page.enable')
   await send('Page.bringToFront')
-  await send('Fetch.enable', { patterns: [{ urlPattern: 'http://127.0.0.1:5173/api/*' }] })
+  await send('Network.enable'); await send('Network.setCacheDisabled', { cacheDisabled: true })
+  await send('Fetch.enable', { patterns: [{ urlPattern: origin + '/api/*' }, { urlPattern: origin + '/*SettingsPage*' }] })
   async function visit(pathname) {
-    await send('Page.navigate', { url: 'http://127.0.0.1:5173' + pathname })
+    await send('Page.navigate', { url: origin + pathname })
     await until(`document.querySelector('h1') && !document.querySelector('.auth-check')`)
   }
   async function click(selector) { await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`) }
@@ -112,6 +132,13 @@ try {
     assert.equal(await evaluate(`document.querySelector('#login-username').value`), 'layout-fixture')
     assert.equal(await evaluate(`document.querySelector('.login-submit').getBoundingClientRect().height >= 44`), true)
     await noOverflow(); await screenshot(`login-${width}`)
+    if (width === 1440) {
+      const scripts = [...scriptRequests].sort()
+      assert.ok(scripts.length > 0)
+      assert.deepEqual(scripts.filter(url => /(?:DashboardPage|ModulesPage|SettingsPage|AppLayout|UserMenu)[.-]/.test(url)), [], 'Anonymous login must not request workspace chunks')
+      await writeFile(path.join(output, 'login-script-requests.json'), JSON.stringify({ origin, scripts, excludedWorkspaceChunks: true }, null, 2))
+      console.log(`PASS cold login resource boundary: ${scripts.length} script requests; no workspace/page chunks (${new URL(origin).port})`)
+    }
     // Deliberately fake inputs; all APIs above are intercepted, no live account or DB used.
     await evaluate(`(() => { for (const [id, value] of [['login-username','layout-fixture'], ['login-password','fixture-only-not-a-real-password']]) { const el = document.getElementById(id); el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); } document.querySelector('.login-form').requestSubmit(); })()`)
     await until(`location.pathname === '/' && document.querySelector('.user-menu')`)
@@ -168,7 +195,17 @@ try {
   await click('.user-trigger')
   await until(`document.querySelector('.account-role')?.textContent.includes('角色暂无法确认')`)
   assert.equal(await evaluate(`document.querySelector('.account-role').textContent.includes('owner')`), false)
+  invalidRole = false
+  failSettings = true
+  await visit('/settings')
+  await until(`document.querySelector('.async-view-state[role=alert]')`)
+  assert.equal(await evaluate(`document.querySelector('.async-view-state').textContent.includes('页面资源加载失败')`), true)
+  failSettings = false; delaySettings = true
+  await click('.async-view-state button')
+  await until(`document.querySelector('.async-view-state[role=status]')`)
+  await until(`document.querySelector('.settings')`)
+  delaySettings = false
   assert.ok(apiRequests > 0 && sessionWrites >= 6)
   assert.deepEqual(errors, [])
-  console.log('PASS isolated UI fixtures: independent login, redirect, account role, one logout, failure/retry, reload, logout, 1440/390/360, navigation, no overflow. No real admin login verified.')
+  console.log('PASS isolated UI fixtures: independent login, redirect, account role, one logout, failure/retry, reload, logout, 1440/390/360, navigation, no overflow, lazy chunk failure/loading/recovery. No real admin login verified.')
 } finally { socket?.close(); child.kill() }
