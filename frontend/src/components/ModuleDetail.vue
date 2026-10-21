@@ -19,7 +19,6 @@ onUnmounted(detail.cancel)
       <section class="panel detail-identity" aria-label="模块摘要">
         <span class="module-avatar large-avatar"><AppIcon name="module" :size="28" /></span>
         <div class="identity-copy"><div class="identity-title"><h2>{{ detail.data.value.name || detail.data.value.id }}</h2><ModuleStatus :status="detail.data.value.status" /></div><p>{{ detail.data.value.description || '此模块尚未提供描述。' }}</p><span class="module-id">{{ detail.data.value.id }}<span class="version">v{{ detail.data.value.version || '未提供' }}</span></span></div>
-        <span class="readonly-label"><AppIcon name="lock" :size="14" />只读</span>
       </section>
       <p v-if="detail.data.value.status === 'disabled'" class="disabled-note">此模块已禁用，业务路由不可用。以下信息仅供查看。</p>
       <div class="detail-columns">
@@ -31,7 +30,7 @@ onUnmounted(detail.cancel)
           <div class="section-heading"><div class="icon-heading"><AppIcon name="settings" /><h2 id="config-title">公开配置</h2></div><span class="readonly-label">只读</span></div>
           <div class="config-entry"><div><h3>导航展示偏好</h3><p>模块声明的导航可见性</p></div><span class="config-value">{{ detail.data.value.public_config.show_in_navigation ? '显示' : '隐藏' }}</span></div>
           <div class="config-entry"><div><h3>刷新间隔偏好</h3><p>模块声明的数据刷新间隔</p></div><span class="config-value">{{ detail.data.value.public_config.refresh_interval_seconds == null ? '未设置' : `${detail.data.value.public_config.refresh_interval_seconds} 秒` }}</span></div>
-          <div class="config-note"><AppIcon name="info" :size="17" /><p>仅展示服务端公开偏好，本页面不会据此自动刷新或隐藏模块。管理配置将在认证授权完成后开放。</p></div>
+          <div class="config-note"><AppIcon name="info" :size="17" /><p>配置编辑功能尚未开放，与账户角色权限无关。此处偏好不会自动刷新或隐藏模块。</p></div>
         </section>
       </div>
     </template>
