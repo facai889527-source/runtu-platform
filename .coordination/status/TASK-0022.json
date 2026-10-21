@@ -2,7 +2,7 @@
   "task_id": "TASK-0022",
   "signal_version": 22,
   "state": "completed",
-  "updated_at": "2026-10-21T07:07:52.862Z",
+  "updated_at": "2026-10-21T07:08:31.991Z",
   "summary": "独立登录布局与统一后台账户菜单已完成，开发分支及 PR 已提交供审查。",
   "checks": [
     "登录页独立于后台导航和工具栏；已确认登录访问登录页会跳回仪表盘。",
@@ -10,7 +10,7 @@
     "Node 12 passed；前端 build passed；Python 75 passed、5 PostgreSQL online skipped；差异检查通过。",
     "实际 Chrome 隔离 API 夹具通过 1440/390/360 像素布局、焦点、重定向、刷新、退出失败重试、身份异常、未知角色及导航检查。",
     "PR 附中文验证说明和四张明确夹具截图；GitHub 确认可合并，无代码冲突。",
-    "GitHub CI 已触发，结果检查中；本地结果不冒充 CI 成功。",
+    "最终提交的 GitHub CI 两次运行均 success：https://github.com/facai889527-source/runtu-platform/actions/runs/39559802908 和 https://github.com/facai889527-source/runtu-platform/actions/runs/39559802920。",
     "未变更后端认证、依赖、开发数据库或环境配置；原供用户操作的 loopback 服务保留，本任务自有浏览器已清理。"
   ],
   "blockers": [],
