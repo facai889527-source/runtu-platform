@@ -56,7 +56,7 @@ try {
   async function screenshot(name) {
     // Guard every capture: never record a filled password field.
     assert.equal(await evaluate(`!document.querySelector('input[type=password]')?.value`), true)
-    const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true })
+    const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: !name.startsWith('users-') })
     await writeFile(path.join(output, name + '.png'), Buffer.from(shot.data, 'base64'))
   }
   let authenticated = false, failLogout = false, failIdentity = false, invalidRole = false
@@ -71,7 +71,9 @@ try {
   })
   const user = { id: 'layout-fixture-id', username: 'layout-fixture', is_admin: true }
   let module = { id: 'demo', name: '演示模块', version: '1.0.0', description: '仅用于布局验证的模块夹具。', category: 'tools', status: 'enabled', capabilities: ['inspect'], required: false, revision: 0, public_config: { show_in_navigation: true, refresh_interval_seconds: null } }
-  let saveStatus = 200, viewer = false
+  let saveStatus = 200, viewer = false, admin = false
+  let usersStatus = 200, usersWriteStatus = 200, userRequests = 0
+  let managedUsers = [{ id: 'layout-fixture-id', username: 'layout-fixture', role: 'owner', active: true, created_at: '2026-10-21T08:00:00Z' }, ...Array.from({ length: 21 }, (_, index) => ({ id: `user-fixture-${index}`, username: `user-${String(index).padStart(3,'0')}`, role: 'viewer', active: true, created_at: '2026-10-21T08:00:00Z' }))]
   let auditEntries = [], auditStatus = 200, auditRequests = 0, delayAudit = false
   let apiRequests = 0, sessionWrites = 0
   socket.addEventListener('message', async event => {
@@ -91,6 +93,29 @@ try {
       apiRequests++
       let code = 200, body
       if (pathname === '/api/health') body = { status: 'ok', platform: 'Runtu Platform', database: 'ready' }
+      else if (pathname === '/api/admin/users' || pathname.startsWith('/api/admin/users/')) {
+        userRequests++
+        code = !authenticated ? 401 : viewer || admin ? 403 : request.method === 'GET' ? usersStatus : usersWriteStatus
+        if (code === 200 && request.method === 'GET') {
+          const after = new URL(request.url).searchParams.get('after_username')
+          const rows = managedUsers.filter(item => after == null || item.username > after).sort((a,b) => a.username < b.username ? -1 : 1)
+          body = { items: rows.slice(0,20), next_after_username: rows.length > 20 ? rows[19].username : null }
+        } else if (code === 200 && request.method === 'POST') {
+          assert.ok(Object.keys(request.headers).some(key => key.toLowerCase() === 'x-csrf-token'))
+          const value = JSON.parse(request.postData)
+          assert.ok(value.password.length >= 14)
+          body = { id: 'new-fixture-id', username: value.username, role: value.role, active: true, created_at: '2026-10-21T08:00:00Z' }
+          managedUsers.push(body); code = 201
+        } else if (code === 200 && request.method === 'PATCH') {
+          const id = pathname.split('/').at(-1), value = JSON.parse(request.postData)
+          assert.notEqual(id, user.id)
+          const index = managedUsers.findIndex(item => item.id === id)
+          assert.equal(managedUsers[index].role, value.expected_role)
+          assert.equal(managedUsers[index].active, value.expected_active)
+          managedUsers[index] = { ...managedUsers[index], role: value.role, active: value.active }
+          body = managedUsers[index]
+        } else body = { detail: 'fixture-user-error' }
+      }
       else if (pathname === '/api/modules') body = [module]
       else if (pathname === '/api/modules/demo') body = module
       else if (pathname === '/api/admin/modules/demo/changes') {
@@ -116,7 +141,7 @@ try {
         body = { authenticated, user: authenticated ? user : null }
       } else if (pathname === '/api/admin/me') {
         code = authenticated ? 200 : 401
-        body = { ...user, role: invalidRole ? 'unknown' : viewer ? 'viewer' : 'owner', permissions: viewer ? ['platform.read', 'module.read'] : ['platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read'] }
+        body = { ...user, role: invalidRole ? 'unknown' : viewer ? 'viewer' : admin ? 'admin' : 'owner', permissions: viewer ? ['platform.read', 'module.read'] : admin ? ['platform.read','module.read','module.manage','audit.read'] : ['platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read'] }
       } else if (pathname === '/api/auth/csrf') body = { csrf_token: 'a'.repeat(64) } // Public test proof only.
       else if (pathname === '/api/auth/login' || pathname === '/api/auth/logout') {
         assert.equal(request.method, 'POST')
@@ -167,7 +192,7 @@ try {
     if (width === 1440) {
       const scripts = [...scriptRequests].sort()
       assert.ok(scripts.length > 0)
-      assert.deepEqual(scripts.filter(url => /(?:DashboardPage|ModulesPage|SettingsPage|AppLayout|UserMenu)[.-]/.test(url)), [], 'Anonymous login must not request workspace chunks')
+      assert.deepEqual(scripts.filter(url => /(?:DashboardPage|ModulesPage|SettingsPage|UsersPage|AppLayout|UserMenu)[.-]/.test(url)), [], 'Anonymous login must not request workspace chunks')
       await writeFile(path.join(output, 'login-script-requests.json'), JSON.stringify({ origin, scripts, excludedWorkspaceChunks: true }, null, 2))
       console.log(`PASS cold login resource boundary: ${scripts.length} script requests; no workspace/page chunks (${new URL(origin).port})`)
     }
@@ -217,6 +242,14 @@ try {
       assert.equal(await evaluate(`document.querySelector('.shell').classList.contains('collapsed')`), true)
       await click('[aria-label="展开侧栏"]')
     }
+    await visit('/users')
+    await until(`document.querySelectorAll('.managed-user').length === 20`)
+    assert.equal(await evaluate(`document.querySelector('.managed-user fieldset').disabled`), true)
+    await noOverflow(); await screenshot(`users-${width}`)
+    await click('.user-pagination button:last-child')
+    await until(`document.querySelectorAll('.managed-user').length === 2`)
+    await click('.user-pagination button:first-child')
+    await until(`document.querySelectorAll('.managed-user').length === 20`)
     if (width === 1440) {
       failLogout = true
       await click('.user-trigger'); await click('.sign-out')
@@ -289,7 +322,39 @@ try {
   assert.equal(await evaluate(`!document.querySelector('.module-editor-form')`), true)
   await until(`document.querySelector('.module-audit')?.textContent.includes('没有查看操作记录的权限')`)
   assert.equal(auditRequests, allowedAuditRequests)
+  const previousUserRequests = userRequests
+  await visit('/users')
+  await until(`document.querySelector('.users-page')?.textContent.includes('没有用户管理权限')`)
+  assert.equal(userRequests, previousUserRequests)
+  viewer = false; admin = true
+  await loadPage('Page.reload')
+  await until(`document.querySelector('.users-page')?.textContent.includes('没有用户管理权限')`)
+  assert.equal(userRequests, previousUserRequests)
+  admin = false; authenticated = false
+  await loadPage('Page.reload')
+  await until(`document.querySelector('.users-page')?.textContent.includes('没有用户管理权限')`)
+  assert.equal(userRequests, previousUserRequests)
+  authenticated = true
+  await loadPage('Page.reload')
+  await until(`document.querySelector('.user-create-form') && document.querySelectorAll('.managed-user').length === 20`)
+  await evaluate(`(() => { window.confirm=()=>true; const name=document.querySelector('.user-create-form input:not([type=password])'); name.value='fixture-new'; name.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('.user-create-form input[type=password]').value=crypto.randomUUID(); document.querySelector('.user-create-form').requestSubmit(); })()`)
+  await until(`document.querySelector('.user-create [role=status]') && document.querySelector('.managed-user h3')?.textContent === 'fixture-new'`)
+  assert.equal(await evaluate(`document.querySelector('.user-create-form input[type=password]').value`),'')
+  await evaluate(`(() => { const row=document.querySelector('.managed-user'); row.querySelector('.user-active input').click(); row.querySelector('form').requestSubmit(); })()`)
+  await until(`document.querySelector('.managed-user-heading')?.textContent.includes('已禁用')`)
+  await screenshot('users-created-disabled')
+  usersWriteStatus = 409
+  await evaluate(`(() => { const name=document.querySelector('.user-create-form input:not([type=password])'); name.value='fixture-new'; name.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('.user-create-form input[type=password]').value=crypto.randomUUID(); document.querySelector('.user-create-form').requestSubmit(); })()`)
+  await until(`document.querySelector('.user-create [role=alert]')`)
+  assert.equal(await evaluate(`document.querySelector('.user-create-form input[type=password]').value`),'')
+  usersWriteStatus = 200; usersStatus = 503
+  await click('.users-list .section-heading button')
+  await until(`document.querySelector('.users-list [role=alert]')`)
+  assert.equal(await evaluate(`document.querySelectorAll('.managed-user').length`),0)
+  usersStatus = 200
+  await click('.users-list [role=alert] button')
+  await until(`document.querySelectorAll('.managed-user').length === 20`)
   assert.ok(apiRequests > 0 && sessionWrites >= 6)
   assert.deepEqual(errors, [])
-  console.log('PASS isolated UI fixtures: login/roles/logout/lazy views; module save/config/reload/409/503; audit empty/pages/refresh/403/503, desktop+mobile and no anonymous/viewer reads. No real admin login verified.')
+  console.log('PASS isolated UI fixtures: prior module/audit flows; users desktop/mobile pages, owner creation/disable/secret clearing, protected self, 409/503 recovery, admin/viewer/anonymous no reads. No real user data used.')
 } finally { socket?.close(); child.kill() }

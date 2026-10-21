@@ -11,6 +11,7 @@ export function parseRoute(pathname) {
     '/': { page: 'dashboard', title: '仪表盘' },
     '/modules': { page: 'modules', title: '模块管理' },
     '/settings': { page: 'settings', title: '设置' },
+    '/users': { page: 'users', title: '用户管理' },
     '/login': { page: 'login', title: '管理员登录' },
   }
   if (Object.hasOwn(pages, path)) return { ...pages[path], path, moduleId: null }

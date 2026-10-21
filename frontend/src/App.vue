@@ -13,6 +13,7 @@ const UserMenu = asyncView(() => import('./components/UserMenu.vue'))
 const DashboardPage = asyncView(() => import('./pages/DashboardPage.vue'))
 const ModulesPage = asyncView(() => import('./pages/ModulesPage.vue'))
 const SettingsPage = asyncView(() => import('./pages/SettingsPage.vue'))
+const UsersPage = asyncView(() => import('./pages/UsersPage.vue'))
 const NotFoundPage = asyncView(() => import('./pages/NotFoundPage.vue'))
 const { route, navigate } = provideNavigation()
 const health = useResource(readHealth), modules = useResource(readModules)
@@ -39,11 +40,12 @@ onUnmounted(() => { health.cancel(); modules.cancel(); identity.cancel(); access
     <p v-if="!identityChecked" class="auth-check" role="status">正在确认登录状态…</p>
     <LoginPage v-else-if="!identity.data.value?.authenticated" @authenticated="loadIdentity" />
   </AuthLayout>
-  <AppLayout v-else :page="route.page" :title="route.title" :path="route.path" :platform="health.data.value?.platform || 'Runtu Platform'" @refresh="refresh">
+  <AppLayout v-else :page="route.page" :title="route.title" :path="route.path" :can-manage-users="Boolean(access.data.value?.permissions.includes('users.manage'))" :platform="health.data.value?.platform || 'Runtu Platform'" @refresh="refresh">
     <template #account><UserMenu :identity="identity.data.value" :access="access" :pending="identity.pending.value" :unavailable="Boolean(identity.error.value)" @signed-out="signedOut" @refresh-identity="loadIdentity" /></template>
     <DashboardPage v-if="route.page === 'dashboard'" :health="health" :modules="modules" />
     <ModulesPage v-else-if="route.page === 'modules'" :modules="modules" :module-id="route.moduleId" :access="access" @changed="modules.load()" />
     <SettingsPage v-else-if="route.page === 'settings'" />
+    <UsersPage v-else-if="route.page === 'users'" :access="access" :self-id="identity.data.value?.user?.id" />
     <NotFoundPage v-else />
   </AppLayout>
 </template>

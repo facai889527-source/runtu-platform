@@ -13,6 +13,7 @@ from backend.modules import DemoModule, ModuleDetail, ModuleManifest, ModuleRegi
 from backend.persistence import ConfigConflictError, ConfigStorageError, ModuleConfigService, UnknownModuleError
 from backend.module_management import ModuleManagementService, ModulePermissionError, ModuleProtectedError
 from backend.module_audit import AuditUnavailable, ModuleAuditPage, ModuleAuditService
+from backend.user_routes import install_user_management
 
 
 def create_app(
@@ -33,6 +34,7 @@ def create_app(
         docs_url="/docs" if config.expose_api_docs else None,
         redoc_url=None, openapi_url="/openapi.json" if config.expose_api_docs else None)
     install_auth(app, database, config)
+    install_user_management(app, database)
     registry = ModuleRegistry()
     for module in modules if modules is not None else [DemoModule()]:
         registry.register(module)
@@ -58,7 +60,7 @@ def create_app(
 
     @app.exception_handler(RequestValidationError)
     async def invalid_module_write(request, error):
-        if request.url.path.startswith('/api/admin/modules/'):
+        if request.url.path.startswith(('/api/admin/modules/', '/api/admin/users')):
             return JSONResponse({'detail': 'Invalid module request'}, status_code=422,
                                 headers={'Cache-Control': 'no-store'})
         return await request_validation_exception_handler(request, error)
