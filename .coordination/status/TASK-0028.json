@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0028",
+  "signal_version": 28,
+  "state": "running",
+  "updated_at": "2026-10-21T08:32:32.850Z",
+  "summary": "已领取模块操作记录查询及后台审计界面任务，开始核对既有结构、权限和测试。",
+  "checks": [
+    "正式信号TASK-0028:28 ready；本地无执行中任务、outbox为空，同任务全状态PR为空，远端状态确认404。"
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0028-module-audit",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "独立分支复用0004结构，实现audit.read受控查询与模块详情记录区块，使用隔离测试库验收。"
+}
