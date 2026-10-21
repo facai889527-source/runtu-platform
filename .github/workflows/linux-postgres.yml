@@ -48,7 +48,7 @@ jobs:
       - run: git diff --exit-code -- frontend/package.json frontend/pnpm-lock.yaml
 
   postgres:
-    name: PostgreSQL online (9 required, 0 skipped)
+    name: PostgreSQL online (10 required, 0 skipped)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:

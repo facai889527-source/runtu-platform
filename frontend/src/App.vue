@@ -14,6 +14,7 @@ const DashboardPage = asyncView(() => import('./pages/DashboardPage.vue'))
 const ModulesPage = asyncView(() => import('./pages/ModulesPage.vue'))
 const SettingsPage = asyncView(() => import('./pages/SettingsPage.vue'))
 const UsersPage = asyncView(() => import('./pages/UsersPage.vue'))
+const RegisterPage = asyncView(() => import('./pages/RegisterPage.vue'))
 const NotFoundPage = asyncView(() => import('./pages/NotFoundPage.vue'))
 const { route, navigate } = provideNavigation()
 const health = useResource(readHealth), modules = useResource(readModules)
@@ -38,15 +39,16 @@ onMounted(() => { refresh(); window.addEventListener('focus', refreshIdentity); 
 onUnmounted(() => { health.cancel(); modules.cancel(); identity.cancel(); access.cancel(); window.removeEventListener('focus', refreshIdentity); document.removeEventListener('visibilitychange', refreshIdentity) })
 </script>
 <template>
-  <AuthLayout v-if="route.page === 'login'">
+  <AuthLayout v-if="route.page === 'login' || route.page === 'register'">
     <p v-if="!identityChecked" class="auth-check" role="status">正在确认登录状态…</p>
+    <RegisterPage v-else-if="route.page === 'register'" />
     <LoginPage v-else-if="!identity.data.value?.authenticated" @authenticated="loadIdentity" />
   </AuthLayout>
   <AppLayout v-else :page="route.page" :title="route.title" :path="route.path" :can-manage-users="Boolean(access.data.value?.permissions.includes('users.manage'))" :platform="health.data.value?.platform || 'Runtu Platform'" @refresh="refresh">
     <template #account><UserMenu :identity="identity.data.value" :access="access" :pending="identity.pending.value" :unavailable="Boolean(identity.error.value)" @signed-out="signedOut" @refresh-identity="loadIdentity" /></template>
     <DashboardPage v-if="route.page === 'dashboard'" :health="health" :modules="directoryModules" :user-id="identity.data.value?.user?.id" />
     <ModulesPage v-else-if="route.page === 'modules'" :modules="directoryModules" :module-id="route.moduleId" :access="access" @changed="modules.load()" />
-    <SettingsPage v-else-if="route.page === 'settings'" />
+    <SettingsPage v-else-if="route.page === 'settings'" :access="access" />
     <UsersPage v-else-if="route.page === 'users'" :access="access" :self-id="identity.data.value?.user?.id" />
     <NotFoundPage v-else />
   </AppLayout>

@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from backend.auth.policy import permissions_for
 from backend.auth.service import HASHER, USERNAME, AuthUnavailable, aware, utcnow
-from backend.models import AuthBootstrap, AuthEvent, AuthSession, AuthUser
+from backend.models import AuthBootstrap, AuthEvent, AuthSession, AuthUser, RegistrationApplication
 from backend.auth.service import digest
 
 Role = Literal['owner', 'admin', 'viewer']
@@ -118,6 +118,8 @@ class UserManagementService:
     def update(self, actor_id, target_id, value):
         value = UpdateUser.model_validate(value)
         with self.transaction(actor_id, write=True) as session:
+            application = session.get(RegistrationApplication, target_id)
+            if application is not None and application.pending: raise UserDenied()
             row = session.execute(select(*PUBLIC_COLUMNS).where(AuthUser.id == target_id)).first()
             if row is None: raise UserMissing()
             if actor_id == target_id and (value.role != row.role or not value.active): raise UserDenied()

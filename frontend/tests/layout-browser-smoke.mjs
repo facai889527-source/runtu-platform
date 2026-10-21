@@ -50,7 +50,7 @@ try {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
     // Only safe UI state; never dump DOM inputs, network headers or credentials.
-    console.log(await evaluate(`({path:location.pathname, heading:document.querySelector('h1')?.textContent, status:document.querySelector('.identity-bar [role=status]')?.textContent, alert:document.querySelector('[role=alert]')?.textContent})`))
+    console.log(await evaluate(`({path:location.pathname, heading:document.querySelector('h1')?.textContent, status:document.querySelector('.my-modules')?.textContent, alert:document.querySelector('[role=alert]')?.textContent})`))
     throw new Error('Auth smoke condition timed out')
   }
   async function screenshot(name) {
@@ -79,6 +79,8 @@ try {
   let managedUsers = [{ id: 'layout-fixture-id', username: 'layout-fixture', role: 'owner', active: true, created_at: '2026-10-21T08:00:00Z' }, ...Array.from({ length: 21 }, (_, index) => ({ id: `user-fixture-${index}`, username: `user-${String(index).padStart(3,'0')}`, role: 'viewer', active: true, created_at: '2026-10-21T08:00:00Z' }))]
   let auditEntries = [], auditStatus = 200, auditRequests = 0, delayAudit = false
   let apiRequests = 0, sessionWrites = 0
+  let registrationPolicy = { enabled:false, approval_required:true, revision:0 }, registrationStatus = 200
+  let applications = []
   socket.addEventListener('message', async event => {
     const message = JSON.parse(event.data)
     if (message.method !== 'Fetch.requestPaused') return
@@ -96,6 +98,28 @@ try {
       apiRequests++
       let code = 200, body
       if (pathname === '/api/health') body = { status: 'ok', platform: 'Runtu Platform', database: 'ready' }
+      else if (pathname === '/api/auth/registration-policy') { code=registrationStatus; body={enabled:registrationPolicy.enabled,approval_required:registrationPolicy.approval_required} }
+      else if (pathname === '/api/auth/register') {
+        assert.ok(Object.keys(request.headers).some(k=>k.toLowerCase()==='x-csrf-token'))
+        const value=JSON.parse(request.postData); assert.equal(value.role,undefined)
+        assert.ok(value.password.length>=14)
+        code=registrationPolicy.enabled?202:403; body={state:'submitted'}
+        if(code===202) applications=[{id:'registration-fixture',username:value.username,state:'pending'}]
+      }
+      else if (pathname === '/api/admin/registration-policy') {
+        code=!authenticated?401:viewer||admin?403:registrationStatus
+        if(code===200&&request.method==='PUT') {
+          const value=JSON.parse(request.postData); assert.equal(value.expected_revision,registrationPolicy.revision)
+          assert.ok(Object.keys(request.headers).some(k=>k.toLowerCase()==='x-csrf-token'))
+          registrationPolicy={enabled:value.enabled,approval_required:value.approval_required,revision:registrationPolicy.revision+1}
+        }
+        body=registrationPolicy
+      }
+      else if (pathname === '/api/admin/registrations' || pathname.startsWith('/api/admin/registrations/')) {
+        code=!authenticated?401:viewer||admin?403:registrationStatus
+        if(request.method==='POST') { assert.ok(Object.keys(request.headers).some(k=>k.toLowerCase()==='x-csrf-token')); applications=[]; body={state:'approved'} }
+        else body={items:applications,next_after_username:null}
+      }
       else if (pathname === '/api/me/modules') {
         code = authenticated ? 200 : 401
         body = { items: grantCandidates.filter(row => row.enabled && grantSets.get(user.id)?.has(row.module_id)).map(row => ({...row,granted:true})), next_after_module:null }
@@ -234,7 +258,7 @@ try {
     await until(`location.pathname === '/' && document.querySelector('.user-menu')`)
     for (const pathname of ['/modules', '/modules/demo', '/settings']) {
       await visit(pathname)
-      await until(`document.querySelector('main')?.textContent.includes(${JSON.stringify(pathname === '/modules' ? '模块目录' : pathname === '/settings' ? '平台设置尚未开放' : '公开配置')})`)
+      await until(`document.querySelector('main')?.textContent.includes(${JSON.stringify(pathname === '/modules' ? '模块目录' : pathname === '/settings' ? '注册策略' : '公开配置')})`)
       if (pathname === '/modules/demo') {
         await until(`document.querySelector('.module-audit')?.textContent.includes('此模块暂无操作记录')`)
         auditEntries = Array.from({ length: 12 }, (_, index) => ({ module_id: 'demo', actor_id: 'fixture-actor-identifier-123456789', action: 'updated', revision: 12-index, created_at: '2026-10-21T08:00:00Z' }))
@@ -320,7 +344,7 @@ try {
   failSettings = false; delaySettings = true
   await click('.async-view-state button')
   await until(`document.querySelector('.async-view-state[role=status]')`)
-  await until(`document.querySelector('.settings')`)
+  await until(`document.querySelector('.registration-policy')`)
   delaySettings = false
   auditEntries = []
   await visit('/modules/demo')
@@ -405,6 +429,39 @@ try {
   await click('.grant-content [role=alert] button')
   await until(`document.querySelector('.grant-items input')`)
   assert.ok(apiRequests > 0 && sessionWrites >= 6)
+  for (const width of [1440,390,360]) {
+    await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<761})
+    authenticated=false; registrationPolicy={enabled:false,approval_required:true,revision:0}
+    await visit('/register')
+    await until(`document.querySelector('.register-panel')?.textContent.includes('当前未开放')`)
+    assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel input[type=password]'))`),false)
+    registrationPolicy.enabled=true
+    await click('.register-panel > button')
+    await until(`document.querySelector('.register-panel input[type=password]')`)
+    await evaluate(`(() => { const input=document.querySelector('.register-panel input:not([type=password])');input.value='registration-candidate';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.register-panel input[type=password]').value=crypto.randomUUID();document.querySelector('.register-panel form').requestSubmit() })()`)
+    await until(`document.querySelector('.register-panel')?.textContent.includes('申请已提交')`)
+    assert.equal(authenticated,false)
+    await noOverflow(); await screenshot('registration-pending-'+width)
+    authenticated=true
+    await visit('/settings')
+    await until(`document.querySelector('.approvals li') && document.querySelector('.registration-policy fieldset')`)
+    await noOverflow(); await screenshot('registration-owner-'+width)
+    await evaluate(`window.confirm=()=>true`)
+    await click('.approvals li button')
+    await until(`document.querySelector('.approvals')?.textContent.includes('此页没有待审核')`)
+    await evaluate(`document.querySelector('.registration-policy input[type=checkbox]').click(); document.querySelector('.registration-policy form').requestSubmit()`)
+    await until(`document.querySelector('.registration-policy [role=status]')?.textContent.includes('已保存')`)
+    assert.equal(registrationPolicy.enabled,false)
+    registrationStatus=503
+    await click('.registration-policy .section-heading button')
+    await until(`document.querySelector('.registration-policy [role=alert]')`)
+    registrationStatus=200
+    viewer=true
+    await loadPage('Page.reload')
+    await until(`document.querySelector('.settings')?.textContent.includes('仅向所有者开放')`)
+    assert.equal(await evaluate(`Boolean(document.querySelector('.registration-policy, .approvals'))`),false)
+    viewer=false
+  }
   assert.deepEqual(errors, [])
-  console.log('PASS isolated UI fixtures: previous user/module/audit cases; per-user grants, own enabled entries, disabled exclusion, grant errors/recovery and desktop/mobile. No real user data used.')
+  console.log('PASS isolated UI fixtures: registration disabled/submitted/pending, owner approval/policy save, 503 and permission boundaries at 1440/390/360; previous user/module/audit cases. No real user data used.')
 } finally { socket?.close(); child.kill() }

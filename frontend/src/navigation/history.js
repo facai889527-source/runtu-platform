@@ -13,6 +13,7 @@ export function parseRoute(pathname) {
     '/settings': { page: 'settings', title: '设置' },
     '/users': { page: 'users', title: '用户管理' },
     '/login': { page: 'login', title: '管理员登录' },
+    '/register': { page: 'register', title: '申请账户' },
   }
   if (Object.hasOwn(pages, path)) return { ...pages[path], path, moduleId: null }
   const match = /^\/modules\/([^/]+)$/.exec(path)

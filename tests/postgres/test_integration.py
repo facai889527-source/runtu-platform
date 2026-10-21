@@ -23,6 +23,43 @@ from backend.models import AuthBootstrap, AuthEvent, AuthRateLimit, AuthSession,
 from scripts.pg_guard import GuardRefused, guarded_test_url
 
 
+def test_registration_policy_approval_and_migration_guard(pg_auth):
+    from tests.test_registration import exercise_registration_contract
+    from tests.test_module_management import headers
+    from backend.registration import PolicyInput
+    from backend.models import RegistrationPolicy
+    from sqlalchemy import event
+    from sqlalchemy.exc import OperationalError
+    db,_,settings,actor,password=pg_auth
+    app=create_app(settings)
+    with TestClient(app,base_url='https://runtu.test') as client:
+        proof=client.get('/api/auth/csrf').json()['csrf_token']
+        assert client.post('/api/auth/login',json={'username':'operator','password':password},headers={'Origin':'https://runtu.test','X-CSRF-Token':proof}).status_code==200
+        exercise_registration_contract(client,app)
+        key=digest(client.cookies.get('__Host-runtu_session'))
+        def save(_):
+            try:
+                app.state.registration.save_policy(actor,key,PolicyInput(enabled=False,approval_required=True,expected_revision=1))
+                return 'saved'
+            except Exception as error:
+                from backend.user_management import UserConflict
+                if isinstance(error,UserConflict): return 'conflict'
+                raise
+        with ThreadPoolExecutor(max_workers=2) as pool: assert sorted(pool.map(save,range(2)))==['conflict','saved']
+        def fail(*_): raise OperationalError('fixture registration audit',{},Exception('disposable'))
+        event.listen(AuthEvent,'before_insert',fail)
+        try:
+            assert client.put('/api/admin/registration-policy',json=dict(enabled=True,approval_required=True,expected_revision=2),headers=headers(client)).status_code==503
+        finally: event.remove(AuthEvent,'before_insert',fail)
+        with db.transaction() as session: assert session.get(RegistrationPolicy,1).enabled is False
+        with db.engine.begin() as connection:
+            config=migration_config();config.attributes['connection']=connection
+            command.check(config)
+            command.downgrade(config,'0005_user_module_access')
+        migrate_database(db)
+        assert client.get('/api/auth/registration-policy').json()==dict(enabled=False,approval_required=True)
+
+
 def test_assigned_module_grants_public_contract_and_atomicity(pg_auth):
     from tests.test_module_access import access_modules, exercise_grant_contract, put_grant
     from tests.test_module_management import headers
