@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0033",
+  "signal_version": 33,
+  "state": "running",
+  "updated_at": "2026-10-21T11:45:52.175Z",
+  "summary": "Checking and synchronizing local main by fast-forward only; preserving feature branch.",
+  "checks": [
+    "New ready task; no local claim, remote status or existing task PR; no active local task; outbox empty."
+  ],
+  "blockers": [],
+  "branch": null,
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "Verify clean worktree and fast-forward safety, synchronize code only, leave database and running services unchanged."
+}
