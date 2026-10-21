@@ -1,5 +1,7 @@
 # 管理员认证基础：威胁模型与设计（TASK-0014）
 
+TASK-0015 增量：现已加入固定 owner/admin/viewer 角色和默认拒绝权限依赖，只新增只读 `GET /api/admin/me`，没有动态角色编辑、审计列表或业务写 API。角色矩阵、模块边界、0003 升级/保守回滚及最新 44 Python/12 Node 测试见 [RBAC_DESIGN.md](RBAC_DESIGN.md)。下文保留 TASK-0014 原始威胁模型与历史验证记录；当前部署必须同时遵守 0003 的维护窗口和会话撤销要求。
+
 ## 实现前决策
 
 已阅读现有配置、数据库/迁移、模块清单、路由、API client与测试。保留公开health/modules/detail，无业务管理写接口。认证只证明身份，最小require_authenticated/require_admin依赖不构成完整RBAC。父基线为#12 ca77d7b7a4fdc882e9e3de9b40fde80f222c7249，#13不作产品父级。
@@ -73,7 +75,7 @@ $env:RUNTU_AUTH_ALLOW_LOOPBACK_HTTP = 'true'
 
 ## 部署前必做（不代表已获部署授权）
 
-- 取得单独部署批准；完成代码/依赖安全审查，仍未实现 RBAC、密码找回、MFA、账户管理或业务写 API。
+- 取得单独部署批准；完成代码/依赖安全审查。TASK-0015 仅有固定 RBAC 基础，仍未实现完整权限管理、密码找回、MFA、账户管理或业务写 API。
 - 配置真实 HTTPS origin，保持 Secure、HttpOnly、SameSite=Strict 和 __Host- 限制，关闭 HTTP 开关与 API docs；不得用浏览器跳过证书错误代替 HTTPS 验证。
 - 反向代理严格限制 Host，保留外部规范 Host；仅信任明确列出的代理 IP 的协议/来源头，拒绝任意客户端注入。HTTPS 在代理终止时，ASGI scheme 必须来自可信代理的转发头；本地冒烟禁用代理头信任。不得把 Uvicorn `forwarded-allow-ips=*` 当作便捷修复。
 - 采用同源前后端，不启用带凭据的通配 CORS；验证 Origin/Fetch Metadata/CSRF 行为，保持代理/缓存的认证响应 no-store，不记录 Cookie、密码、请求体或 CSRF header。对外启用适当的 CSP/XSS 防护及 TLS/HSTS 策略需按部署另行验证。

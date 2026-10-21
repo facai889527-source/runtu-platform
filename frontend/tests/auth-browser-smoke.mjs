@@ -69,9 +69,11 @@ try {
   assert.equal(await evaluate(`document.querySelector('#login-password').value`), '')
   await submit(credentials.password)
   await until(`location.pathname === '/' && document.body.innerText.includes('已登录 · browser-test')`)
+  await until(`document.querySelector('.access-role')?.textContent.includes('所有者') && document.querySelector('.access-summary')?.textContent.includes('users.manage')`)
   assert.equal(await evaluate(`document.cookie.includes('runtu_dev_session')`), false)
   assert.equal(await evaluate(`localStorage.length`), 0)
   await screenshot('authenticated-desktop')
+  await screenshot('rbac-desktop')
   await send('Page.reload')
   await until(`document.body.innerText.includes('已登录 · browser-test')`)
   await evaluate(`[...document.querySelectorAll('button')].find(el => el.textContent === '退出登录').click()`)
@@ -85,7 +87,15 @@ try {
     assert.equal(await evaluate(`document.documentElement.scrollWidth <= innerWidth`), true)
     assert.equal(await evaluate(`document.querySelector('.login-submit').getBoundingClientRect().height >= 44`), true)
     await screenshot(`login-mobile-${width}`)
+    if (width === 390) {
+      await submit(credentials.password)
+      await until(`document.querySelector('.access-role')?.textContent.includes('所有者') && location.pathname === '/'`)
+      assert.equal(await evaluate(`document.documentElement.scrollWidth <= innerWidth`), true)
+      await screenshot('rbac-mobile-390')
+      await evaluate(`[...document.querySelectorAll('button')].find(el => el.textContent === '退出登录').click()`)
+      await until(`document.body.innerText.includes('匿名浏览 · 当前只读') && !document.querySelector('.access-summary')`)
+    }
   }
   assert.deepEqual(errors, [])
-  console.log('PASS real auth: wrong password, field clearing, login, HttpOnly, no localStorage, reload, logout, mobile 390/360')
+  console.log('PASS real auth/RBAC: wrong password, field clearing, login, server owner/permissions, HttpOnly, no localStorage, reload, logout, mobile 390/360')
 } finally { credentials.password = ''; socket?.close(); child.kill() }

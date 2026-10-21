@@ -110,6 +110,7 @@ def test_session_expiry_disabled_and_admin_denial(auth, reason):
             db.get(AuthUser, user_id).active = False
         elif reason == 'nonadmin':
             db.get(AuthUser, user_id).is_admin = False
+            db.get(AuthUser, user_id).role = 'viewer'
         else:
             row = db.get(AuthSession, digest(token))
             if reason == 'absolute':

@@ -44,7 +44,7 @@ def test_lifecycle_metadata_and_route_boundary(status):
         }
         expected = 200 if status == "enabled" else 404
         assert client.get("/api/modules/example/ping").status_code == expected
-        assert client.post("/api/modules/example/action").status_code == expected
+        assert client.post("/api/modules/example/action").status_code == (403 if status == 'enabled' else 404)
         paths = client.get("/openapi.json").json()["paths"]
         assert ("/api/modules/example/ping" in paths) == (status == "enabled")
         assert client.post("/api/modules/example").status_code == 405

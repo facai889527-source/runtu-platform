@@ -1,11 +1,11 @@
 from collections.abc import Iterable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 from backend.config import Settings
-from backend.auth.routes import install_auth
+from backend.auth.routes import install_auth, module_readonly_boundary
 from backend.database import Database
 from backend.modules import DemoModule, ModuleDetail, ModuleManifest, ModuleRegistry, PlatformModule
 from backend.persistence import ConfigStorageError, ModuleConfigService
@@ -67,6 +67,7 @@ def create_app(
     for module in registry.modules():
         detail = registry.detail(module.manifest.id)
         if detail is not None and detail.status == "enabled":
-            app.include_router(module.router, prefix=f"/api/modules/{detail.id}")
+            app.include_router(module.router, prefix=f"/api/modules/{detail.id}",
+                               dependencies=[Depends(module_readonly_boundary)])
 
     return app
