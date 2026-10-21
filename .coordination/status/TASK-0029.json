@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0029",
+  "signal_version": 29,
+  "state": "running",
+  "updated_at": "2026-10-21T08:51:37.931Z",
+  "summary": "已领取已合并模块审计功能的本地同步与匿名验收任务，正在检查安全快进和服务归属。",
+  "checks": [
+    "TASK-0029:29 ready；本地无执行中任务、outbox为空，同任务全状态PR为空，远端状态确认404。"
+  ],
+  "blockers": [],
+  "branch": "main",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "安全快进main，仅读取schema元数据核实0004兼容性，受控重启已确认后端；匿名真实接口及隔离夹具验收，不执行迁移。"
+}
