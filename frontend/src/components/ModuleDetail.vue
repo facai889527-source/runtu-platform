@@ -7,6 +7,7 @@ import ModuleStatus from './ModuleStatus.vue'
 import RouteLink from './RouteLink.vue'
 import AppIcon from './AppIcon.vue'
 import ModuleEditor from './ModuleEditor.vue'
+import ModuleAudit from './ModuleAudit.vue'
 const props = defineProps({ moduleId: { type: String, required: true }, access: Object })
 const emit = defineEmits(['changed'])
 const detail = useResource(readModule)
@@ -37,6 +38,7 @@ onUnmounted(detail.cancel)
         </section>
       </div>
       <ModuleEditor :detail="detail.data.value" :access="access" @saved="saved" @reload="detail.load(moduleId)" />
+      <ModuleAudit :module-id="moduleId" :access="access" :revision="detail.data.value.revision" />
     </template>
   </ResourceState>
 </template>

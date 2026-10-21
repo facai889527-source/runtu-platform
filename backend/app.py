@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.responses import JSONResponse
@@ -12,6 +12,7 @@ from backend.database import Database
 from backend.modules import DemoModule, ModuleDetail, ModuleManifest, ModuleRegistry, PlatformModule, ModuleUpdate
 from backend.persistence import ConfigConflictError, ConfigStorageError, ModuleConfigService, UnknownModuleError
 from backend.module_management import ModuleManagementService, ModulePermissionError, ModuleProtectedError
+from backend.module_audit import AuditUnavailable, ModuleAuditPage, ModuleAuditService
 
 
 def create_app(
@@ -42,6 +43,13 @@ def create_app(
     app.state.config_service = config_service
     management = ModuleManagementService(registry, database)
     app.state.module_management = management
+    audit = ModuleAuditService(registry, database)
+    app.state.module_audit = audit
+
+    @app.exception_handler(AuditUnavailable)
+    async def audit_unavailable(_request, _error):
+        return JSONResponse({'detail': 'Module audit storage unavailable'}, status_code=503,
+                            headers={'Cache-Control': 'no-store'})
 
     @app.exception_handler(ConfigStorageError)
     async def storage_unavailable(_request, _error):
@@ -51,7 +59,7 @@ def create_app(
     @app.exception_handler(RequestValidationError)
     async def invalid_module_write(request, error):
         if request.url.path.startswith('/api/admin/modules/'):
-            return JSONResponse({'detail': 'Invalid public module configuration'}, status_code=422,
+            return JSONResponse({'detail': 'Invalid module request'}, status_code=422,
                                 headers={'Cache-Control': 'no-store'})
         return await request_validation_exception_handler(request, error)
 
@@ -78,6 +86,17 @@ def create_app(
             return management.detail(module_id)
         except UnknownModuleError:
             raise HTTPException(status_code=404, detail="Module not found")
+
+    @app.get('/api/admin/modules/{module_id}/changes', response_model=ModuleAuditPage)
+    def module_changes(module_id: str, response: Response,
+                       limit: int = Query(10, ge=1, le=50),
+                       before_revision: int | None = Query(None, ge=1, le=2147483647),
+                       _identity=Depends(require_permission('audit.read'))):
+        response.headers['Cache-Control'] = 'no-store'
+        try:
+            return audit.page(module_id, limit, before_revision)
+        except UnknownModuleError:
+            raise HTTPException(404, 'Module not found', headers={'Cache-Control': 'no-store'}) from None
 
     @app.put('/api/admin/modules/{module_id}', response_model=ModuleDetail)
     def update_module(module_id: str, value: ModuleUpdate,

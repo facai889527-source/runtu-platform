@@ -72,6 +72,7 @@ try {
   const user = { id: 'layout-fixture-id', username: 'layout-fixture', is_admin: true }
   let module = { id: 'demo', name: '演示模块', version: '1.0.0', description: '仅用于布局验证的模块夹具。', category: 'tools', status: 'enabled', capabilities: ['inspect'], required: false, revision: 0, public_config: { show_in_navigation: true, refresh_interval_seconds: null } }
   let saveStatus = 200, viewer = false
+  let auditEntries = [], auditStatus = 200, auditRequests = 0, delayAudit = false
   let apiRequests = 0, sessionWrites = 0
   socket.addEventListener('message', async event => {
     const message = JSON.parse(event.data)
@@ -92,12 +93,21 @@ try {
       if (pathname === '/api/health') body = { status: 'ok', platform: 'Runtu Platform', database: 'ready' }
       else if (pathname === '/api/modules') body = [module]
       else if (pathname === '/api/modules/demo') body = module
+      else if (pathname === '/api/admin/modules/demo/changes') {
+        auditRequests++
+        if (delayAudit) await new Promise(resolve => setTimeout(resolve, 600))
+        code = !authenticated ? 401 : viewer ? 403 : auditStatus
+        const before = new URL(request.url).searchParams.get('before_revision')
+        const rows = auditEntries.filter(row => before == null || row.revision < Number(before))
+        body = code === 200 ? { items: rows.slice(0, 10), next_before_revision: rows.length > 10 ? rows[9].revision : null } : { detail: 'fixture-denied' }
+      }
       else if (pathname === '/api/admin/modules/demo' && request.method === 'PUT') {
         code = saveStatus
         if (code === 200) {
           const value = JSON.parse(request.postData)
           assert.equal(value.expected_revision, module.revision)
           module = { ...module, status: value.enabled ? 'enabled' : 'disabled', public_config: value.public_config, revision: module.revision + 1 }
+          auditEntries.unshift({ module_id: 'demo', actor_id: 'fixture-actor', action: 'updated', revision: module.revision, created_at: '2026-10-21T08:00:00Z' })
         }
         body = module
       }
@@ -142,6 +152,7 @@ try {
   async function click(selector) { await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`) }
   async function noOverflow() { assert.equal(await evaluate(`document.documentElement.scrollWidth <= innerWidth`), true) }
   for (const [width, height] of [[1440, 900], [390, 844], [360, 800]]) {
+    auditEntries = []
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 761 })
     authenticated = false
     await visit('/login')
@@ -179,6 +190,20 @@ try {
     for (const pathname of ['/modules', '/modules/demo', '/settings']) {
       await visit(pathname)
       await until(`document.querySelector('main')?.textContent.includes(${JSON.stringify(pathname === '/modules' ? '模块目录' : pathname === '/settings' ? '平台设置尚未开放' : '公开配置')})`)
+      if (pathname === '/modules/demo') {
+        await until(`document.querySelector('.module-audit')?.textContent.includes('此模块暂无操作记录')`)
+        auditEntries = Array.from({ length: 12 }, (_, index) => ({ module_id: 'demo', actor_id: 'fixture-actor-identifier-123456789', action: 'updated', revision: 12-index, created_at: '2026-10-21T08:00:00Z' }))
+        delayAudit = true
+        await click('.module-audit .section-heading button')
+        await until(`document.querySelector('.module-audit [role=status]')?.textContent.includes('正在加载操作记录')`)
+        await until(`document.querySelectorAll('.audit-list li').length === 10`)
+        delayAudit = false
+        await click('.audit-pagination button:last-child')
+        await until(`document.querySelectorAll('.audit-list li').length === 2`)
+        await click('.audit-pagination button:first-child')
+        await until(`document.querySelector('.audit-list li')?.textContent.includes('版本 12')`)
+        await noOverflow(); await screenshot(`module-audit-${width}`)
+      }
       assert.equal(await evaluate(`!document.querySelector('main .identity-bar, main .access-summary, main .sign-out')`), true)
       await noOverflow(); await screenshot(`${pathname.replaceAll('/', '-')}-${width}`)
     }
@@ -226,11 +251,13 @@ try {
   await until(`document.querySelector('.async-view-state[role=status]')`)
   await until(`document.querySelector('.settings')`)
   delaySettings = false
+  auditEntries = []
   await visit('/modules/demo')
   await until(`document.querySelector('.module-editor-form')`)
   await evaluate(`(() => { window.confirm = () => true; const input = document.querySelector('.interval-field input'); input.value = '60'; input.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('.module-editor input[type=checkbox]').click(); document.querySelector('.module-editor-form').requestSubmit(); })()`)
   await until(`document.querySelector('.save-success') && document.querySelector('.detail-identity').textContent.includes('已禁用')`)
   await screenshot('module-management-saved')
+  await until(`document.querySelector('.audit-list li')?.textContent.includes('版本 1')`)
   assert.equal(module.public_config.refresh_interval_seconds, 60)
   await loadPage('Page.reload')
   await until(`document.querySelector('.interval-field input')?.value === '60'`)
@@ -241,15 +268,28 @@ try {
     assert.equal(module.revision, 1)
   }
   saveStatus = 200
+  for (auditStatus of [503, 403]) {
+    await click('.module-audit .section-heading button')
+    await until(`document.querySelector('.module-audit [role=alert]')`)
+    assert.equal(await evaluate(`document.querySelectorAll('.audit-list li').length`), 0)
+  }
+  auditStatus = 200
+  await click('.module-audit .section-heading button')
+  await until(`document.querySelector('.audit-list li')`)
+  const allowedAuditRequests = auditRequests
   authenticated = false
   await loadPage('Page.reload')
   await until(`document.querySelector('.module-editor a')`)
   assert.equal(await evaluate(`!document.querySelector('.module-editor-form')`), true)
+  await until(`document.querySelector('.module-audit')?.textContent.includes('没有查看操作记录的权限')`)
+  assert.equal(auditRequests, allowedAuditRequests)
   authenticated = true; viewer = true
   await loadPage('Page.reload')
   await until(`document.querySelector('.module-editor')?.textContent.includes('没有模块管理权限')`)
   assert.equal(await evaluate(`!document.querySelector('.module-editor-form')`), true)
+  await until(`document.querySelector('.module-audit')?.textContent.includes('没有查看操作记录的权限')`)
+  assert.equal(auditRequests, allowedAuditRequests)
   assert.ok(apiRequests > 0 && sessionWrites >= 6)
   assert.deepEqual(errors, [])
-  console.log('PASS isolated UI fixtures: login, roles, logout, responsive navigation, lazy loading, module save/config/reload/409/503 and anonymous management denial. No real admin login verified.')
+  console.log('PASS isolated UI fixtures: login/roles/logout/lazy views; module save/config/reload/409/503; audit empty/pages/refresh/403/503, desktop+mobile and no anonymous/viewer reads. No real admin login verified.')
 } finally { socket?.close(); child.kill() }
