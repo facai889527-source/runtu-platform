@@ -1,15 +1,23 @@
 {
   "task_id": "TASK-0027",
   "signal_version": 27,
-  "state": "running",
-  "updated_at": "2026-10-21T08:22:32.853Z",
-  "summary": "已领取本地开发 SQLite 0004 升级及受控后端重启任务，正在复核备份、目标和进程归属。",
+  "state": "completed",
+  "updated_at": "2026-10-21T08:28:11.210Z",
+  "summary": "隔离本地开发 SQLite 已升级至 0004_module_management，本项目后端安全重启，完整性、管理员保持和隔离模块管理验收通过。",
   "checks": [
-    "正式信号 TASK-0027:27 ready；本地无执行中任务、待回传为空，同任务全状态 PR 搜索为空，远端状态文件确认不存在。"
+    "迁移前严格确认隔离开发 SQLite 目标，TASK-0026 备份仍存在、可读取且 integrity_check 通过；未公开备份路径、内容或私有配置。",
+    "通过既有 PID、Python 父子启动链和 loopback 监听核实后，仅停止本项目旧后端；前端进程保持运行。",
+    "仅执行 Alembic upgrade 0004_module_management；版本、新列默认值/可空性、非负版本约束及操作审计唯一约束已验证。未执行降级、恢复覆盖、清库或管理员 bootstrap。",
+    "迁移后及测试后只读核验 integrity_check 成功；原管理员标识、active、is_admin、owner 角色保持一致，用户、会话和原模块配置记录数量保持，新增模块操作审计为空。未读取密码哈希或会话令牌。",
+    "后端已使用原虚拟环境和 loopback8000方式重启；8000/5173健康 HTTP200、数据库 ready；5173登录页200、匿名管理身份API401、模块列表200。",
+    "Python 85 passed、6 PostgreSQL online skipped；Node14 passed、构建通过。临时数据库测试覆盖 owner/admin/viewer、CSRF、required保护、启停配置、幂等/并发冲突、重载持久化与失败回滚；未修改真实库模块设置。",
+    "旧 Vite 进程曾提供部分升级前缓存组件，首次 UI fixture 超时；仅刷新已跟踪前端源文件时间戳使缓存失效，源码内容未变。随后1440/390/360隔离UI fixture通过，包括编辑保存、重载、409/503和匿名拒绝。前端进程未重启。",
+    "独立空白浏览器对真实登录页验收通过，无API夹具、未输入凭据、未登录真实管理员；用户可打开本地页面继续实际操作。",
+    "工作树及暂存区干净，无产品代码改动，无需PR；本地过程需正常权限审批读取进程/loopback并重启、测试，未改变安全设置。"
   ],
   "blockers": [],
   "branch": "main",
   "pr_url": null,
-  "commit_sha": null,
-  "next_action": "复核既有一致性备份及严格限定的隔离开发数据库，安全识别后端后才执行指定迁移。"
+  "commit_sha": "af84a504fa437e7eccc505c86708e0cebf359ed2",
+  "next_action": "用户可打开 http://127.0.0.1:5173/login 使用既有账户实际操作；本任务不代替用户登录。保留本地备份；继续按三分钟调度及幂等协议等待正式新任务，不自动合并或部署。"
 }
