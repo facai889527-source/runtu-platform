@@ -1,15 +1,25 @@
 {
   "task_id": "TASK-0031",
   "signal_version": 31,
-  "state": "running",
-  "updated_at": "2026-10-21T10:17:20.472Z",
-  "summary": "已串行领取用户模块授权MVP任务，正在审查公开Demo契约及可授权模块边界，先写设计。",
+  "state": "completed",
+  "updated_at": "2026-10-21T10:35:15.701Z",
+  "summary": "用户模块授权基础已严格串行完成并提交PR #23；公开Demo契约保持，130项Python及9项PostgreSQL在线CI通过，待审查。",
   "checks": [
-    "TASK-0031:31 ready；本地无执行中任务/outbox，同任务全状态PR为空，远端状态确认404；正式前置确认PR22已合并。"
+    "最新main含PR22合并内容，独立分支codex/TASK-0031-user-module-access，提交9263ac27703173c4b3d3498bc4b3499797fd1be1；期间及完成前检查main除本任务running状态提交无外部前进，无其他活跃任务、无并行后续任务。",
+    "设计先行写docs/USER_MODULE_ACCESS.md：现正式注册仅公开Demo且无受保护业务端点；保留public默认模式、公开元数据和旧示例契约，为显式assigned模块建立基础，不宣称已保护未来任意路由。",
+    "owner沿用users.manage编辑目标授权，admin保留原模块管理权限但不能管理用户授权。所有身份使用assigned业务接口均需本人显式授权、全局启用及有效会话；新用户默认零授权，不授予users.manage或module.manage。",
+    "新增可审查0005：用户模块复合主键关联及最小授权审计；仅临时SQLite和受控PG执行升降级，原用户/会话/配置不改。降级会丢失新授权/授权审计，真实库未迁移或读取。",
+    "授权写复用单例DB锁与用户变更串行，事务内核实actor active/实时角色、目标存在及active、可授权模块；HTTP写事务再次锁定并检查会话有效期/空闲及归属，排队期间撤销会话拒绝。重复幂等、预期冲突409、关联与审计同事务回滚。",
+    "标准assigned router自动集成require_module_access，额外路由可显式Depends；required/核心系统/public/未知模块拒绝，未知用户404，停用目标拒绝。全局禁用优先，既有模块写方法禁用边界保持；在途业务不保证强行中断。",
+    "自身和owner目标摘要有界游标分页、固定module_id/name/enabled/granted及no-store；工作台只显示自身已授权且启用的业务入口，普通目录隐藏assigned，管理身份保留元数据目录。Owner单用户授权组件有独立分页/确认/取消/错误恢复；JavaScript及现有架构依赖保持。",
+    "Windows最终完整Python130 passed/9 opt-in PG skipped；Node21 passed、build通过。隔离测试涵盖权限/CSRF、公开Demo无虚假候选、全局/用户停用、非法模块、幂等/并发、回滚/审计、事务内会话撤销、标准及自定义依赖和迁移兼容。",
+    "Chrome全API隔离夹具1440/390/360通过，覆盖默认空候选、Owner授权编辑、本人入口、停用排除、503恢复、权限隐藏及既有用户/模块/审计流程；截图已审看，密码为空，受保护业务仅为夹具示例。",
+    "最终提交CI运行39585447446/39585447707全部success；Linux Python/Node构建及既有校验成功，PostgreSQL online9 required0 skipped及严格计数步骤成功，覆盖公开兼容、授权合约、并发/回滚及升降级。",
+    "PR #23已附加；工作树干净、提交文件范围检查无IDE/真实配置/数据库/备份/本地日志。未读取真实账户/凭据/模块设置，未重启本地服务、自动合并、部署或发布TASK-0032。"
   ],
   "blockers": [],
   "branch": "codex/TASK-0031-user-module-access",
-  "pr_url": null,
-  "commit_sha": null,
-  "next_action": "审查registry/业务路由和现有权限，设计保留公开契约的授权基础；发现需产品决策的冲突或外部main前进时停止报告。"
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/23",
+  "commit_sha": "9263ac27703173c4b3d3498bc4b3499797fd1be1",
+  "next_action": "请ChatGPT审查PR #23、0005迁移和docs/USER_MODULE_ACCESS.md后决定下一步。真实开发库仍未应用0005；合并后若需本地启用必须另获备份/迁移和重启授权。当前只有public Demo，候选为空正常。健康探测不包含新授权表，ready不代表授权迁移完成；本任务不启动后续任务。"
 }
