@@ -7,17 +7,18 @@ import RouteLink from '../components/RouteLink.vue'
 import AppIcon from '../components/AppIcon.vue'
 import { modulePath } from '../navigation/history.js'
 import { filterModules } from '../utils/modules.js'
-const props = defineProps({ modules: Object, moduleId: { type: String, default: null } })
+const props = defineProps({ modules: Object, access: Object, moduleId: { type: String, default: null } })
+defineEmits(['changed'])
 const query = ref(''), status = ref('all')
 const filtered = computed(() => filterModules(props.modules.data.value || [], query.value, status.value))
 function clear() { query.value = ''; status.value = 'all' }
 </script>
 
 <template>
-  <ModuleDetail v-if="moduleId" :module-id="moduleId" />
+  <ModuleDetail v-if="moduleId" :module-id="moduleId" :access="access" @changed="$emit('changed')" />
   <template v-else>
     <section class="panel directory-panel" aria-labelledby="directory-title">
-      <div class="section-heading"><div><h2 id="directory-title">模块目录</h2><p class="section-description">查看运行状态与公开配置。配置编辑功能尚未开放。</p></div></div>
+      <div class="section-heading"><div><h2 id="directory-title">模块目录</h2><p class="section-description">查看运行状态，在详情中管理启用状态与公开配置。</p></div></div>
       <div class="filters">
         <label class="search-label">搜索模块<span class="search-field"><AppIcon name="search" :size="18" /><input v-model="query" type="search" placeholder="名称、标识或能力" aria-describedby="directory-hint" /></span></label>
         <label>模块状态<select v-model="status"><option value="all">全部状态</option><option value="enabled">已启用</option><option value="disabled">已禁用</option></select></label>

@@ -1,24 +1,17 @@
 <script setup>
-import { computed, watch, ref, onMounted, onUnmounted, useTemplateRef } from 'vue'
+import { computed, ref, onMounted, onUnmounted, useTemplateRef } from 'vue'
 import { logout } from '../api/auth.js'
-import { readAccess } from '../api/access.js'
-import { useResource } from '../composables/useResource.js'
 import RouteLink from './RouteLink.vue'
 import AppIcon from './AppIcon.vue'
 
-const props = defineProps({ identity: Object, pending: Boolean, unavailable: Boolean })
+const props = defineProps({ identity: Object, access: Object, pending: Boolean, unavailable: Boolean })
 const emit = defineEmits(['signed-out', 'refresh-identity'])
-const access = useResource(readAccess)
 const busy = ref(false), error = ref('')
 const disclosure = useTemplateRef('disclosure')
 const names = { owner: '所有者', admin: '管理员', viewer: '只读成员' }
-const role = computed(() => access.data.value ? `${names[access.data.value.role]} · ${access.data.value.role}` : '')
+const role = computed(() => props.access.data.value ? `${names[props.access.data.value.role]} · ${props.access.data.value.role}` : '')
 const avatar = computed(() => props.identity?.user?.username?.slice(0, 1).toUpperCase() || '')
 let controller, timer
-watch(() => props.identity?.authenticated ? props.identity.user.id : null, (id) => {
-  if (id) access.load()
-  else { access.cancel(); access.data.value = null }
-}, { immediate: true })
 function close(event) {
   if (!disclosure.value?.open) return
   if (event.type === 'keydown') {
@@ -42,7 +35,7 @@ async function signOut() {
 }
 onMounted(() => { document.addEventListener('pointerdown', close); document.addEventListener('keydown', close) })
 onUnmounted(() => {
-  clearTimeout(timer); controller?.abort(); access.cancel()
+  clearTimeout(timer); controller?.abort()
   document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', close)
 })
 </script>

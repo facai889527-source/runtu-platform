@@ -44,7 +44,7 @@ def test_migration_upgrade_repeat_downgrade_and_model_match(database):
     migrate_database(database)
     assert database.is_ready()
     columns = {column["name"] for column in inspect(database.engine).get_columns("module_configs")}
-    assert columns == {"module_id", "show_in_navigation", "refresh_interval_seconds", "updated_at"}
+    assert columns == {"module_id", "show_in_navigation", "refresh_interval_seconds", "updated_at", "enabled", "revision"}
     with database.engine.begin() as connection:
         cfg = migration_config()
         cfg.attributes["connection"] = connection
@@ -160,7 +160,7 @@ def test_no_database_and_missing_schema_are_explicit(tmp_path):
         assert detail.json() == {"detail": "Module configuration storage unavailable"}
         assert "empty.db" not in detail.text
         assert client.get("/api/modules/missing").status_code == 404
-        assert client.get("/api/modules").status_code == 200
+        assert client.get("/api/modules").status_code == 503  # State cannot be guessed when configured storage is unavailable.
 
 
 def test_storage_error_rolls_back_and_reports_safe_message(tmp_path):
@@ -199,4 +199,4 @@ def test_documented_alembic_cli_uses_environment_url(tmp_path):
         )
         assert result.returncode == 0, result.stderr
         if arguments == ("current",):
-            assert "0003_rbac_roles" in result.stdout
+            assert "0004_module_management" in result.stdout

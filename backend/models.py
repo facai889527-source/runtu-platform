@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, func, true
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, UniqueConstraint, func, true
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -16,14 +16,28 @@ class ModuleConfigRecord(Base):
             "(refresh_interval_seconds >= 1 AND refresh_interval_seconds <= 86400)",
             name="ck_module_configs_refresh_interval",
         ),
+        CheckConstraint('revision >= 0', name='ck_module_configs_revision'),
     )
 
     module_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     show_in_navigation: Mapped[bool] = mapped_column(Boolean, server_default=true())
     refresh_interval_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class ModuleChangeRecord(Base):
+    __tablename__ = 'module_changes'
+    __table_args__ = (UniqueConstraint('module_id', 'revision', name='uq_module_changes_revision'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    module_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class AuthUser(Base):
