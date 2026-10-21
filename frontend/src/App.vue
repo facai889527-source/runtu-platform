@@ -1,70 +1,22 @@
 <script setup>
-import { onMounted, ref } from 'vue'
-
-const platform = ref('Runtu Platform')
-const health = ref('正在连接')
-const modules = ref([])
-const error = ref('')
-const loading = ref(false)
-
-async function refresh() {
-  loading.value = true
-  error.value = ''
-  modules.value = []
-  health.value = '正在连接'
-  try {
-    const responses = await Promise.all([
-      fetch('/api/health', { signal: AbortSignal.timeout(8000) }),
-      fetch('/api/modules', { signal: AbortSignal.timeout(8000) }),
-    ])
-    if (responses.some((response) => !response.ok)) throw new Error('API response failed')
-    const [status, registered] = await Promise.all(responses.map((response) => response.json()))
-    if (status.status !== 'ok' || !Array.isArray(registered)) throw new Error('Invalid API response')
-    platform.value = status.platform
-    health.value = '运行正常'
-    modules.value = registered
-  } catch {
-    health.value = '连接失败'
-    error.value = '无法读取平台状态，请确认后端已启动后重试。'
-  } finally {
-    loading.value = false
-  }
-}
-
+import { computed, ref, onMounted, onUnmounted } from 'vue'
+import AppLayout from './components/AppLayout.vue'
+import DashboardPage from './pages/DashboardPage.vue'
+import ModulesPage from './pages/ModulesPage.vue'
+import SettingsPage from './pages/SettingsPage.vue'
+import { useResource } from './composables/useResource.js'
+import { readHealth, readModules } from './api/client.js'
+const page = ref('dashboard')
+const health = useResource(readHealth), modules = useResource(readModules)
+const connection = computed(() => health.pending.value ? '正在连接' : health.error.value ? '连接失败' : health.data.value?.status === 'degraded' ? '后端已连接 · 服务降级' : '后端已连接')
+function refresh() { health.load(); modules.load() }
 onMounted(refresh)
+onUnmounted(() => { health.cancel(); modules.cancel() })
 </script>
-
 <template>
-  <main>
-    <header>
-      <p class="eyebrow">模块化管理平台</p>
-      <h1>{{ platform }}</h1>
-      <p>从一个清晰的核心开始，逐步连接所需的管理模块。</p>
-    </header>
-    <section aria-labelledby="status-title">
-      <div class="section-heading">
-        <h2 id="status-title">平台状态</h2>
-        <button :disabled="loading" @click="refresh">{{ loading ? '连接中…' : '刷新状态' }}</button>
-      </div>
-      <p role="status">后端：{{ health }}</p>
-      <p v-if="error" role="alert" class="error">{{ error }}</p>
-    </section>
-    <section aria-labelledby="modules-title">
-      <h2 id="modules-title">已注册模块</h2>
-      <ul v-if="modules.length">
-        <li v-for="module in modules" :key="module.id">
-          <h3>{{ module.name }} <small>v{{ module.version }}</small></h3>
-          <p>
-            <span class="module-status" :class="{ disabled: module.status === 'disabled' }">
-              {{ module.status === 'disabled' ? '已禁用' : '已启用' }}
-            </span>
-            <span class="category">{{ module.category || '未分类' }}</span>
-          </p>
-          <p>{{ module.description }}</p>
-          <p v-if="module.status === 'disabled'" class="disabled-note">此模块已禁用，业务路由不可用。</p>
-        </li>
-      </ul>
-      <p v-else>{{ loading ? '正在读取模块…' : error ? '模块列表暂不可用。' : '暂无已注册模块。' }}</p>
-    </section>
-  </main>
+  <AppLayout :page="page" :connection="connection" :platform="health.data.value?.platform || 'Runtu Platform'" @navigate="page = $event" @refresh="refresh">
+    <DashboardPage v-if="page === 'dashboard'" :health="health" :modules="modules" @navigate="page = 'modules'" />
+    <ModulesPage v-else-if="page === 'modules'" :modules="modules" />
+    <SettingsPage v-else />
+  </AppLayout>
 </template>

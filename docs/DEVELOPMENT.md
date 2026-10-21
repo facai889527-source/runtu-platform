@@ -171,3 +171,52 @@ Python 内部使用 `Database(url)`、`ModuleConfigService(registry, database)`�
 2026-10-21 09:07:33.849+08:00 由旧 heartbeat 自动唤醒发现 TASK-0003 v3。
 通过原生 automation_update 更新已有 `runtu-github`，未创建第二个任务；工具返回 Updated automation in the app。
 随后 view 及配置读回确认为 ACTIVE、`FREQ=MINUTELY;INTERVAL=3`，同一 automation ID；目标聊天、提示词、名称均保留。此处证明更新与持久化成功，不预先声称之后的每次三分钟触发均成功。
+
+## 管理后台 UI（TASK-0009）
+
+本地启动方式见上文：在两个 PowerShell 终端分别启动 FastAPI 与 frontend 下的 `pnpm dev`。
+本阶段使用 Vue 3 Composition API + JavaScript，无额外运行依赖。Vite 原有 `/api` 代理保持不变。
+
+- 仪表盘：真实后端健康状态、数据库未配置/可用/不可用说明，以及真实已注册、启用、禁用模块数量。读取失败显示暂不可用，不用零值冒充结果。
+- 模块管理：本地名称/ID/分类/描述/能力搜索、状态筛选、只读详情。详情显示 manifest 和 public_config；禁用模块保留展示并说明业务路由不可用。详情 404/503 和网络错误提供重试。
+- 设置：明确的未来配置入口占位，尚无认证授权、登录、保存、启用/删除等写操作。
+- 桌面侧栏可折叠；760px 及以下为可关闭导航抽屉，支持遮罩、Escape、焦点循环/恢复和背景 inert。刷新读取健康与列表；详情失败时使用详情自己的重新读取操作。
+- 不按公开配置隐藏模块或自动轮询。本阶段无持久 URL 路由，刷新浏览器回到仪表盘；不提供暗色主题、真实监控数据或生产部署方案。
+
+### 前端验证
+
+无需安装新的测试框架，在 frontend 目录运行：
+
+```powershell
+node --test tests/ui.test.js
+pnpm install --frozen-lockfile --offline
+pnpm run build
+```
+
+`--offline` 只在依赖已经缓存时可用，否则按正常授权联网安装；锁文件不变。
+轻量测试覆盖搜索/状态组合、真实 HTTP 状态处理、迟到请求隔离、取消及重试。请求超时 8 秒，重复请求和组件卸载均取消前次请求；generation 校验防止不遵守 abort 的迟到结果覆盖当前视图。
+
+可选 Chrome 冒烟测试：先按上文启动 8000 端口后端和 5173 端口 Vite，再从**仓库根目录**执行：
+
+```powershell
+node frontend/tests/browser-smoke.mjs
+```
+
+脚本只用 Node 内置模块和现有 Windows Chrome，默认安装位置 `C:/Program Files/Google/Chrome/Application/chrome.exe`。不下载浏览器或第三方包，不关闭浏览器沙箱。9229 调试端口须空闲；使用 `.git/codex-coordination/ui9/chrome-profile` 隔离用户配置，结果截图存于同目录，测试结束关闭自己启动的无头浏览器。不要复用该测试端口运行其他浏览器。截图之前确认本地后端未返回敏感信息。
+先验证实际 API，再使用仅在浏览器中的网络拦截夹具验证 ready、降级503、空列表、禁用模块、详情404/503、断网、加载和重试；夹具不写入产品数据或后端。脚本不启动/停止后端与 Vite，测试后在各终端 Ctrl+C。
+
+### 本次实际验证与设计
+
+基线 `641e1428fd400c7b75a79009714cfab07a3f7704`（远程 TASK-0005）。Python 3.14.0、Node 24.19.0、pnpm 11.25.0：22 项后端测试通过（保留既有 Starlette/httpx 弃用警告），4 项 Node 测试通过，锁定离线安装及 Vite 生产构建通过；依赖与锁文件未改。真实 FastAPI + Vite + 现有 Chrome CDP 冒烟通过：1440×1000 桌面、390×844 移动宽度、无横向溢出、搜索筛选、详情、设置、抽屉/Escape，未见运行时异常。异常状态使用显式网络夹具验证，未实际连接 PostgreSQL。未进行完整辅助技术审计或其他浏览器兼容测试。
+
+参考 frontend-design 和 vue-best-practices：统一浅灰画布、深蓝文本、松绿色连接状态，系统中文字体；用连续统计条而非重复装饰卡片承载模块数量。`style.css` 集中颜色/间距/圆角/阴影/交互 tokens 和移动断点，布局组件与 matchMedia 保持同一个 760px 边界。没有采用技能中的 TypeScript 默认建议，也没有根据未经测量的性能断言进行优化。
+App 只协调页面和共享只读健康/列表，AppLayout 管理导航及焦点；页面管理本地搜索和详情选择，ModuleDetail 管理独立详情请求，useResource 管理取消/超时/竞态，API client 处理 HTTP 契约，组件通过 props/events 通信。
+
+实际 API 截图（无浏览器夹具）：
+
+![桌面仪表盘](images/task-0009/desktop-dashboard.png)
+![手机仪表盘](images/task-0009/mobile-dashboard.png)
+![桌面模块详情](images/task-0009/desktop-detail.png)
+
+全部原始截图在本地 `.git/codex-coordination/ui9/`；其中 fixture 前缀图片为测试夹具，未混作实际后端运行证据。下一阶段可在正式任务授权下加入 URL 路由与更完整的浏览器自动化覆盖；认证授权完成前不开放配置写入口。
+TASK-0009 PR base 为 `codex/TASK-0005-persistence`，只含本次 UI 增量；原 #3–#8 分支及三分钟自动任务保持原状，不自动合并或部署。
