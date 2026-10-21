@@ -56,7 +56,7 @@ try {
   async function screenshot(name) {
     // Guard every capture: never record a filled password field.
     assert.equal(await evaluate(`!document.querySelector('input[type=password]')?.value`), true)
-    const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: !name.startsWith('users-') })
+    const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: !/^(users-|grant-|my-modules)/.test(name) })
     await writeFile(path.join(output, name + '.png'), Buffer.from(shot.data, 'base64'))
   }
   let authenticated = false, failLogout = false, failIdentity = false, invalidRole = false
@@ -73,6 +73,9 @@ try {
   let module = { id: 'demo', name: '演示模块', version: '1.0.0', description: '仅用于布局验证的模块夹具。', category: 'tools', status: 'enabled', capabilities: ['inspect'], required: false, revision: 0, public_config: { show_in_navigation: true, refresh_interval_seconds: null } }
   let saveStatus = 200, viewer = false, admin = false
   let usersStatus = 200, usersWriteStatus = 200, userRequests = 0
+  const grantSets = new Map()
+  let grantStatus = 200, emptyGrantCandidates = false
+  const grantCandidates = [{ module_id:'alpha',name:'受保护业务示例',enabled:true },{ module_id:'beta',name:'停用业务示例',enabled:false }]
   let managedUsers = [{ id: 'layout-fixture-id', username: 'layout-fixture', role: 'owner', active: true, created_at: '2026-10-21T08:00:00Z' }, ...Array.from({ length: 21 }, (_, index) => ({ id: `user-fixture-${index}`, username: `user-${String(index).padStart(3,'0')}`, role: 'viewer', active: true, created_at: '2026-10-21T08:00:00Z' }))]
   let auditEntries = [], auditStatus = 200, auditRequests = 0, delayAudit = false
   let apiRequests = 0, sessionWrites = 0
@@ -93,6 +96,22 @@ try {
       apiRequests++
       let code = 200, body
       if (pathname === '/api/health') body = { status: 'ok', platform: 'Runtu Platform', database: 'ready' }
+      else if (pathname === '/api/me/modules') {
+        code = authenticated ? 200 : 401
+        body = { items: grantCandidates.filter(row => row.enabled && grantSets.get(user.id)?.has(row.module_id)).map(row => ({...row,granted:true})), next_after_module:null }
+      }
+      else if (/^\/api\/admin\/users\/[^/]+\/modules(?:\/[^/]+)?$/.test(pathname)) {
+        code = !authenticated ? 401 : viewer || admin ? 403 : grantStatus
+        const parts=pathname.split('/'), id=parts[4], moduleId=parts[6]
+        const assigned=grantSets.get(id)||new Set()
+        if(code===200&&request.method==='PUT') {
+          const value=JSON.parse(request.postData)
+          assert.ok(Object.keys(request.headers).some(key=>key.toLowerCase()==='x-csrf-token'))
+          value.granted ? assigned.add(moduleId) : assigned.delete(moduleId)
+          grantSets.set(id,assigned)
+          body={...grantCandidates.find(row=>row.module_id===moduleId),granted:value.granted}
+        } else body={items:emptyGrantCandidates?[]:grantCandidates.map(row=>({...row,granted:assigned.has(row.module_id)})),next_after_module:null}
+      }
       else if (pathname === '/api/admin/users' || pathname.startsWith('/api/admin/users/')) {
         userRequests++
         code = !authenticated ? 401 : viewer || admin ? 403 : request.method === 'GET' ? usersStatus : usersWriteStatus
@@ -116,7 +135,7 @@ try {
           body = managedUsers[index]
         } else body = { detail: 'fixture-user-error' }
       }
-      else if (pathname === '/api/modules') body = [module]
+      else if (pathname === '/api/modules') body = [module, { ...module, id:'alpha',name:'受保护业务示例',access_mode:'assigned' }]
       else if (pathname === '/api/modules/demo') body = module
       else if (pathname === '/api/admin/modules/demo/changes') {
         auditRequests++
@@ -178,6 +197,7 @@ try {
   async function noOverflow() { assert.equal(await evaluate(`document.documentElement.scrollWidth <= innerWidth`), true) }
   for (const [width, height] of [[1440, 900], [390, 844], [360, 800]]) {
     auditEntries = []
+    grantSets.clear()
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 761 })
     authenticated = false
     await visit('/login')
@@ -245,6 +265,24 @@ try {
     await visit('/users')
     await until(`document.querySelectorAll('.managed-user').length === 20`)
     assert.equal(await evaluate(`document.querySelector('.managed-user fieldset').disabled`), true)
+    emptyGrantCandidates=true
+    await click('.managed-user:first-child .user-module-access > button')
+    await until(`document.querySelector('.grant-content')?.textContent.includes('当前没有可授权的受保护业务模块')`)
+    emptyGrantCandidates=false
+    await click('.grant-content > button')
+    await until(`document.querySelector('.grant-items input')`)
+    await evaluate(`window.confirm=()=>true; document.querySelector('.grant-items input').click()`)
+    await until(`document.querySelector('.grant-content [role=status]')?.textContent.includes('模块授权已保存')`)
+    assert.equal(grantSets.get(user.id)?.has('alpha'),true)
+    await evaluate(`document.querySelector('.grant-content').scrollIntoView({block:'center'})`)
+    await noOverflow(); await screenshot(`grant-editor-${width}`)
+    await visit('/')
+    await until(`document.querySelector('.my-modules a')?.textContent === '受保护业务示例'`)
+    assert.equal(await evaluate(`document.querySelector('.my-modules').textContent.includes('停用业务示例')`),false)
+    await evaluate(`document.querySelector('.my-modules').scrollIntoView({block:'center'})`)
+    await noOverflow(); await screenshot(`my-modules-${width}`)
+    await visit('/users')
+    await until(`document.querySelectorAll('.managed-user').length === 20`)
     await noOverflow(); await screenshot(`users-${width}`)
     await click('.user-pagination button:last-child')
     await until(`document.querySelectorAll('.managed-user').length === 2`)
@@ -323,6 +361,9 @@ try {
   await until(`document.querySelector('.module-audit')?.textContent.includes('没有查看操作记录的权限')`)
   assert.equal(auditRequests, allowedAuditRequests)
   const previousUserRequests = userRequests
+  await visit('/modules')
+  await until(`document.querySelector('.module-list')`)
+  assert.equal(await evaluate(`Boolean(document.querySelector('.module-card[href="/modules/alpha"]'))`),false)
   await visit('/users')
   await until(`document.querySelector('.users-page')?.textContent.includes('没有用户管理权限')`)
   assert.equal(userRequests, previousUserRequests)
@@ -354,7 +395,16 @@ try {
   usersStatus = 200
   await click('.users-list [role=alert] button')
   await until(`document.querySelectorAll('.managed-user').length === 20`)
+  await click('.managed-user:nth-child(2) .user-module-access > button')
+  await until(`document.querySelector('.grant-items input')`)
+  grantStatus=503
+  await click('.grant-content > button')
+  await until(`document.querySelector('.grant-content [role=alert]')`)
+  assert.equal(await evaluate(`document.querySelectorAll('.grant-items input').length`),0)
+  grantStatus=200
+  await click('.grant-content [role=alert] button')
+  await until(`document.querySelector('.grant-items input')`)
   assert.ok(apiRequests > 0 && sessionWrites >= 6)
   assert.deepEqual(errors, [])
-  console.log('PASS isolated UI fixtures: prior module/audit flows; users desktop/mobile pages, owner creation/disable/secret clearing, protected self, 409/503 recovery, admin/viewer/anonymous no reads. No real user data used.')
+  console.log('PASS isolated UI fixtures: previous user/module/audit cases; per-user grants, own enabled entries, disabled exclusion, grant errors/recovery and desktop/mobile. No real user data used.')
 } finally { socket?.close(); child.kill() }

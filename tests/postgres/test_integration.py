@@ -23,6 +23,39 @@ from backend.models import AuthBootstrap, AuthEvent, AuthRateLimit, AuthSession,
 from scripts.pg_guard import GuardRefused, guarded_test_url
 
 
+def test_assigned_module_grants_public_contract_and_atomicity(pg_auth):
+    from tests.test_module_access import access_modules, exercise_grant_contract, put_grant
+    from tests.test_module_management import headers
+    from backend.module_access import GrantInput
+    from backend.models import UserModuleGrantEvent
+    from sqlalchemy import event
+    from sqlalchemy.exc import OperationalError
+    db,_,settings,actor,password=pg_auth
+    app=create_app(settings,modules=access_modules())
+    with TestClient(app,base_url='https://runtu.test') as client:
+        assert client.get('/api/modules/example/ping').status_code==200
+        assert client.get('/api/modules/alpha/ping').status_code==401
+        proof=client.get('/api/auth/csrf').json()['csrf_token']
+        assert client.post('/api/auth/login',json={'username':'operator','password':password},headers={'Origin':'https://runtu.test','X-CSRF-Token':proof}).status_code==200
+        exercise_grant_contract(client,app,actor)
+        def grant(_): return app.state.module_access.save(actor,actor,'beta',GrantInput(granted=True,expected_granted=False))
+        with ThreadPoolExecutor(max_workers=2) as pool: assert all(row.granted for row in pool.map(grant,range(2)))
+        def fail(*_): raise OperationalError('fixture grant audit',{},Exception('disposable'))
+        event.listen(UserModuleGrantEvent,'before_insert',fail)
+        try: assert put_grant(client,actor,'beta',False,True).status_code==503
+        finally: event.remove(UserModuleGrantEvent,'before_insert',fail)
+        assert client.get('/api/modules/beta/ping').status_code==200
+        with db.transaction() as session:
+            assert session.scalar(select(func.count()).select_from(UserModuleGrantEvent).where(UserModuleGrantEvent.module_id=='beta'))==1
+        with db.engine.begin() as connection:
+            config=migration_config();config.attributes['connection']=connection
+            command.check(config)
+            command.downgrade(config,'0004_module_management')
+        assert 'user_module_grants' not in inspect(db.engine).get_table_names()
+        migrate_database(db)
+        assert app.state.module_access.page(actor,actor,own=True).items==[]
+
+
 def test_user_management_owner_contract_and_concurrent_quorum(pg_auth):
     from backend.user_management import CreateUser, UpdateUser, UserDenied
     from tests.test_user_management import exercise_user_contract

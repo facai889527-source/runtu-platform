@@ -82,3 +82,20 @@ class AuthBootstrap(Base):
     __table_args__ = (CheckConstraint("id = 1", name="ck_auth_bootstrap_singleton"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class UserModuleGrant(Base):
+    __tablename__ = 'user_module_grants'
+    user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
+    module_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class UserModuleGrantEvent(Base):
+    __tablename__ = 'user_module_grant_events'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    actor_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    module_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
