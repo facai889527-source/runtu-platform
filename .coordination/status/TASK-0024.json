@@ -1,0 +1,13 @@
+{
+  "task_id": "TASK-0024",
+  "signal_version": 24,
+  "state": "running",
+  "updated_at": "2026-10-21T07:31:16.092Z",
+  "summary": "已领取安全同步及真实匿名访问保护核验任务。",
+  "checks": [],
+  "blockers": [],
+  "branch": "main",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "安全同步，核验真实无凭据访问及新版登录加载；用户会话保持需要本人操作。"
+}
