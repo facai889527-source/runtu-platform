@@ -1,15 +1,24 @@
 {
   "task_id": "TASK-0034",
   "signal_version": 34,
-  "state": "running",
-  "updated_at": "2026-10-21T12:46:08.554Z",
-  "summary": "Implementing registration policy and secure registration foundation on an isolated feature branch.",
+  "state": "completed",
+  "updated_at": "2026-10-21T13:01:53.645Z",
+  "summary": "Default-off registration policy and owner approval foundation completed in PR24; all final CI checks passed, awaiting review.",
   "checks": [
-    "Ready new version; no existing PR, local execution or remote status; outbox empty and no other active task."
+    "Independent feature branch codex/TASK-0034-registration-policy, commit 074359172cb092ec2034bfb0960d7236293e114e; no prior task PR or competing active task. Main remained at own running status commit 3af6e98d47ac8eb240585dbb440e2d46c379f3eb during implementation and final check.",
+    "Registration disabled and approval required by default. Every signup creates only a viewer with no module grants or authenticated session. Pending accounts remain inactive; ordinary role/status editing refuses pending markers; dedicated owner approval activates viewer only.",
+    "Owner policy and approval writes recheck active owner permission and valid session under existing bootstrap mutex. Policy revision prevents stale updates. Signup reuses trusted origin/CSRF, DB rate buckets and bounded Argon2 hashing slots, checks policy again after hashing, consumes anonymous context and returns generic duplicate acknowledgement.",
+    "Minimal audit and account/policy/approval changes commit or roll back together. No plaintext credentials in models returned or audit. Registration request bodies bounded to 4096 bytes with generic validation errors. No public account-status lookup, email verification, password recovery, rejection/deletion or automatic login.",
+    "Documented security/schema design in docs/REGISTRATION.md. Migration 0006 adds disabled policy singleton and approval markers without rewriting users; downgrade refuses unresolved pending registrations to prevent approval bypass. Missing approval table safely blocks generic user role/status edits; health readiness does not prove schema readiness.",
+    "Vue3 JavaScript adds public registration form plus independent owner policy and paginated approval components. Password native input cleared on submit/unmount, requests cancelled on cleanup, permission changes remove controls. No architecture or dependency migration.",
+    "Final Windows Python:142 passed,10 opt-in online PG skipped. Node23 passed and production build passed. Twelve new registration tests cover defaults, role matrix, CSRF/origin/input bounds, duplicates/rate limit, policy change during hash, consumed context, concurrent creation/approval, stale/revoked session, audit rollback and pending downgrade refusal.",
+    "Chrome intercepted-API fixtures passed at1440/390/360, including registration disabled/submitted/pending, owner policy/approval,503 and permission boundaries plus existing flows. Two fixture screenshots reviewed with empty/no password fields. Existing Vite stale Dashboard cache refreshed through unchanged source timestamp only; no service restart.",
+    "Final commit CI runs39604139013 and39604139348 completed success. Linux Python/Node/build passed; PostgreSQL online10 required0 skipped and owned-container strict count step passed, including registration contract, concurrent policy update, audit rollback and migration model/downgrade/re-upgrade.",
+    "PR24 created and attached; clean worktree, staged scope excludes IDE/private configuration/databases/backups/logs. No real development DB/schema/credentials or protected rows accessed, no real migration, bootstrap, service restart, merge, deployment or subsequent task."
   ],
   "blockers": [],
   "branch": "codex/TASK-0034-registration-policy",
-  "pr_url": null,
-  "commit_sha": null,
-  "next_action": "Review security design, implement defaults and approval boundary, validate disposable databases and CI; no real database migration or service restart."
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/24",
+  "commit_sha": "074359172cb092ec2034bfb0960d7236293e114e",
+  "next_action": "Review PR24 and registration security/schema documentation. Real development database has not received0005/0006 and running backend was not restarted; any local backup/migration or restart requires separate explicit authorization. Do not enable public signup before reviewing operational identity verification and abuse boundaries. No next task started."
 }
