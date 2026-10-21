@@ -11,7 +11,9 @@ def test_health_and_demo_manifest():
     with TestClient(create_app(Settings(_env_file=None))) as client:
         response = client.get("/api/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok", "platform": "Runtu Platform"}
+        assert response.json() == {
+            "status": "ok", "platform": "Runtu Platform", "database": "not_configured"
+        }
         response = client.get("/api/modules")
         assert response.status_code == 200
         assert response.json()[0]["id"] == "demo"
