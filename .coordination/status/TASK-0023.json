@@ -2,7 +2,7 @@
   "task_id": "TASK-0023",
   "signal_version": 23,
   "state": "completed",
-  "updated_at": "2026-10-21T07:25:36.517Z",
+  "updated_at": "2026-10-21T07:26:33.560Z",
   "summary": "已安全同步本地 main，并通过独立 PR 实现后台视图按需加载及开发/生产登录首屏验收。",
   "checks": [
     "干净工作树上本地 main 从 84d0621 快进至 4ff4c84，包含已合并 PR #18；原开发分支保留，未强制操作。",
@@ -11,7 +11,7 @@
     "冷启动匿名登录：开发 18 个脚本请求，生产预览 1 个入口 JS 请求；均未请求后台页面/外壳 chunk。该数字不是页面总请求数；304 不视为错误，未宣称性能耗时收益。",
     "生产入口 JS 实测 100.59→82.84 kB；manifest 确认后台外壳、账户菜单及四个页面为动态入口。",
     "未改依赖、后端认证、安全配置或开发数据库；无需用户手动改配置，真实管理员余下验收未冒充通过。",
-    "GitHub CI 已触发，结果待检查。"
+    "最终提交 GitHub CI 两次运行均 success，PR 无合并冲突：https://github.com/facai889527-source/runtu-platform/actions/runs/39561835724 和 https://github.com/facai889527-source/runtu-platform/actions/runs/39561835750。"
   ],
   "blockers": [],
   "branch": "codex/TASK-0023-lazy-pages",
