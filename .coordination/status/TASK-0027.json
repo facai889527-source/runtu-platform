@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0027",
+  "signal_version": 27,
+  "state": "running",
+  "updated_at": "2026-10-21T08:22:32.853Z",
+  "summary": "已领取本地开发 SQLite 0004 升级及受控后端重启任务，正在复核备份、目标和进程归属。",
+  "checks": [
+    "正式信号 TASK-0027:27 ready；本地无执行中任务、待回传为空，同任务全状态 PR 搜索为空，远端状态文件确认不存在。"
+  ],
+  "blockers": [],
+  "branch": "main",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "复核既有一致性备份及严格限定的隔离开发数据库，安全识别后端后才执行指定迁移。"
+}
