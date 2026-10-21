@@ -1,0 +1,13 @@
+{
+  "task_id": "TASK-0020",
+  "signal_version": 20,
+  "state": "running",
+  "updated_at": "2026-10-21T06:22:36.007Z",
+  "summary": "已领取双向状态回传任务；正在核对现有自动化与安全回传能力。",
+  "checks": [],
+  "blockers": [],
+  "branch": null,
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "实现协议、补回历史状态、验证远端读取及调度提示更新。"
+}
