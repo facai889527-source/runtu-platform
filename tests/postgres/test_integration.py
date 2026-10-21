@@ -23,6 +23,39 @@ from backend.models import AuthBootstrap, AuthEvent, AuthRateLimit, AuthSession,
 from scripts.pg_guard import GuardRefused, guarded_test_url
 
 
+def test_module_audit_keyset_http_contract(pg_auth):
+    from tests.test_module_audit import exercise_audit_pages
+    from tests.test_module_lifecycle import make_module
+    db, _, settings, actor, password = pg_auth
+    app = create_app(settings, modules=[make_module()])
+    with TestClient(app, base_url='https://runtu.test') as client:
+        path='/api/admin/modules/example/changes'
+        assert client.get(path).status_code==401
+        proof=client.get('/api/auth/csrf').json()['csrf_token']
+        assert client.post('/api/auth/login',json={'username':'operator','password':password},
+            headers={'Origin':'https://runtu.test','X-CSRF-Token':proof}).status_code==200
+        exercise_audit_pages(client)
+        # A failed audit insert rolls back the configuration on PostgreSQL too.
+        from sqlalchemy import event
+        from sqlalchemy.exc import OperationalError
+        from backend.models import ModuleChangeRecord
+        from tests.test_module_management import headers, payload
+        def fail_insert(*_args):
+            raise OperationalError('fixture audit failure', {}, Exception('disposable'))
+        event.listen(ModuleChangeRecord, 'before_insert', fail_insert)
+        try:
+            assert client.put('/api/admin/modules/example', json=payload(revision=13, interval=120),
+                headers=headers(client)).status_code == 503
+        finally:
+            event.remove(ModuleChangeRecord, 'before_insert', fail_insert)
+        assert client.get(path).json()['items'][0]['revision'] == 13
+        assert app.state.module_management.detail('example').revision == 13
+        for role,status in [('viewer',403),('admin',200),('owner',200)]:
+            with db.transaction() as session:
+                session.get(AuthUser,actor).role=role
+            assert client.get(path).status_code==status
+
+
 def test_module_management_persistence_rbac_and_concurrent_revision(pg_auth):
     from backend.persistence import ConfigConflictError
     from backend.models import ModuleChangeRecord
