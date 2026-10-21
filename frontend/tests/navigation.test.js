@@ -6,6 +6,7 @@ test('known pages, encoded detail, trailing slash and route 404', () => {
   assert.equal(parseRoute('/').page, 'dashboard')
   assert.equal(parseRoute('/modules/').title, '模块管理')
   assert.equal(parseRoute('/settings').page, 'settings')
+  assert.equal(parseRoute('/users/').page, 'users')
   assert.equal(parseRoute('/modules/%64emo').moduleId, 'demo')
   assert.equal(parseRoute('/modules/missing').title, '模块详情')
   for (const path of ['/unknown','/modules/demo/extra','/modules/%','/modules/%2f%2fevil.test','/modules/..','/modules/a%5Cb','/modules/中文','/modules/'+ 'a'.repeat(65)]) assert.equal(parseRoute(path).page, 'not-found', path)

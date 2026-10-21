@@ -1,13 +1,13 @@
 <script setup>
-import { ref, nextTick, watch, onMounted, onUnmounted, useTemplateRef } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUnmounted, useTemplateRef } from 'vue'
 import RouteLink from './RouteLink.vue'
 import AppIcon from './AppIcon.vue'
 import BrandMark from './BrandMark.vue'
-const props = defineProps({ page: String, title: String, path: String, platform: String })
+const props = defineProps({ page: String, title: String, path: String, platform: String, canManageUsers: Boolean })
 defineEmits(['refresh'])
 const collapsed = ref(false), mobileOpen = ref(false)
 const sidebar = useTemplateRef('sidebar'), menu = useTemplateRef('menu'), content = useTemplateRef('content')
-const entries = [{ id: 'dashboard', path: '/', name: '仪表盘', icon: 'dashboard' }, { id: 'modules', path: '/modules', name: '模块管理', icon: 'module' }, { id: 'settings', path: '/settings', name: '设置', icon: 'settings' }]
+const entries = computed(() => [{ id: 'dashboard', path: '/', name: '仪表盘', icon: 'dashboard' }, { id: 'modules', path: '/modules', name: '模块管理', icon: 'module' }, ...(props.canManageUsers ? [{ id: 'users', path: '/users', name: '用户管理', icon: 'lock' }] : []), { id: 'settings', path: '/settings', name: '设置', icon: 'settings' }])
 const media = window.matchMedia('(max-width: 760px)')
 const isMobile = ref(media.matches)
 function resize() { isMobile.value = media.matches; mobileOpen.value = false }

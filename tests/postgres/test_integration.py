@@ -23,6 +23,30 @@ from backend.models import AuthBootstrap, AuthEvent, AuthRateLimit, AuthSession,
 from scripts.pg_guard import GuardRefused, guarded_test_url
 
 
+def test_user_management_owner_contract_and_concurrent_quorum(pg_auth):
+    from backend.user_management import CreateUser, UpdateUser, UserDenied
+    from tests.test_user_management import exercise_user_contract
+    db, _, settings, actor, password = pg_auth
+    app=create_app(settings)
+    with TestClient(app,base_url='https://runtu.test') as client:
+        path='/api/admin/users'
+        assert client.get(path).status_code==401
+        proof=client.get('/api/auth/csrf').json()['csrf_token']
+        assert client.post('/api/auth/login',json={'username':'operator','password':password},headers={'Origin':'https://runtu.test','X-CSRF-Token':proof}).status_code==200
+        exercise_user_contract(client)
+        manager=app.state.user_management
+        other=manager.create(actor,CreateUser(username='other-owner',password=secrets.token_urlsafe(24),role='owner'))
+        def demote(pair):
+            try:
+                manager.update(*pair,UpdateUser(role='viewer',active=True,expected_role='owner',expected_active=True))
+                return 'saved'
+            except UserDenied: return 'denied'
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            assert sorted(pool.map(demote,[(actor,other.id),(other.id,actor)]))==['denied','saved']
+        with db.transaction() as session:
+            assert session.scalar(select(func.count()).select_from(AuthUser).where(AuthUser.active.is_(True),AuthUser.role=='owner'))==1
+
+
 def test_module_audit_keyset_http_contract(pg_auth):
     from tests.test_module_audit import exercise_audit_pages
     from tests.test_module_lifecycle import make_module
