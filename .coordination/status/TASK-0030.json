@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0030",
+  "signal_version": 30,
+  "state": "running",
+  "updated_at": "2026-10-21T08:58:29.653Z",
+  "summary": "已串行领取用户管理基础任务，开始审查现有认证、权限、模型与迁移。",
+  "checks": [
+    "正式TASK-0030:30 ready；本地无执行中任务、outbox为空，同任务全状态PR为空、远端状态确认404。"
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0030-user-management",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "保持现有users.manage矩阵，设计用户列表/受控创建与角色启停保护，仅用隔离数据库验收并提交PR。"
+}
