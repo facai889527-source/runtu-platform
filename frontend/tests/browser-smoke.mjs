@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { writeFile, mkdir } from 'node:fs/promises'
 import assert from 'node:assert/strict'
 import path from 'node:path'
-const output = path.resolve('.git/codex-coordination/ui10')
+const output = path.resolve('.git/codex-coordination/ui11')
 await mkdir(output, { recursive: true })
 let occupied = false
 try { occupied = (await fetch('http://127.0.0.1:9229/json')).ok } catch { /* Port is free. */ }
@@ -32,6 +32,10 @@ try {
         body={status:code===503?'degraded':'ok',platform:'Runtu browser fixture',database:code===503?'unavailable':'ready'}
       } else if(pathname==='/api/modules') body=mode==='empty'?[]:[{id:'disabled_test',name:'禁用测试模块',version:'1.0',description:'浏览器测试夹具',category:'tools',status:'disabled',capabilities:['inspect']}]
       else { code=mode==='404'?404:mode==='503'?503:200; body={id:'disabled_test',name:'禁用测试模块',version:'1.0',description:'浏览器测试夹具',category:'tools',status:'disabled',capabilities:['inspect'],public_config:{show_in_navigation:false,refresh_interval_seconds:30}} }
+      if(mode==='long') {
+        if(Array.isArray(body)) { body[0].name='非常长的模块名称'.repeat(8);body[0].capabilities=['very_long_capability_'.repeat(12)] }
+        else if(pathname.startsWith('/api/modules/')) { body.name='非常长的模块名称'.repeat(8);body.capabilities=['very_long_capability_'.repeat(12)] }
+      }
       if(mode==='loading') await new Promise(r=>setTimeout(r,600))
       await send('Fetch.fulfillRequest',{requestId,responseCode:code,responseHeaders:[{name:'Content-Type',value:'application/json'}],body:Buffer.from(JSON.stringify(body)).toString('base64')})
     }
@@ -47,14 +51,14 @@ try {
   async function click(text){await evaluate(`(()=>{const el=[...document.querySelectorAll('button, a[href]')].find(e=>(e.textContent.trim()===${JSON.stringify(text)}||e.getAttribute('aria-label')===${JSON.stringify(text)})&&e.getClientRects().length);if(!el)throw new Error('Missing button');el.click()})()`)}
   async function screenshot(name){const result=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});await writeFile(path.join(output,name+'.png'),Buffer.from(result.data,'base64'))}
   await send('Runtime.enable');await send('Page.enable')
-  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false})
+  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false})
   await loadDocument('Page.navigate',{url:'http://127.0.0.1:5173'})
   await until(`document.body.innerText.includes('未配置数据库') && document.body.innerText.includes('演示模块')`)
   assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true)
   await screenshot('desktop-dashboard')
   await click('折叠侧栏'); await until("document.querySelector('.shell').classList.contains('collapsed')")
   await click('展开侧栏')
-  await click('模块管理');await click('演示模块')
+  await click('模块管理');await screenshot('desktop-modules');await click('演示模块')
   await until(`document.body.innerText.includes('公开配置') && document.body.innerText.includes('导航展示偏好')`)
   await screenshot('desktop-detail')
   await click('返回模块目录')
@@ -80,12 +84,13 @@ try {
   assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true)
   await screenshot('mobile-modules')
   // Test actual document navigation and dev history fallback at both widths.
-  for (const width of [1440, 390]) {
-    await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===390})
+  for (const [width, height] of [[1440, 900], [390, 844], [360, 800]]) {
+    await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<761})
     for (const [pathname, text] of [['/','平台健康'],['/modules','模块目录'],['/modules/demo','公开配置'],['/settings','管理配置尚未开放'],['/unknown-route','404 · 找不到这个页面']]) {
       await loadDocument('Page.navigate',{url:'http://127.0.0.1:5173'+pathname})
       await until(`location.pathname===${JSON.stringify(pathname)} && document.body.innerText.includes(${JSON.stringify(text)})`)
       assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true)
+      if(pathname==='/' && width===360) { await until(`document.body.innerText.includes('演示模块')`); await screenshot('mobile-360-dashboard') }
       await loadDocument('Page.reload')
       await until(`location.pathname===${JSON.stringify(pathname)} && document.body.innerText.includes(${JSON.stringify(text)})`)
       assert.equal(await evaluate(`document.title.startsWith(document.querySelector('h1').textContent)`),true)
@@ -103,7 +108,7 @@ try {
     await until(`location.pathname==='/modules/demo' && document.body.innerText.includes('公开配置')`)
     assert.equal(await evaluate(`document.querySelector('nav [aria-current="page"]').getAttribute('href')`),'/modules')
     assert.equal(await evaluate(`document.activeElement.id`),'main-content')
-    await screenshot(width===390?'mobile-direct-detail':'desktop-direct-detail')
+    await screenshot(width===1440?'desktop-direct-detail':width===390?'mobile-direct-detail':'mobile-360-detail')
   }
   // Distinguish module API 404 from route 404, including malformed encoding.
   await loadDocument('Page.navigate',{url:'http://127.0.0.1:5173/modules/missing'})
@@ -152,6 +157,16 @@ try {
   await until(`document.body.innerText.includes('数据库不可用') && document.body.innerText.includes('服务降级')`)
   await screenshot('fixture-degraded-dashboard')
   console.log('PASS browser fixtures (intercepted only): empty/disabled/ready/degraded503/detail404/detail503/offline/loading/retry')
+  mode='long'; await click('打开导航');await click('模块管理');await click('刷新数据')
+  await until(`document.body.innerText.includes('非常长的模块名称')`)
+  assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true)
+  await evaluate(`document.querySelector('.module-link').click()`)
+  await until(`document.querySelector('.identity-title')?.textContent.includes('非常长的模块名称')`)
+  assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true)
+  await screenshot('fixture-long-mobile-detail')
+  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('button')).transitionDuration`),'0s')
+  console.log('PASS visual: 1440x900 / 390x844 / 360x800, long-name/capability fixtures, reduced motion')
   assert.deepEqual(errors,[])
   console.log('PASS real API: desktop dashboard/detail, search/filters, settings, mobile drawer/Escape, 390px no overflow, no runtime exceptions')
   await send('Browser.close')
