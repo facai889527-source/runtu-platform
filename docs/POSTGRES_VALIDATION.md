@@ -1,5 +1,7 @@
 # PostgreSQL 验证路径（TASK-0016）
 
+TASK-0017 新增独立 Linux/PG CI，使用同一受控 Docker 入口，不接受 GitHub service DSN。在线 job 现在严格要求五项通过且零跳过；凭据安全输出器只回显计数、用例名与源文件行号。当前云端尚未运行，最新 run 证据见 [CI_VALIDATION.md](CI_VALIDATION.md)。下文的本机阻塞是 TASK-0016 历史事实，不等于云端验证结果。
+
 ## 本次环境与阻塞
 
 2026-10-21 Windows 本机检查未发现 docker/podman/psql/postgres/pg_ctl 命令、PostgreSQL/Docker 服务或常见安装目录。因此 **未运行真实 PostgreSQL 在线验证，无 PG 版本或在线通过结果可报告**。没有安装系统服务、调用外部云数据库、探测未知数据库或索取生产凭据。
@@ -43,7 +45,7 @@
 3. 只发布 `127.0.0.1` 的动态端口，不开放公网；数据目录使用 tmpfs，无 bind mount、外部/生产数据卷，容器资源限额 512MiB/2 CPU。官方 entrypoint 使用密码认证，不允许 trust 配置。该用户在**一次性容器**内具有迁移所需权限，不是生产最小权限配置。
 4. 测试前重新 inspect 精确容器 ID、名称、随机所有权 label、运行状态、tmpfs 与唯一 loopback 端口；DSN 必须无 query override、数据库/用户必须与随机 ID 一致。原应用默认 URL 完全不读取，连接后再验证 current_database/current_user。每个测试创建自己唯一的 schema，通过内部生成的 search_path 连接，公共 schema 有未知表即拒绝，不复用其他项目数据。
 5. 破坏性 upgrade/downgrade 只在该容器的本测试 schema 内进行。清理前重新验证容器所有权；仅 DROP 本函数确实创建的精确随机 schema，再移除精确 ID 的自建容器及其匿名卷。无 DROP DATABASE、全局 prune、按模糊名称批量删除或外部 DSN 退路。所有权检查失败就停止删除并报告。
-6. pytest 子进程关闭 traceback、locals、captured diagnostics；入口只输出经过白名单提取的测试计数、失败用例名、非秘密的版本/image ID/容器名。失败不输出原始 SQL/DSN/请求体/会话，非法 CLI 参数也不会回显其值。秘密不落原始报告文件。
+6. pytest 子进程输出只在内存捕获，禁用 captured diagnostics 对外显示；入口只输出经过白名单提取的测试计数、失败用例名/源文件行号、非秘密的版本/image ID/容器名。失败不输出 traceback、原始 SQL/DSN/请求体/会话，非法 CLI 参数也不会回显其值。秘密不落原始报告文件。
 7. `finally` 尝试清理；若进程被强制结束/主机崩溃，可能留下容器。只根据本次输出的精确 `runtu-pg-<run-id>` 及匹配的 `runtu.pg-validation=<run-id>` label，由操作者审查后清理；不要打印完整 inspect（含临时密码），不要删除不匹配资源。**容器创建、在线验证及真实清理在本机均未执行成功，护栏单测不等于端到端通过。**
 
 loopback 发布仍依赖可信 Docker/主机网络，不隔离同机其他 Docker 管理员或恶意容器；不要在生产 Docker daemon 上运行，也不把它当作插件沙箱。

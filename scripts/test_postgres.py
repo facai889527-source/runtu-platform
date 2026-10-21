@@ -2,7 +2,6 @@
 import argparse
 import json
 import os
-from pathlib import Path
 import re
 import secrets
 import subprocess
@@ -12,6 +11,7 @@ import time
 from sqlalchemy.engine import URL
 
 from scripts.pg_guard import LABEL, GuardRefused, docker_command, inspect_owned, local_endpoint, validate_target
+from scripts.ci_tests import run_tests
 
 
 class SafeParser(argparse.ArgumentParser):
@@ -77,16 +77,8 @@ def main(argv=None):
         print('Disposable online environment: ' + pg_version)
         environment.update(RUNTU_PG_TEST_DSN=dsn, RUNTU_PG_TEST_RUN_ID=run_id,
                            RUNTU_PG_TEST_CONTAINER=container, RUNTU_PG_TEST_ENDPOINT=endpoint)
-        # No traceback, locals, captured requests or raw DB diagnostics may reveal credentials.
-        completed = subprocess.run([sys.executable, '-m', 'pytest', '-q', 'tests/postgres', '--tb=no', '--show-capture=no'],
-            cwd=Path(__file__).resolve().parents[1], env=environment, capture_output=True, text=True, timeout=180)
-        summaries = re.findall(r'\b\d+ (?:passed|failed|skipped|error(?:s)?)\b', completed.stdout)
-        print('PG suite: ' + (', '.join(summaries) if summaries else 'no test summary; diagnostics suppressed'))
-        for failed in re.findall(r'^FAILED (tests/postgres/[A-Za-z0-9_./]+::test_[A-Za-z0-9_]+)', completed.stdout, re.MULTILINE):
-            print('Failed case: ' + failed)
-        result_code = completed.returncode
-        if result_code == 0 and (not re.search(r'\b[1-9][0-9]* passed\b', completed.stdout) or re.search(r'\b[1-9][0-9]* skipped\b', completed.stdout)):
-            result_code = 2
+        # Five must execute; no skips, traceback, requests or raw DB diagnostics are emitted.
+        result_code = run_tests(['tests/postgres'], environment=environment, expected_passed=5)
     except GuardRefused as failure:
         print('PG online validation blocked: ' + str(failure), file=sys.stderr)
     except (ValueError, KeyError, IndexError, subprocess.TimeoutExpired):

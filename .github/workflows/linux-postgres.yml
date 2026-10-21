@@ -1,0 +1,68 @@
+name: Linux and PostgreSQL validation
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-postgres-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  python:
+    name: Linux Python full suite
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - run: python -m pip install --disable-pip-version-check -r backend/requirements-dev.txt
+      - name: Full suite (online PG tested in separate job)
+        run: python -m scripts.ci_tests
+      - run: python -m pip check
+
+  frontend:
+    name: Linux Node tests and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: npm install --global pnpm@11.25.0 --ignore-scripts --no-audit --no-fund
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: node --test frontend/tests/*.test.js
+      - run: pnpm run build
+        working-directory: frontend
+      - run: git diff --exit-code -- frontend/package.json frontend/pnpm-lock.yaml
+
+  postgres:
+    name: PostgreSQL online (5 required, 0 skipped)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      # Official PG 17.11 bookworm OCI index, verified via docker-library/repo-info.
+      PG_IMAGE: postgres@sha256:bc9388ef9ec36aeadb071135b115108f2efbfc6129306c160dd85eb85af7d571
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - run: python -m pip install --disable-pip-version-check -r backend/requirements-dev.txt
+      - name: Explicit pull of reviewed immutable official image
+        run: docker pull "$PG_IMAGE"
+      - name: Owned disposable container, online cases and strict count
+        run: python -m scripts.test_postgres --image "$PG_IMAGE"
