@@ -54,7 +54,14 @@ onMounted(refresh)
       <ul v-if="modules.length">
         <li v-for="module in modules" :key="module.id">
           <h3>{{ module.name }} <small>v{{ module.version }}</small></h3>
+          <p>
+            <span class="module-status" :class="{ disabled: module.status === 'disabled' }">
+              {{ module.status === 'disabled' ? '已禁用' : '已启用' }}
+            </span>
+            <span class="category">{{ module.category || '未分类' }}</span>
+          </p>
           <p>{{ module.description }}</p>
+          <p v-if="module.status === 'disabled'" class="disabled-note">此模块已禁用，业务路由不可用。</p>
         </li>
       </ul>
       <p v-else>{{ loading ? '正在读取模块…' : error ? '模块列表暂不可用。' : '暂无已注册模块。' }}</p>
