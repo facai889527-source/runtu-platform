@@ -1,0 +1,13 @@
+{
+  "task_id": "TASK-0026",
+  "signal_version": 26,
+  "state": "running",
+  "updated_at": "2026-10-21T08:02:54.345Z",
+  "summary": "已领取本地升级预检与在线备份任务；不会执行真实数据库迁移。",
+  "checks": [],
+  "blockers": [],
+  "branch": "main",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "核实隔离 SQLite、备份安全与兼容风险；迁移需另行明确批准。"
+}
