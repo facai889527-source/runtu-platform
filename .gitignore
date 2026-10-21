@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+env/
+
+# JetBrains / PyCharm
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Secrets and local settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+*.sqlite
+*.sqlite3
+*.db
+
+# OS / editor / logs
+.DS_Store
+Thumbs.db
+.vscode/
+*.log
+logs/
+tmp/
