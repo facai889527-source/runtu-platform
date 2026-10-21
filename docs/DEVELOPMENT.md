@@ -181,14 +181,14 @@ Python 内部使用 `Database(url)`、`ModuleConfigService(registry, database)`�
 - 模块管理：本地名称/ID/分类/描述/能力搜索、状态筛选、只读详情。详情显示 manifest 和 public_config；禁用模块保留展示并说明业务路由不可用。详情 404/503 和网络错误提供重试。
 - 设置：明确的未来配置入口占位，尚无认证授权、登录、保存、启用/删除等写操作。
 - 桌面侧栏可折叠；760px 及以下为可关闭导航抽屉，支持遮罩、Escape、焦点循环/恢复和背景 inert。刷新读取健康与列表；详情失败时使用详情自己的重新读取操作。
-- 不按公开配置隐藏模块或自动轮询。本阶段无持久 URL 路由，刷新浏览器回到仪表盘；不提供暗色主题、真实监控数据或生产部署方案。
+- 不按公开配置隐藏模块或自动轮询。TASK-0009 初版无持久 URL 路由（TASK-0010 已补充，见后文）；不提供暗色主题、真实监控数据或生产部署方案。
 
 ### 前端验证
 
 无需安装新的测试框架，在 frontend 目录运行：
 
 ```powershell
-node --test tests/ui.test.js
+node --test tests/ui.test.js tests/navigation.test.js
 pnpm install --frozen-lockfile --offline
 pnpm run build
 ```
@@ -202,7 +202,7 @@ pnpm run build
 node frontend/tests/browser-smoke.mjs
 ```
 
-脚本只用 Node 内置模块和现有 Windows Chrome，默认安装位置 `C:/Program Files/Google/Chrome/Application/chrome.exe`。不下载浏览器或第三方包，不关闭浏览器沙箱。9229 调试端口须空闲；使用 `.git/codex-coordination/ui9/chrome-profile` 隔离用户配置，结果截图存于同目录，测试结束关闭自己启动的无头浏览器。不要复用该测试端口运行其他浏览器。截图之前确认本地后端未返回敏感信息。
+脚本只用 Node 内置模块和现有 Windows Chrome，默认安装位置 `C:/Program Files/Google/Chrome/Application/chrome.exe`。不下载浏览器或第三方包，不关闭浏览器沙箱。9229 调试端口须空闲；使用 `.git/codex-coordination/ui9/chrome-profile` 隔离用户配置，结果截图存于同目录（TASK-0010 起使用 ui10 子目录），测试结束关闭自己启动的无头浏览器。不要复用该测试端口运行其他浏览器。截图之前确认本地后端未返回敏感信息。
 先验证实际 API，再使用仅在浏览器中的网络拦截夹具验证 ready、降级503、空列表、禁用模块、详情404/503、断网、加载和重试；夹具不写入产品数据或后端。脚本不启动/停止后端与 Vite，测试后在各终端 Ctrl+C。
 
 ### 本次实际验证与设计
@@ -220,3 +220,67 @@ App 只协调页面和共享只读健康/列表，AppLayout 管理导航及焦�
 
 全部原始截图在本地 `.git/codex-coordination/ui9/`；其中 fixture 前缀图片为测试夹具，未混作实际后端运行证据。下一阶段可在正式任务授权下加入 URL 路由与更完整的浏览器自动化覆盖；认证授权完成前不开放配置写入口。
 TASK-0009 PR base 为 `codex/TASK-0005-persistence`，只含本次 UI 增量；原 #3–#8 分支及三分钟自动任务保持原状，不自动合并或部署。
+
+## URL 导航与交互（TASK-0010）
+
+Windows 启动方法不变：仓库根目录运行 `.\.venv\Scripts\python.exe -m uvicorn backend.app:create_app --factory --host 127.0.0.1 --port 8000`，另一个终端在 frontend 下运行 `pnpm dev`。现在可以直接访问、复制链接或刷新下列地址（默认 Vite 地址）：
+
+| 地址 | 页面 |
+| --- | --- |
+| `http://127.0.0.1:5173/` | 仪表盘 |
+| `http://127.0.0.1:5173/modules` | 模块目录，支持本地搜索和状态筛选 |
+| `http://127.0.0.1:5173/modules/demo` | 演示模块真实详情 |
+| `http://127.0.0.1:5173/settings` | 尚未开放的设置占位 |
+| 其他未匹配路径 | 友好页面 404，提供返回仪表盘链接 |
+
+采用小型 History API 适配器而非新增 Vue Router 依赖：目前只有四类平面只读页面，没有路由守卫、嵌套布局或复杂懒加载需求；保持现有依赖和锁文件。导航状态由单个、组件生命周期内的 provider 持有，监听 popstate，并在卸载时释放；解析/导航适配器可独立 Node 测试。未来路由复杂化时可在正式任务中评估 Vue Router。
+
+导航使用真正的 `<a href>`，可以复制地址、Ctrl/Command 点击或新标签打开；普通点击在应用内 pushState，重复同一地址不增加历史条目。浏览器前进/后退与页面直接访问保持一致。进入详情时仍挂载模块管理页面，返回目录保留本次搜索/筛选；刷新或离开模块管理后不持久化筛选条件。详情变化取消旧请求，generation 校验避免迟到结果覆盖。详情不存在显示 API 404；数据库配置不可用显示 API 503；两者不冒充路由页面 404。
+
+导航后更新文档/页面标题、激活菜单和主内容焦点；手机抽屉关闭，背景解除 inert。抽屉焦点循环同时包含按钮和导航链接，Escape/遮罩关闭恢复打开按钮焦点。支持减少动画偏好，延续原有视觉 tokens，无新增外部字体或遥测。详情仍只读，没有启用、删除、保存或认证功能。
+
+模块 ID 与后端清单约束一致：小写字母开头，后接小写字母、数字、下划线，最多 64 字符。生成链接前验证并 encodeURIComponent，解析先安全 decodeURIComponent 再验证；无效 ID、编码分隔符、非法编码不发详情 API。内部导航仅接受本域 `/` 开头路径，拒绝外站、协议相对 URL 和反斜杠。直接向开发服务器请求原始孤立 `%` 会被 Vite URI 解码层拒绝（尚未进入应用）；应用解析器已测试该输入，浏览器直接访问的非法 ID 测试使用有效传输编码 `%25`。
+
+### 开发与静态部署的 history fallback
+
+实际验证 Vite dev server 直接访问及刷新 `/modules/demo`、`/settings`、未知路径会加载应用，`/api/health`、`/api/modules` 仍经既有代理返回 JSON，无代理修改。`pnpm preview` 仅作本地预览，不是生产部署。
+
+History 模式依赖静态主机回退到 index.html。以下仅为将来经授权部署时的 Nginx 配置示意，**未修改或连接任何服务器**。假设部署在域名根路径；路径和后端地址需由实际运维环境确定：
+
+```nginx
+server {
+    listen 80;
+    server_name example.invalid;
+    root /srv/runtu/frontend/dist;
+    index index.html;
+
+    # 保留原来的 /api 前缀，不让 API 404/503 回退到 HTML。
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+    }
+    location /assets/ {
+        try_files $uri =404;
+    }
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+无法配置 fallback 的静态空间不能直接刷新这些 history URL；本任务明确选择需要 fallback 的干净路径方案，未悄悄切换 hash 路由。子路径部署需要另行适配 Vite base 和路由前缀。SPA 的友好页面 404 在静态 fallback 下仍是 HTTP 200 HTML；API 404 保留真实 HTTP 状态。不把示例视为具备认证或生产安全能力的完整部署方案。
+
+### TASK-0010 验证记录
+
+基线：远程 `codex/TASK-0009-admin-ui`，`196d20ebd8067bbba79d1c00f2b288c28e69f58e`；领取时 PR #9 open、未合并。独立分支 `codex/TASK-0010-routing-polish`，PR base 精确为该父分支，未改原 #3–#9 分支/PR、GitHub 信号、Skills、AGENTS.md 或 ACTIVE 三分钟自动任务。
+
+- Python 3.14.0：`python -m pytest tests -q`，22 passed，保留既有 Starlette/httpx 弃用警告。
+- Node 24.19.0：在 frontend 下 `node --test tests/ui.test.js tests/navigation.test.js`，7 passed，覆盖原有请求/搜索逻辑和新解析、编码、外站拒绝、push/back/forward、同地址去重及监听清理。
+- pnpm 11.25.0：`pnpm run build` 通过；未改依赖/锁文件。
+- 现有 Windows Chrome + 实际 FastAPI/Vite：更新后的 `node frontend/tests/browser-smoke.mjs` 从仓库根目录运行通过，1440px 与 390px 下四类页面及未知路由均直接访问/刷新；复制链接目标、详情后退前进、搜索保留、页面标题/菜单/焦点、手机抽屉/Tab循环/Escape/打开时后退、无横向溢出和无 JS 异常验证通过。文档导航等待真实 load 事件，避免在刷新前旧 DOM 上误报。
+- 真实缺失模块 API 404 与页面 404 区分通过；原浏览器网络夹具仍覆盖空列表、禁用、ready、降级503、详情503、断网、加载和重试。夹具不代表真实 PostgreSQL 验证。
+- 原始截图在本地 `.git/codex-coordination/ui10/`，包括 `desktop-direct-detail.png`、`mobile-direct-detail.png`；仅提交两张实际 API 详情图，见下。
+
+![带 URL 导航的桌面模块详情](images/task-0010/desktop-direct-detail.png)
+![带 URL 导航的手机模块详情](images/task-0010/mobile-direct-detail.png)
+
+仍未进行真实 PostgreSQL 在线迁移、跨浏览器兼容或完整读屏审计；后端没有任何写接口改动。下一阶段可按正式任务增加跨浏览器/读屏验收或复杂路由；不自动合并及部署。

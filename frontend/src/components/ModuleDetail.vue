@@ -1,19 +1,18 @@
 <script setup>
-import { watch, onUnmounted, nextTick, useTemplateRef } from 'vue'
+import { watch, onUnmounted } from 'vue'
 import { useResource } from '../composables/useResource.js'
 import { readModule } from '../api/client.js'
 import ResourceState from './ResourceState.vue'
 import ModuleStatus from './ModuleStatus.vue'
+import RouteLink from './RouteLink.vue'
 const props = defineProps({ moduleId: { type: String, required: true } })
-defineEmits(['back'])
 const detail = useResource(readModule)
-const heading = useTemplateRef('heading')
-watch(() => props.moduleId, async (id) => { detail.load(id); await nextTick(); heading.value?.focus() }, { immediate: true })
+watch(() => props.moduleId, (id) => detail.load(id), { immediate: true })
 onUnmounted(detail.cancel)
 </script>
 <template>
-  <button class="back-button" @click="$emit('back')">返回模块目录</button>
-  <section class="panel"><h2 ref="heading" tabindex="-1">模块详情</h2>
+  <RouteLink class="back-button button-link" to="/modules">返回模块目录</RouteLink>
+  <section class="panel"><h2>模块详情</h2>
     <ResourceState :pending="detail.pending.value" :error="detail.error.value" @retry="detail.load(moduleId)">
       <template v-if="detail.data.value"><div class="detail-heading"><h3>{{ detail.data.value.name }}</h3><ModuleStatus :status="detail.data.value.status" /></div><p>{{ detail.data.value.description }}</p><p v-if="detail.data.value.status === 'disabled'" class="disabled-note">此模块已禁用，业务路由不可用。以下信息仅供查看。</p>
         <dl class="details"><dt>模块标识</dt><dd>{{ detail.data.value.id }}</dd><dt>版本</dt><dd>{{ detail.data.value.version }}</dd><dt>分类</dt><dd>{{ detail.data.value.category || '未分类' }}</dd><dt>能力声明</dt><dd>{{ detail.data.value.capabilities?.join('、') || '未声明能力' }}</dd></dl>
