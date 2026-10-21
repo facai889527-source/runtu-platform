@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class ModuleManifest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    id: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+    id: str = Field(pattern=r"^[a-z][a-z0-9_]*$", max_length=64)
     name: str
     version: str
     description: str
@@ -19,7 +19,7 @@ class ModuleManifest(BaseModel):
 class PublicModuleConfig(BaseModel):
     """Explicit public allowlist; never serialize a module's internal settings."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True, revalidate_instances="always")
 
     show_in_navigation: bool = True
     refresh_interval_seconds: int | None = Field(default=None, ge=1, le=86400)
