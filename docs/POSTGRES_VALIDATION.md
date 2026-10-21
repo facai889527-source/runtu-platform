@@ -1,6 +1,8 @@
 # PostgreSQL 验证路径（TASK-0016）
 
-## 本次环境与阻塞
+TASK-0017 已取得真实云端证据：[run39547528409](https://github.com/facai889527-source/runtu-platform/actions/runs/39547528409) 三个job全部success，代码head `88dcb8473664afcd1b409477aabadd1484a42160`；Linux普通suite为75 passed/5 skipped，独立PG在线为 **5 passed/0 skipped**，Node12 passed/build成功。实际 Docker28.0.4、PostgreSQL17.11（Debian17.11-1.pgdg12+2），日志确认自建容器删除。详细job链接、image ID与checkout SHA见 [CI_VALIDATION.md](CI_VALIDATION.md)。仍使用原受控 Docker 入口，不接受 service DSN，没有降低护栏或修复生产实现。下文TASK-0016本机阻塞为历史事实；Windows仍无Docker，但不能据此否认本次已完成的云端在线结果。
+
+## TASK-0016 本地环境与阻塞（历史记录）
 
 2026-10-21 Windows 本机检查未发现 docker/podman/psql/postgres/pg_ctl 命令、PostgreSQL/Docker 服务或常见安装目录。因此 **未运行真实 PostgreSQL 在线验证，无 PG 版本或在线通过结果可报告**。没有安装系统服务、调用外部云数据库、探测未知数据库或索取生产凭据。
 
@@ -43,12 +45,12 @@
 3. 只发布 `127.0.0.1` 的动态端口，不开放公网；数据目录使用 tmpfs，无 bind mount、外部/生产数据卷，容器资源限额 512MiB/2 CPU。官方 entrypoint 使用密码认证，不允许 trust 配置。该用户在**一次性容器**内具有迁移所需权限，不是生产最小权限配置。
 4. 测试前重新 inspect 精确容器 ID、名称、随机所有权 label、运行状态、tmpfs 与唯一 loopback 端口；DSN 必须无 query override、数据库/用户必须与随机 ID 一致。原应用默认 URL 完全不读取，连接后再验证 current_database/current_user。每个测试创建自己唯一的 schema，通过内部生成的 search_path 连接，公共 schema 有未知表即拒绝，不复用其他项目数据。
 5. 破坏性 upgrade/downgrade 只在该容器的本测试 schema 内进行。清理前重新验证容器所有权；仅 DROP 本函数确实创建的精确随机 schema，再移除精确 ID 的自建容器及其匿名卷。无 DROP DATABASE、全局 prune、按模糊名称批量删除或外部 DSN 退路。所有权检查失败就停止删除并报告。
-6. pytest 子进程关闭 traceback、locals、captured diagnostics；入口只输出经过白名单提取的测试计数、失败用例名、非秘密的版本/image ID/容器名。失败不输出原始 SQL/DSN/请求体/会话，非法 CLI 参数也不会回显其值。秘密不落原始报告文件。
+6. pytest 子进程输出只在内存捕获，禁用 captured diagnostics 对外显示；入口只输出经过白名单提取的测试计数、失败用例名/源文件行号、非秘密的版本/image ID/容器名。失败不输出 traceback、原始 SQL/DSN/请求体/会话，非法 CLI 参数也不会回显其值。秘密不落原始报告文件。
 7. `finally` 尝试清理；若进程被强制结束/主机崩溃，可能留下容器。只根据本次输出的精确 `runtu-pg-<run-id>` 及匹配的 `runtu.pg-validation=<run-id>` label，由操作者审查后清理；不要打印完整 inspect（含临时密码），不要删除不匹配资源。**容器创建、在线验证及真实清理在本机均未执行成功，护栏单测不等于端到端通过。**
 
 loopback 发布仍依赖可信 Docker/主机网络，不隔离同机其他 Docker 管理员或恶意容器；不要在生产 Docker daemon 上运行，也不把它当作插件沙箱。
 
-## 五项在线用例（尚未执行）
+## 五项在线用例（TASK-0016未执行，TASK-0017云端已通过）
 
 | 用例 | 计划真实验证内容 |
 | --- | --- |
@@ -58,9 +60,9 @@ loopback 发布仍依赖可信 Docker/主机网络，不隔离同机其他 Docke
 | atomic_failed_login_window_across_workers | 8 个独立 AuthService 模拟多个 worker，5 次失败与3次限流；PG原子账户/来源计数及失败审计数，避免仅测单进程信号量 |
 | same_preauth_session_cannot_login_twice_and_timezone_expiry | 同一预登录 session 并发登录只能轮换成功一次；Asia/Shanghai 连接时区仍正确比较 UTC 到期、撤销过期身份 |
 
-当前没有真实 PG 验证发现并复现的生产缺陷，因此**未修改生产认证、RBAC、迁移或前端实现**，更未降低 CSRF/Origin/密码或权限校验。在线测试代码也尚未经过真实 PG 端到端运行，后续可能需要环境兼容修正，不能据其存在批准上线。
+TASK-0016时没有在线证据；TASK-0017首次真实PG执行五项全部通过，没有发现并复现需要修改的生产缺陷，因此**未修改生产认证、RBAC、迁移或前端实现**，更未降低 CSRF/Origin/密码或权限校验。在线通过不等于批准上线，仍需目标环境与生产强化审查。
 
-## 本次实际执行结果
+## TASK-0016 实际执行结果（历史记录）
 
 - Windows / Python 3.14：全量 pytest **69 passed、5 skipped**。原认证/RBAC/SQLite与离线 PG SQL 回归通过；新增护栏测试覆盖外部/默认/错误 DSN、身份不匹配、未知容器、公开端口、持久化挂载、远程 daemon、Docker 缺失、清理所有权拒绝及 CLI 凭据不回显。五项 skipped 全部为在线 PG，用例没有运行。
 - 实际执行 `python -m scripts.test_postgres`：**退出码 2**，消息 `Docker unavailable; no PostgreSQL online validation performed`，在数据库连接/容器创建前停止。没有创建数据库/容器，也没有需要清理的测试资源。此结果是阻塞，不是测试通过。
@@ -75,6 +77,6 @@ loopback 发布仍依赖可信 Docker/主机网络，不隔离同机其他 Docke
 
 0003 降级会撤销全部 session、丢精确角色，仅 owner 保留旧管理员标记；admin 降级并重升级成为 viewer。0002 降级会删除所有用户/session/审计/限流/引导标记；不能当作无损回滚、密码重置或重新引导捷径。优先审查前向修复或从受控备份恢复，不自动猜测补权，恢复流程仍需单独设计与授权。
 
-未来 #13 CI 合并后，可另行审查 Linux job 的一次性 PostgreSQL service；需保留独立测试库/护栏与秘密输出策略，不能直接把 service DSN 注入当前 Docker-only 入口。本任务**没有修改 #13 workflow、其他 PR、main、signal、AGENTS、Skills 或三分钟自动任务，也未合并/部署。**
+TASK-0017选择自建容器路径而非 service DSN，已在独立workflow完成验证，无需合并#13。未来若另行审查一次性PostgreSQL service模式，仍需保留独立测试库/护栏与秘密输出策略，不能直接把 service DSN 注入当前Docker-only入口。本任务**没有修改 #13 workflow、其他 PR、main、signal、AGENTS、Skills 或三分钟自动任务，也未合并/部署。**
 
 参考官方资料：[PostgreSQL 容器变量与临时数据目录](https://hub.docker.com/_/postgres)、[Docker 端口发布与旧版 localhost 风险](https://docs.docker.com/engine/network/port-publishing/)、[PG 约束与外键](https://www.postgresql.org/docs/current/ddl-constraints.html)。
