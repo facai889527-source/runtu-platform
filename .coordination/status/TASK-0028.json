@@ -1,15 +1,22 @@
 {
   "task_id": "TASK-0028",
   "signal_version": 28,
-  "state": "running",
-  "updated_at": "2026-10-21T08:32:32.850Z",
-  "summary": "已领取模块操作记录查询及后台审计界面任务，开始核对既有结构、权限和测试。",
+  "state": "completed",
+  "updated_at": "2026-10-21T08:41:11.958Z",
+  "summary": "模块内操作记录查询与详情审计界面已提交 PR #21，隔离验收及 GitHub CI 通过，待审查。",
   "checks": [
-    "正式信号TASK-0028:28 ready；本地无执行中任务、outbox为空，同任务全状态PR为空，远端状态确认404。"
+    "独立分支实现GET /api/admin/modules/{module_id}/changes；复用audit.read，owner/admin允许、viewer403、匿名/撤销401、来源检查不变，响应no-store。",
+    "按已注册模块过滤，limit默认10/最大50，排他before_revision游标，模块内唯一revision降序，查询limit+1；仅输出module_id/actor_id/action/created_at/revision，不关联账号/会话/配置内容，不提供任意SQL或无界导出。",
+    "复用0004的(module_id,revision)唯一索引，无模型或迁移改动；未读取真实用户审计数据、修改开发库数据、配置或凭据，未重启真实服务。",
+    "模块详情新增独立操作记录组件：空/加载/权限/失败状态、刷新、较新/更早页、保存后刷新；权限丢失或模块切换清空并取消旧请求。Vue3 Composition API及JavaScript保持，无新增依赖。",
+    "Windows Python99 passed、7 online PG skipped，Node17 passed、build通过；临时SQLite验证权限/参数/过滤/排序/并发新写入分页/空记录/事务失败回滚及幂等。",
+    "Chrome全API隔离夹具通过1440/390/360，覆盖加载/空页/分页/刷新/403/503及匿名、viewer不请求记录；已审看测试截图，不使用真实用户身份或审计数据。",
+    "最终提交4068569348f55525912f51522eadccc16c5155b1的GitHub检查全部成功：Linux Python、Linux Node/build、既有Read-only validation；PostgreSQL online7 required0 skipped及严格计数步骤成功。PG验证复用分页HTTP合约、实时角色和审计失败回滚。",
+    "PR #21已创建并附加；工作树干净，已检查提交文件，无IDE配置、真实环境配置、数据库、备份或本地日志。"
   ],
   "blockers": [],
   "branch": "codex/TASK-0028-module-audit",
-  "pr_url": null,
-  "commit_sha": null,
-  "next_action": "独立分支复用0004结构，实现audit.read受控查询与模块详情记录区块，使用隔离测试库验收。"
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/21",
+  "commit_sha": "4068569348f55525912f51522eadccc16c5155b1",
+  "next_action": "请ChatGPT审查PR #21及CI运行39570924161/39570924185；尚未合并或部署。本次后端仍运行已批准的上一版本，不自动重启加载未审查代码；审查合并后按新授权安排本地刷新和用户实际验收。"
 }
