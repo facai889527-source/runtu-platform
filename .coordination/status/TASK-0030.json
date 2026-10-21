@@ -1,15 +1,25 @@
 {
   "task_id": "TASK-0030",
   "signal_version": 30,
-  "state": "running",
-  "updated_at": "2026-10-21T08:58:29.653Z",
-  "summary": "已串行领取用户管理基础任务，开始审查现有认证、权限、模型与迁移。",
+  "state": "completed",
+  "updated_at": "2026-10-21T09:12:22.412Z",
+  "summary": "用户管理基础已串行完成并提交PR #22；现有owner专用权限保持，隔离测试及8项PostgreSQL在线CI通过，待审查。",
   "checks": [
-    "正式TASK-0030:30 ready；本地无执行中任务、outbox为空，同任务全状态PR为空、远端状态确认404。"
+    "独立分支codex/TASK-0030-user-management，提交c5bdacfa1977b878623fb6ce836a3083d258f293；未并行处理其他任务，未创建或发布后续任务。",
+    "沿用users.manage固定矩阵：owner可列表/创建/角色启停，admin/viewer403，匿名401（不可信写来源先403）；会话、CSRF及来源保护保留，写事务内再次检查实时active与授权，不扩大admin权限。",
+    "用户列表每页默认20/最多50，规范用户名固定ASCII游标排序，仅返回id/username/role/active/created_at；创建默认viewer，角色白名单和严格输入；未知或密码字段不会进入公开响应。",
+    "创建沿用Argon2id及14..128字符策略，无默认密码；请求流限制4096字节，校验错误不回显原始值。页面原生密码字段提交后立即清空，成功/失败/卸载再次清空，不进入日志、浏览器存储或截图。测试密码均为隔离运行时数据，未上传密码或哈希。",
+    "复用现有bootstrap单例锁串行化用户写入，禁止自我降权/禁用和最后active owner被移除；旧预期状态不符409。角色或状态改变原子撤销目标旧会话，重启用不复活旧会话；事件失败连同账户/会话一起回滚。",
+    "复用现有表和权限，无迁移、依赖或注册策略变更；不提供公开注册、注册审核、密码重置、邮件、用户模块授权或删除。未读取真实用户表或凭据，未修改真实开发库、重启真实服务或部署。",
+    "Vue3 JavaScript独立按需加载用户页面；列表、创建和单账户编辑各自拥有生命周期，复用既有身份/导航；显式权限才显示操作及读取列表，包含确认、错误恢复和移动端适配。",
+    "Windows完整Python120 passed/8 online PG skipped，最终排序修正后用户管理21 passed；Node19 passed、build通过。隔离SQLite验证矩阵/非法输入/重复名/提升拒绝/自我与最后owner/并发互降/启停/会话撤销/持久化/事务回滚及响应脱敏。",
+    "Chrome全API隔离夹具1440/390/360通过，包含创建/禁用、密码清空、保护自身、分页、409/503恢复及admin/viewer/匿名不请求；已审看密码为空的移动截图。",
+    "最终提交的CI运行39574907330/39574907148全部成功；Linux Python/Node构建及既有校验通过，PG用户合约、标点排序与并发owner用例纳入，PostgreSQL严格计数8 passed、零跳过。",
+    "PR #22已附加；工作树/暂存区干净，提交文件检查无IDE配置、真实环境配置、数据库、备份或本地日志。设计和边界见docs/USER_MANAGEMENT.md。"
   ],
   "blockers": [],
   "branch": "codex/TASK-0030-user-management",
-  "pr_url": null,
-  "commit_sha": null,
-  "next_action": "保持现有users.manage矩阵，设计用户列表/受控创建与角色启停保护，仅用隔离数据库验收并提交PR。"
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/22",
+  "commit_sha": "c5bdacfa1977b878623fb6ce836a3083d258f293",
+  "next_action": "请ChatGPT审查PR #22及CI，尚未合并；本地后端仍是此前已批准版本，新用户接口须合并后由后续明确授权同步/加载。本任务不自动合并、部署或启动后续任务，等待正式串行调度。"
 }
