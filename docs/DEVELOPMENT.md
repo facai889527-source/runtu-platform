@@ -284,3 +284,16 @@ server {
 ![带 URL 导航的手机模块详情](images/task-0010/mobile-direct-detail.png)
 
 仍未进行真实 PostgreSQL 在线迁移、跨浏览器兼容或完整读屏审计；后端没有任何写接口改动。下一阶段可按正式任务增加跨浏览器/读屏验收或复杂路由；不自动合并及部署。
+
+## 视觉系统 v2（TASK-0011）
+
+管理后台已进行完整视觉重设计，保留 TASK-0010 的 URL、刷新、前进后退、只读 API、搜索筛选和错误/空态。两种视觉方向比较、设计 tokens、逐项改进与真实桌面/390px/360px 截图见 [Design System v2](DESIGN_SYSTEM_V2.md)。
+
+新增 `frontend/tests/design.test.js` 对核心文字/状态 tokens 做 4.5:1 对比度检查。前端目录运行：
+
+```powershell
+node --test tests/ui.test.js tests/navigation.test.js tests/design.test.js
+pnpm run build
+```
+
+浏览器验证依然从仓库根运行 `node frontend/tests/browser-smoke.mjs`（先启动本地后端和 Vite）；现在覆盖 1440×900、390×844、360×800、长名称/能力夹具、减少动画偏好。实际图片与隔离浏览器目录改为 `.git/codex-coordination/ui11/`；提交的真实 API 截图在 `docs/images/task-0011/`。夹具图片带 fixture 前缀，不作为真实后端交付图。未增加依赖或修改代理，未连接生产服务器。
