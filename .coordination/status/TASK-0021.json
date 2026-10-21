@@ -1,13 +1,21 @@
 {
   "task_id": "TASK-0021",
   "signal_version": 21,
-  "state": "running",
-  "updated_at": "2026-10-21T06:39:23.340Z",
-  "summary": "已领取真实管理员登录验收任务，正在执行只读前置核对。",
-  "checks": [],
-  "blockers": [],
+  "state": "blocked_user_action",
+  "updated_at": "2026-10-21T06:40:37.838Z",
+  "summary": "管理员及开发环境前置检查通过，loopback 服务已保留可用；等待用户在浏览器亲自输入密码并完成真实登录验收。",
+  "checks": [
+    "只读核对指定管理员存在、active、owner；唯一引导标记存在；迁移版本 0003_rbac_roles。",
+    "认证 origin 为 http://127.0.0.1:5173，明确允许本机 HTTP；两个服务仅监听 127.0.0.1。",
+    "首页、登录页、健康接口 HTTP 200；匿名身份 authenticated=false；受保护管理员接口 HTTP 401；防伪接口正常，未公开任何令牌值。",
+    "环境文件与开发数据库被 Git 忽略，工作树干净；未重新引导、重置账户或修改权限。"
+  ],
+  "blockers": [
+    "管理员密码只能由用户在其浏览器登录表单亲自输入。",
+    "真实登录后身份及 owner 权限、刷新后会话保持、退出及退出后拒绝访问仍未验收。"
+  ],
   "branch": null,
   "pr_url": null,
   "commit_sha": null,
-  "next_action": "核对管理员状态及 loopback 服务，等待用户亲自浏览器登录。"
+  "next_action": "用户打开 http://127.0.0.1:5173/login 亲自登录，确认管理后台后刷新并退出；告知完成后继续核验，不在聊天发送密码。开发服务暂保留供操作，关闭时仅停止本任务记录的自有进程。"
 }
