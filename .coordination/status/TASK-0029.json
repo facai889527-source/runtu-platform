@@ -1,15 +1,21 @@
 {
   "task_id": "TASK-0029",
   "signal_version": 29,
-  "state": "running",
-  "updated_at": "2026-10-21T08:51:37.931Z",
-  "summary": "已领取已合并模块审计功能的本地同步与匿名验收任务，正在检查安全快进和服务归属。",
+  "state": "completed",
+  "updated_at": "2026-10-21T08:54:11.183Z",
+  "summary": "已安全同步包含PR #21的本地main并重启本项目后端；新版审计API与UI可用，匿名保护及隔离验收通过。",
   "checks": [
-    "TASK-0029:29 ready；本地无执行中任务、outbox为空，同任务全状态PR为空，远端状态确认404。"
+    "工作树干净，保留TASK-0028任务分支与其他分支；本地main安全快进至74bcb4c7ed7a7c94e1c47b2155b0bde0a5de81e8，确认包含PR #21合并提交e7f78a3219a3791ee6975499f08eed021acf6198；无reset/force。",
+    "严格确认既定隔离本地SQLite；只读Alembic版本/表结构/索引元数据，schema仍为0004_module_management，module_changes字段及模块+revision唯一索引与代码兼容；没有执行任何迁移、降级或重建。",
+    "通过既有本地记录、Python父子启动链及loopback8000/5173确认服务归属，仅受控重启本项目后端；新监听归属核实通过。原Vite进程保留，已只读确认提供ModuleAudit新版组件，热更新正常。",
+    "真实服务检查仅匿名无凭据GET，不使用Cookie jar、不获取用户会话或审计记录：8000/5173健康200且数据库ready；5173登录页/模块列表200；同源审计API401，直接8000访问受来源校验403。受保护响应体未读取。",
+    "Python99 passed、7 opt-in PG skipped；Node17 passed；build通过。独立临时SQLite和测试客户端验证owner/admin允许、viewer/匿名拒绝、过滤/排序/分页、空记录、幂等及事务失败回滚。",
+    "Chrome全API隔离夹具通过1440/390/360：空/加载记录、刷新、翻页、保存后刷新、403/503恢复、匿名/viewer不请求；未登录真实管理员，未读真实模块审计数据。",
+    "未修改真实模块设置、创建真实审计记录或bootstrap，未读取账号凭据/会话令牌；测试子进程隔离真实环境覆盖。私有环境文件与开发SQLite仍被Git忽略，工作树及暂存区干净，无产品改动，无需PR。"
   ],
   "blockers": [],
   "branch": "main",
   "pr_url": null,
-  "commit_sha": null,
-  "next_action": "安全快进main，仅读取schema元数据核实0004兼容性，受控重启已确认后端；匿名真实接口及隔离夹具验收，不执行迁移。"
+  "commit_sha": "74bcb4c7ed7a7c94e1c47b2155b0bde0a5de81e8",
+  "next_action": "用户可在 http://127.0.0.1:5173/login 使用原有账户登录，在模块详情查看操作记录。首次为空正常，后续由用户真实保存变更产生记录；本任务没有代替用户执行登录或模块修改。继续三分钟幂等检查，不自动合并或部署。"
 }
