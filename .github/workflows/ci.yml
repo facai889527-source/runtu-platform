@@ -1,0 +1,97 @@
+name: Read-only validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  layout:
+    name: Detect product layout
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.layout.outputs.backend }}
+      frontend: ${{ steps.layout.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6, verified 2026-10-21
+        with:
+          persist-credentials: false
+      - id: layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f backend/app.py ]]; then
+            test -f backend/requirements-dev.txt
+            test -d tests
+            echo 'backend=true' >> "$GITHUB_OUTPUT"
+          elif [[ -f backend/requirements-dev.txt || -d tests ]]; then
+            echo '::error::Incomplete backend layout'
+            exit 1
+          else
+            echo 'backend=false' >> "$GITHUB_OUTPUT"
+            echo 'Backend absent: Python tests skipped, not passed.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -f frontend/package.json ]]; then
+            test -f frontend/pnpm-lock.yaml
+            test -f frontend/src/main.js
+            echo 'frontend=true' >> "$GITHUB_OUTPUT"
+          elif [[ -f frontend/pnpm-lock.yaml || -f frontend/src/main.js ]]; then
+            echo '::error::Incomplete frontend layout'
+            exit 1
+          else
+            echo 'frontend=false' >> "$GITHUB_OUTPUT"
+            echo 'Frontend absent: Node tests/build skipped, not passed.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  python:
+    name: Python tests
+    needs: layout
+    if: needs.layout.outputs.backend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - run: python -m pip install --disable-pip-version-check -r backend/requirements-dev.txt
+      - run: python -m pytest tests -q
+      - run: python -m pip check
+
+  frontend:
+    name: Node tests and build
+    needs: layout
+    if: needs.layout.outputs.frontend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: npm install --global pnpm@11.25.0 --ignore-scripts --no-audit --no-fund
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - name: Run available Node unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          tests=(frontend/tests/*.test.js)
+          if (( ${#tests[@]} )); then
+            node --test "${tests[@]}"
+          else
+            echo 'No Node unit test files in this stage; build still required.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - run: pnpm run build
+        working-directory: frontend
+      - run: git diff --exit-code -- frontend/package.json frontend/pnpm-lock.yaml
