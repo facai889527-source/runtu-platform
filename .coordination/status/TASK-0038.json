@@ -2,15 +2,17 @@
   "task_id": "TASK-0038",
   "signal_version": 38,
   "state": "running",
-  "updated_at": "2026-10-22T10:00:54.247Z",
-  "summary": "Redesigning shared authentication layout and inline signup entry; preserving authoritative registration and session boundaries.",
+  "updated_at": "2026-10-22T10:07:16.256Z",
+  "summary": "PR27 submits responsive authentication redesign, inline signup link and explicit closed-registration notice; isolated checks passed, CI pending.",
   "checks": [
-    "Ready version38 verified; no local task record, same-task PR or remote status; outbox empty and no active task.",
-    "PR26 merged on main verified; clean existing feature branch preserved."
+    "Python144 passed,11 opt-in online skipped; Node28 passed; production build passed.",
+    "Chrome all-API fixtures1440/390/360 passed including signup-link click, closed/open registration, login401/403/503, pending/password clearing, Tab and reduced motion.",
+    "Desktop/mobile/closed registration screenshots reviewed; fixture data only and empty password fields.",
+    "No backend/API/policy setting change, real database/credential reads, migration or existing service restart; independent preview stopped."
   ],
   "blockers": [],
   "branch": "codex/TASK-0038-auth-design",
-  "pr_url": null,
-  "commit_sha": null,
-  "next_action": "Implement responsive Vue3 JavaScript authentication design; test isolated fixtures and create PR without merge."
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/27",
+  "commit_sha": "729c0f02aba89d8ee057543d1ca2c0a2fbc1111d",
+  "next_action": "Verify final-head CI and report PR27 for review; do not merge, deploy or start another task."
 }
