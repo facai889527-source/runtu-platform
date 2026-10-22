@@ -1,19 +1,24 @@
 {
   "task_id": "TASK-0039",
   "signal_version": 39,
-  "state": "running",
-  "updated_at": "2026-10-22T10:33:35.523Z",
-  "summary": "Existing PR27 updated with tool-platform copy and policy-aware signup UX; local Node/build and isolated browser checks passed; CI pending.",
+  "state": "completed",
+  "updated_at": "2026-10-22T10:34:34.774Z",
+  "summary": "Existing PR27 revised with tool-platform copy and policy-aware signup entry; all final-head CI passed.",
   "checks": [
-    "Commit9d7bd576e0a53762810258ad641c3b170aff13b0 pushed to existing PR27 branch; no duplicate PR created.",
-    "Node28 and production build passed; Chrome1440/390/360 all-API fixtures passed.",
-    "Verified closed policy stays on login, enabled policy navigates,404/503/network failure stay unavailable, rapid-click deduplication and abort/unmount.",
-    "Direct/register closed/unavailable states have no form or refresh button; screenshots updated and visually reviewed.",
-    "No backend/policy-setting change, real database/credential reads or migration; no existing service restart; independent preview stopped."
+    "Updated existing PR27, no duplicate product PR; clean branch head9d7bd576e0a53762810258ad641c3b170aff13b0.",
+    "Specified tool-platform headline and subheading replace administration copy; architecture chips removed in favor of restrained abstract decoration.",
+    "Inline signup entry queries public policy; enabled navigates/register; disabled stays/login with accessible brief notice;404/503/network errors remain unavailable on login.",
+    "Rapid clicks share in-flight query; successful result reused10seconds in component; failures uncached; timeout and unmount abort with late response ignored.",
+    "Direct/register remains anonymous; closed/unavailable states have back-to-login link and no form or refresh button; backend signup policy remains authoritative.",
+    "Node28 passed; production build passed; Chrome all-API fixtures1440/390/360 passed including policy decisions, request count, abort/unmount, keyboard/reduced motion, login errors and original role/module/review flows.",
+    "Updated desktop/mobile/closed-policy screenshots reviewed, fixture-only and empty password fields; stale diagram CSS/copy removed.",
+    "Final-head CI39763945811 and39763945816 completed/success; Linux full Python andNode/build passed.",
+    "PostgreSQL job119774638234:11 passed,0 failed,0 skipped; owned disposable container removed.",
+    "No backend/policy-setting change, real database/credential reads or migration, existing service restart, merge or deployment; independent preview stopped."
   ],
   "blockers": [],
   "branch": "codex/TASK-0038-auth-design",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/27",
   "commit_sha": "9d7bd576e0a53762810258ad641c3b170aff13b0",
-  "next_action": "Verify final-head CI39763945811 and39763945816, then report PR27 revision for review without merge."
+  "next_action": "Review updated PR27 and revised screenshots. Do not auto-merge/deploy. Real service refresh requires separate formal authorization; do not start another task."
 }
