@@ -2,15 +2,17 @@
   "task_id": "TASK-0036",
   "signal_version": 36,
   "state": "running",
-  "updated_at": "2026-10-22T09:11:48.361Z",
-  "summary": "Implementing authenticated management pages and module metadata while preserving public demo and health/auth endpoints.",
+  "updated_at": "2026-10-22T09:23:58.310Z",
+  "summary": "Implementation submitted as PR25; local isolated validation passed; waiting for Linux/PostgreSQL CI.",
   "checks": [
-    "Ready version 36 verified; no local record, same-task PR or remote status; outbox empty.",
-    "Clean existing feature branch preserved; new product branch will start from fetched main."
+    "Product commit 7a16546d4390418fb6379a97f7b755520a1bd384; clean worktree; PR25 open.",
+    "Python143 passed,10 opt-in PostgreSQL skipped locally; Node27 passed; production build passed.",
+    "Chrome all-API fixtures passed at1440/390/360: anonymous deep links/reload, login return, owner/admin/viewer, session-expiry redirect and registration404/503.",
+    "Independent test preview stopped; no real database/user/session inspection, migration or existing service restart."
   ],
   "blockers": [],
   "branch": "codex/TASK-0036-login-boundaries",
-  "pr_url": null,
-  "commit_sha": null,
-  "next_action": "Implement and test isolated authentication/role boundaries; create PR for review."
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/25",
+  "commit_sha": "7a16546d4390418fb6379a97f7b755520a1bd384",
+  "next_action": "Verify CI runs39755058033 and39755058002, then report completion for review; do not merge."
 }
