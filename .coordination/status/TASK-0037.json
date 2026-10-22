@@ -1,18 +1,24 @@
 {
   "task_id": "TASK-0037",
   "signal_version": 37,
-  "state": "running",
-  "updated_at": "2026-10-22T09:39:25.553Z",
-  "summary": "PR26 submitted; isolated SQLite end-to-end journey and browser regression passed; PostgreSQL/Linux CI pending.",
+  "state": "completed",
+  "updated_at": "2026-10-22T09:40:54.983Z",
+  "summary": "PR26 completes isolated foundation integration verification and clarifies the applicant registration link; all final-head CI passed.",
   "checks": [
-    "Python144 passed,11 opt-in online skipped; Node27 and production build passed.",
-    "Chrome all-API fixtures1440/390/360 passed; applicant link text verified visually.",
-    "Sequential0004→0005→0006 and registration/approval/viewer/module grant lifecycle validated on disposable SQLite; shared PG case added.",
-    "No real database/credential/session reads or migration; no existing service restart; independent test preview stopped."
+    "PR25 merge verified before starting; clean independent branch; PR26 open for review at735054c4abfd1348986bec08408955bf6ebc0c84.",
+    "Login link now says applicant registration; existing closed-policy and public404/503 handling retained; misleading README text corrected.",
+    "Shared real-HTTP journey on disposable SQLite/PostgreSQL verifies sequential0004→0005→0006, owner preservation and final Alembic model check.",
+    "Verified default-off, CSRF rejection, generic duplicate submission with exactly one pending account, pending login denial, owner approval and viewer-only login without initial grants.",
+    "Verified only granted enabled assigned module callable; ungranted403, global disable404, revocation403, logout/expired/disabled-account401; owner management remains restricted.",
+    "Windows Python144 passed,11 opt-in online skipped; Node27 passed; production build passed.",
+    "Chrome all-API fixtures1440/390/360 passed for anonymous login/register, deep links/login return, role visibility, owner user/policy/approval, module/grant/audit; mobile screenshot reviewed.",
+    "Final-head CI39757081428 and39757081401 completed/success; Linux Python andNode/build passed.",
+    "PostgreSQL job119751695808:11 passed,0 failed,0 skipped; owned disposable container removed; runner enforces11required cases.",
+    "No real database, credential or session inspection/migration; no existing service restart, merge or deployment; independent preview stopped."
   ],
   "blockers": [],
   "branch": "codex/TASK-0037-foundation-integration",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/26",
   "commit_sha": "735054c4abfd1348986bec08408955bf6ebc0c84",
-  "next_action": "Verify final-head CI, including11required PG cases, then report PR26 for review without merge."
+  "next_action": "Review PR26; do not automatically merge or deploy. Real database migration/service refresh requires separate formal authorization. Do not start another task."
 }
