@@ -1,19 +1,25 @@
 {
   "task_id": "TASK-0040",
   "signal_version": 40,
-  "state": "running",
-  "updated_at": "2026-10-22T11:07:25.707Z",
-  "summary": "Existing PR27 updated with role-neutral login, refined slate/emerald composition and accessible auto-dismiss signup toast; isolated UI checks passed.",
+  "state": "completed",
+  "updated_at": "2026-10-22T11:08:15.690Z",
+  "summary": "Existing PR27 polished with role-neutral welcome and accessible transient signup toasts; all final-head CI passed.",
   "checks": [
-    "Commitc8f1c3a147472ef299ef47ff8ca1c525bae0eae4 pushed to existing PR27 branch; no duplicate PR.",
-    "Node28 and production build passed; Chrome1440/390/360 all-API fixtures passed.",
-    "Verified exact closed-policy toast, error-policy toast, automatic fade/removal, manual dismiss, repeat trigger, pending and reduced motion.",
-    "Role-neutral headline/subtitle, tighter panel, old diagram/marketing removed; desktop/mobile screenshots reviewed after animation settles.",
-    "No backend/policy-setting change, real database/credential reads or migration; no existing service restart; independent preview stopped."
+    "Updated existing open PR27, no duplicate product PR; clean branch atc8f1c3a147472ef299ef47ff8ca1c525bae0eae4.",
+    "Login headline/subtitle now role-neutral; refined slate/navy, emerald and warm off-white panel; old marketing/abstract decoration removed.",
+    "Disabled policy stays/login with exact toast message;404/503/network failure uses accurate unavailable toast; enabled policy navigates/register.",
+    "AuthToast owns3.2second dismissal timer, smooth entrance/exit, manual close and repeat-reset; accessible polite status region, no focus capture/native alert, reduced-motion transitions disabled and unmount cleanup.",
+    "Rapid signup clicks deduplicated, pending guarded, successful policy result reused10seconds; abort/unmount and late-response guard preserved.",
+    "Direct/register remains anonymous with disabled/unavailable notice and back link, no form/refresh button when closed; backend remains authoritative.",
+    "Node28 passed; production build passed; Chrome all-API1440/390/360 passed including toast appearance/automatic removal/repeat/manual close, policy cases, keyboard/reduced motion, login and original security/role/review flows.",
+    "Updated desktop/mobile/toast fixture screenshots captured after animation settled and visually reviewed; password fields empty.",
+    "Final-head CI39768145917 and39768145846 completed/success; Linux full Python andNode/build passed.",
+    "PostgreSQL job119788647991:11 passed,0 failed,0 skipped; owned test container removed.",
+    "No backend/authorization/policy-setting change, real database/credential read or migration, existing service restart, merge or deployment; independent preview stopped."
   ],
   "blockers": [],
   "branch": "codex/TASK-0038-auth-design",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/27",
   "commit_sha": "c8f1c3a147472ef299ef47ff8ca1c525bae0eae4",
-  "next_action": "Verify final-head CI39768145917 and39768145846, then report updated PR27 for review; do not merge."
+  "next_action": "Review updated PR27 and revised screenshots. Do not auto-merge/deploy. Real service refresh requires separate formal authorization; do not start another task."
 }
