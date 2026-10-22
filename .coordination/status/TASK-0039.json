@@ -2,15 +2,18 @@
   "task_id": "TASK-0039",
   "signal_version": 39,
   "state": "running",
-  "updated_at": "2026-10-22T10:28:09.102Z",
-  "summary": "Revising existing PR27 with product-oriented copy and policy-aware signup entry; preserving authentication boundaries.",
+  "updated_at": "2026-10-22T10:33:35.523Z",
+  "summary": "Existing PR27 updated with tool-platform copy and policy-aware signup UX; local Node/build and isolated browser checks passed; CI pending.",
   "checks": [
-    "Ready version39 verified; no same-task PR or remote status; outbox empty and no active task.",
-    "TASK-0038 completed; PR27 open and existing branch head verified; worktree clean."
+    "Commit9d7bd576e0a53762810258ad641c3b170aff13b0 pushed to existing PR27 branch; no duplicate PR created.",
+    "Node28 and production build passed; Chrome1440/390/360 all-API fixtures passed.",
+    "Verified closed policy stays on login, enabled policy navigates,404/503/network failure stay unavailable, rapid-click deduplication and abort/unmount.",
+    "Direct/register closed/unavailable states have no form or refresh button; screenshots updated and visually reviewed.",
+    "No backend/policy-setting change, real database/credential reads or migration; no existing service restart; independent preview stopped."
   ],
   "blockers": [],
   "branch": "codex/TASK-0038-auth-design",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/27",
-  "commit_sha": null,
-  "next_action": "Update existing PR27 branch and isolated tests/screenshots; rerun CI without merge."
+  "commit_sha": "9d7bd576e0a53762810258ad641c3b170aff13b0",
+  "next_action": "Verify final-head CI39763945811 and39763945816, then report PR27 revision for review without merge."
 }
