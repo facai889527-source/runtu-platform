@@ -344,8 +344,9 @@ def test_auth_api_rbac_rotation_csrf_and_disable(pg_auth):
         with db.transaction() as session:
             session.get(AuthUser, user_id).active = False
         assert client.get('/api/admin/me').status_code == 401
-        for endpoint in ('/api/health', '/api/modules', '/api/modules/demo'):
-            assert client.get(endpoint).status_code == 200
+        assert client.get('/api/health').status_code == 200
+        for endpoint in ('/api/modules', '/api/modules/demo'):
+            assert client.get(endpoint).status_code == 401
         with db.transaction() as session:
             events = session.scalars(select(AuthEvent)).all()
             assert len([e for e in events if e.event == 'login_success']) == 4
