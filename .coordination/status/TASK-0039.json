@@ -1,0 +1,16 @@
+{
+  "task_id": "TASK-0039",
+  "signal_version": 39,
+  "state": "running",
+  "updated_at": "2026-10-22T10:28:09.102Z",
+  "summary": "Revising existing PR27 with product-oriented copy and policy-aware signup entry; preserving authentication boundaries.",
+  "checks": [
+    "Ready version39 verified; no same-task PR or remote status; outbox empty and no active task.",
+    "TASK-0038 completed; PR27 open and existing branch head verified; worktree clean."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0038-auth-design",
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/27",
+  "commit_sha": null,
+  "next_action": "Update existing PR27 branch and isolated tests/screenshots; rerun CI without merge."
+}
