@@ -99,3 +99,20 @@ class UserModuleGrantEvent(Base):
     module_id: Mapped[str] = mapped_column(String(64), nullable=False)
     action: Mapped[str] = mapped_column(String(16), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RegistrationPolicy(Base):
+    __tablename__ = 'registration_policy'
+    __table_args__ = (CheckConstraint('id = 1', name='ck_registration_policy_singleton'),
+                      CheckConstraint('revision >= 0', name='ck_registration_policy_revision'))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    approval_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class RegistrationApplication(Base):
+    __tablename__ = 'registration_applications'
+    user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
+    pending: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -34,6 +34,7 @@ onUnmounted(() => { clearTimeout(timer); controller?.abort(); password.value = '
       <p v-if="error" class="auth-error" role="alert">{{ error }}</p>
       <button type="submit" class="login-submit" :disabled="pending">{{ pending ? '正在验证…' : '登录' }}</button>
       <p class="login-help">没有账户？请联系平台管理员。</p>
+      <RouteLink to="/register">查看注册申请</RouteLink>
     </form>
     <RouteLink to="/" class="guest-link">浏览公开概览</RouteLink>
   </section>

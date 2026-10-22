@@ -14,6 +14,7 @@ from backend.persistence import ConfigConflictError, ConfigStorageError, ModuleC
 from backend.module_management import ModuleManagementService, ModulePermissionError, ModuleProtectedError
 from backend.module_audit import AuditUnavailable, ModuleAuditPage, ModuleAuditService
 from backend.user_routes import install_user_management
+from backend.registration_routes import install_registration
 from backend.module_access import ModuleAccessService, GrantInput, GrantItem, GrantPage, require_module_access
 from backend.auth.routes import require_authenticated, token_from
 from backend.auth.service import digest
@@ -38,6 +39,7 @@ def create_app(
         redoc_url=None, openapi_url="/openapi.json" if config.expose_api_docs else None)
     install_auth(app, database, config)
     install_user_management(app, database)
+    install_registration(app)
     registry = ModuleRegistry()
     for module in modules if modules is not None else [DemoModule()]:
         registry.register(module)
@@ -84,7 +86,7 @@ def create_app(
 
     @app.exception_handler(RequestValidationError)
     async def invalid_module_write(request, error):
-        if request.url.path.startswith(('/api/admin/modules/', '/api/admin/users', '/api/me/modules')):
+        if request.url.path.startswith(('/api/admin/modules/', '/api/admin/users', '/api/me/modules', '/api/admin/registration', '/api/auth/register')):
             return JSONResponse({'detail': 'Invalid module request'}, status_code=422,
                                 headers={'Cache-Control': 'no-store'})
         return await request_validation_exception_handler(request, error)
