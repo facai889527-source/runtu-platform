@@ -22,6 +22,6 @@ test('core text and semantic state token pairs meet 4.5:1 contrast', () => {
 })
 
 test('authentication text, field boundaries and primary actions meet contrast targets', () => {
-  for (const [foreground,background] of [['#526873','#ffffff'],['#526873','#eef5f3'],['#ffffff','#087f75'],['#ffffff','#11665f'],['#c5dfdc','#24625e'],['#9d3434','#fff3f1']]) assert.ok(contrast(foreground,background)>=4.5,foreground+'/'+background)
-  assert.ok(contrast('#7b929d','#f9fbfc')>=3,'input boundary')
+  for (const [foreground,background] of [['#56676d','#ffffff'],['#526873','#eef5f3'],['#ffffff','#176d58'],['#ffffff','#125844'],['#c5dfdc','#274b46'],['#9d3434','#fff3f1'],['#223b35','#fffffc']]) assert.ok(contrast(foreground,background)>=4.5,foreground+'/'+background)
+  assert.ok(contrast('#7b929d','#fcfcf9')>=3,'input boundary')
 })

@@ -54,6 +54,7 @@ try {
     throw new Error('Auth smoke condition timed out')
   }
   async function screenshot(name) {
+    await until(`!document.querySelector('.auth-toast-enter-active, .auth-toast-leave-active')`)
     // Guard every capture: never record a filled password field.
     assert.equal(await evaluate(`!document.querySelector('input[type=password]')?.value`), true)
     const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: !/^(users-|grant-|my-modules)/.test(name) })
@@ -267,14 +268,25 @@ try {
     const beforePolicyReads = policyReads
     delayPolicy=true
     await evaluate(`document.querySelector('.login-help a').click();document.querySelector('.login-help a').click()`)
-    await until(`document.querySelector('.signup-notice')?.textContent.includes('正在确认')`)
-    await until(`document.querySelector('.signup-notice')?.textContent === '暂未开放注册'`)
+    await until(`document.querySelector('.signup-pending')?.textContent.includes('正在确认')`)
+    await until(`document.querySelector('.auth-toast span')?.textContent === '管理员未开启注册'`)
     assert.equal(await evaluate(`location.pathname`),'/login')
     assert.equal(policyReads,beforePolicyReads+1)
     await click('.login-help a')
     assert.equal(policyReads,beforePolicyReads+1)
     assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel, .registration-closed'))`),false)
+    assert.equal(await evaluate(`document.querySelector('#login-title').textContent`),'欢迎回来')
+    assert.equal(await evaluate(`document.querySelector('.login-context p').textContent`),'登录润土平台，开启高效工作')
+    assert.equal(await evaluate(`document.querySelector('.auth-toast-region').getAttribute('aria-live')`),'polite')
+    assert.equal(await evaluate(`Boolean(document.querySelector('.signup-notice'))`),false)
     await noOverflow(); await screenshot(`signup-closed-${width}`)
+    await click('.auth-toast button')
+    await until(`!document.querySelector('.auth-toast')`)
+    await click('.login-help a')
+    await until(`document.querySelector('.auth-toast span')?.textContent === '管理员未开启注册'`)
+    assert.equal(policyReads,beforePolicyReads+1)
+    await until(`!document.querySelector('.auth-toast')`)
+    assert.equal(await evaluate(`location.pathname`),'/login')
     delayPolicy=false
     // A direct URL remains public, but closed policy has no form or retry control.
     await visit('/register')
@@ -285,9 +297,10 @@ try {
       registrationStatus=failure === 'network'?200:failure;failPolicyNetwork=failure === 'network'
       await visit('/login')
       await click('.login-help a')
-      await until(`document.querySelector('.signup-notice')?.textContent === '注册服务暂不可用，请稍后再试'`)
+      await until(`document.querySelector('.auth-toast span')?.textContent === '注册服务暂不可用，请稍后再试'`)
       assert.equal(await evaluate(`location.pathname`),'/login')
-      assert.equal(await evaluate(`document.querySelector('.signup-notice').textContent.includes('暂未开放')`),false)
+      assert.equal(await evaluate(`document.querySelector('.auth-toast span').textContent.includes('暂未开放')`),false)
+      if(failure===503) { await screenshot(`signup-unavailable-${width}`); await until(`!document.querySelector('.auth-toast')`) }
     }
     registrationStatus=200;failPolicyNetwork=false
     registrationPolicy.enabled=true
@@ -298,13 +311,18 @@ try {
     await click('.login-link')
     delayPolicy=true
     await click('.login-help a')
-    await until(`document.querySelector('.signup-notice')?.textContent.includes('正在确认')`)
+    await until(`document.querySelector('.signup-pending')?.textContent.includes('正在确认')`)
     await evaluate(`history.pushState(null,'','/register');window.dispatchEvent(new PopStateEvent('popstate'))`)
     await until(`location.pathname === '/register' && document.querySelector('.register-panel form')`)
     delayPolicy=false;registrationPolicy.enabled=false
     await visit('/login')
     await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
     assert.equal(await evaluate(`getComputedStyle(document.querySelector('#login-username')).transitionDuration`),'0s')
+    await click('.login-help a')
+    await until(`document.querySelector('.auth-toast')`)
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.auth-toast')).transitionDuration`),'0s')
+    await click('.auth-toast button')
+    await until(`!document.querySelector('.auth-toast')`)
     await send('Emulation.setEmulatedMedia',{features:[]})
     delayLogin=true
     for (loginStatus of [401,403,503]) {
