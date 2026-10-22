@@ -31,7 +31,7 @@ try {
     const message = JSON.parse(event.data)
     if (message.id) {
       const pending = waiting.get(message.id); waiting.delete(message.id)
-      message.error ? pending.reject(new Error('Browser command failed')) : pending.resolve(message.result)
+      message.error ? pending.reject(new Error(message.error.message || 'Browser command failed')) : pending.resolve(message.result)
     }
     if (message.method === 'Page.loadEventFired') loads++
     if (message.method === 'Runtime.exceptionThrown') errors.push('Browser runtime exception')
@@ -82,6 +82,7 @@ try {
   let apiRequests = 0, sessionWrites = 0
   let registrationPolicy = { enabled:false, approval_required:true, revision:0 }, registrationStatus = 200
   let applications = []
+  let policyReads = 0, failPolicyNetwork = false, delayPolicy = false
   socket.addEventListener('message', async event => {
     const message = JSON.parse(event.data)
     if (message.method !== 'Fetch.requestPaused') return
@@ -99,7 +100,12 @@ try {
       apiRequests++
       let code = 200, body
       if (pathname === '/api/health') body = { status: 'ok', platform: 'Runtu Platform', database: 'ready' }
-      else if (pathname === '/api/auth/registration-policy') { code=registrationStatus; body={enabled:registrationPolicy.enabled,approval_required:registrationPolicy.approval_required} }
+      else if (pathname === '/api/auth/registration-policy') {
+        policyReads++
+        if (delayPolicy) await new Promise(resolve=>setTimeout(resolve,500))
+        if (failPolicyNetwork) { await send('Fetch.failRequest',{requestId,errorReason:'ConnectionFailed'}); return }
+        code=registrationStatus; body={enabled:registrationPolicy.enabled,approval_required:registrationPolicy.approval_required}
+      }
       else if (pathname === '/api/auth/register') {
         assert.ok(Object.keys(request.headers).some(k=>k.toLowerCase()==='x-csrf-token'))
         const value=JSON.parse(request.postData); assert.equal(value.role,undefined)
@@ -198,9 +204,11 @@ try {
         body = { authenticated, user: authenticated ? user : null }
       } else throw new Error('Unexpected API path in isolated fixture')
       await send('Fetch.fulfillRequest', { requestId, responseCode: code, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from(JSON.stringify(body)).toString('base64') })
-    } catch {
+    } catch (failure) {
+      // Explicit abort/unmount tests can remove an interception before its delayed reply.
+      if (/Invalid InterceptionId|Invalid interceptionId|Invalid RequestId|Invalid requestId/i.test(failure.message)) return
       errors.push('Fixture request failed')
-      await send('Fetch.failRequest', { requestId, errorReason: 'Failed' })
+      try { await send('Fetch.failRequest', { requestId, errorReason: 'Failed' }) } catch { /* interception already removed */ }
     }
   })
   await send('Runtime.enable'); await send('Page.enable')
@@ -256,12 +264,45 @@ try {
     await evaluate(`document.querySelector('#login-username').focus()`)
     await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
     await until(`document.activeElement.id === 'login-password'`)
+    const beforePolicyReads = policyReads
+    delayPolicy=true
+    await evaluate(`document.querySelector('.login-help a').click();document.querySelector('.login-help a').click()`)
+    await until(`document.querySelector('.signup-notice')?.textContent.includes('正在确认')`)
+    await until(`document.querySelector('.signup-notice')?.textContent === '暂未开放注册'`)
+    assert.equal(await evaluate(`location.pathname`),'/login')
+    assert.equal(policyReads,beforePolicyReads+1)
     await click('.login-help a')
-    await until(`location.pathname === '/register' && document.querySelector('.registration-closed')?.textContent.includes('管理员暂未开放注册')`)
-    assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel form, .register-panel input'))`),false)
-    await noOverflow(); await screenshot(`registration-closed-${width}`)
+    assert.equal(policyReads,beforePolicyReads+1)
+    assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel, .registration-closed'))`),false)
+    await noOverflow(); await screenshot(`signup-closed-${width}`)
+    delayPolicy=false
+    // A direct URL remains public, but closed policy has no form or retry control.
+    await visit('/register')
+    await until(`document.querySelector('.registration-closed')?.textContent.includes('暂未开放注册')`)
+    assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel form, .register-panel input, .register-panel button'))`),false)
+    await screenshot(`registration-closed-${width}`)
+    for (const failure of [404,503,'network']) {
+      registrationStatus=failure === 'network'?200:failure;failPolicyNetwork=failure === 'network'
+      await visit('/login')
+      await click('.login-help a')
+      await until(`document.querySelector('.signup-notice')?.textContent === '注册服务暂不可用，请稍后再试'`)
+      assert.equal(await evaluate(`location.pathname`),'/login')
+      assert.equal(await evaluate(`document.querySelector('.signup-notice').textContent.includes('暂未开放')`),false)
+    }
+    registrationStatus=200;failPolicyNetwork=false
+    registrationPolicy.enabled=true
+    await visit('/login')
+    await click('.login-help a')
+    await until(`location.pathname === '/register' && document.querySelector('.register-panel form')`)
+    // Unmount an in-flight check: its late response must not navigate away.
     await click('.login-link')
-    await until(`location.pathname === '/login' && document.querySelector('#login-password')`)
+    delayPolicy=true
+    await click('.login-help a')
+    await until(`document.querySelector('.signup-notice')?.textContent.includes('正在确认')`)
+    await evaluate(`history.pushState(null,'','/register');window.dispatchEvent(new PopStateEvent('popstate'))`)
+    await until(`location.pathname === '/register' && document.querySelector('.register-panel form')`)
+    delayPolicy=false;registrationPolicy.enabled=false
+    await visit('/login')
     await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
     assert.equal(await evaluate(`getComputedStyle(document.querySelector('#login-username')).transitionDuration`),'0s')
     await send('Emulation.setEmulatedMedia',{features:[]})
@@ -480,17 +521,17 @@ try {
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<761})
     authenticated=false; registrationPolicy={enabled:false,approval_required:true,revision:0}
     await visit('/register')
-    await until(`document.querySelector('.register-panel')?.textContent.includes('管理员暂未开放注册')`)
+    await until(`document.querySelector('.register-panel')?.textContent.includes('暂未开放注册')`)
     assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel input[type=password]'))`),false)
     for (registrationStatus of [404,503]) {
-      await click('.register-panel > button')
+      await loadPage('Page.reload')
       await until(`document.querySelector('.register-panel [role=alert]')?.textContent.includes('注册服务暂不可用')`)
       assert.equal(await evaluate(`document.querySelector('.register-panel').textContent.includes('申请不存在')`),false)
       assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel input[type=password]'))`),false)
     }
     registrationStatus=200
     registrationPolicy.enabled=true
-    await click('.register-panel > button')
+    await loadPage('Page.reload')
     await until(`document.querySelector('.register-panel input[type=password]')`)
     await evaluate(`(() => { const input=document.querySelector('.register-panel input:not([type=password])');input.value='registration-candidate';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.register-panel input[type=password]').value=crypto.randomUUID();document.querySelector('.register-panel form').requestSubmit() })()`)
     await until(`document.querySelector('.register-panel')?.textContent.includes('申请已提交')`)
