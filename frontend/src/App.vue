@@ -1,5 +1,6 @@
 <script setup>
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, shallowRef, watch, onMounted, onUnmounted } from 'vue'
+import { loginPath, returnTarget } from './navigation/history.js'
 import AuthLayout from './components/AuthLayout.vue'
 import LoginPage from './pages/LoginPage.vue'
 import { asyncView } from './components/asyncView.js'
@@ -18,38 +19,55 @@ const RegisterPage = asyncView(() => import('./pages/RegisterPage.vue'))
 const NotFoundPage = asyncView(() => import('./pages/NotFoundPage.vue'))
 const { route, navigate } = provideNavigation()
 const health = useResource(readHealth), modules = useResource(readModules)
-const identity = useResource(readIdentity)
+const identity = useResource(readIdentity, { retainData: true })
 const access = useResource(readAccess)
 const directoryModules = { ...modules, data: computed(() => modules.data.value?.filter(item =>
   item.access_mode !== 'assigned' || access.data.value?.permissions.includes('module.manage')) ?? null) }
-watch(() => identity.data.value?.authenticated ? identity.data.value.user.id : null, (id) => {
-  if (id) access.load()
-  else { access.cancel(); access.data.value = null; access.error.value = null }
+const identityChecked = shallowRef(false)
+const authenticated = computed(() => Boolean(identity.data.value?.authenticated))
+const publicPage = computed(() => ['login', 'register'].includes(route.value.page))
+const canManageUsers = computed(() => authenticated.value && access.data.value?.role === 'owner' && access.data.value.permissions.includes('users.manage'))
+function clearWorkspace() {
+  for (const resource of [health, modules, access]) { resource.cancel(); resource.data.value = null; resource.error.value = null }
+}
+async function loadIdentity() {
+  await identity.load(); identityChecked.value = true
+  if (authenticated.value) access.load()
+}
+watch(authenticated, value => {
+  clearWorkspace()
+  if (value) { health.load(); modules.load() }
 })
-const identityChecked = ref(false)
-async function loadIdentity() { await identity.load(); identityChecked.value = true }
-watch(() => route.value.page, (page) => { if (page === 'login') loadIdentity() })
-watch(() => [route.value.page, identity.data.value?.authenticated], ([page, authenticated]) => {
-  if (page === 'login' && authenticated) navigate('/')
+watch(() => [route.value.page, identity.pending.value, identityChecked.value, authenticated.value], () => {
+  if (!identityChecked.value || identity.pending.value || identity.error.value) return
+  if (!authenticated.value && !publicPage.value) navigate(loginPath(route.value.path), { replace: true })
+  else if (authenticated.value && route.value.page === 'login') navigate(returnTarget(window.location.search), { replace: true })
 })
-async function signedOut() { await loadIdentity(); navigate('/login') }
-function refresh() { health.load(); modules.load(); loadIdentity() }
+function sessionExpired() {
+  identity.cancel(); identity.data.value = { authenticated: false, user: null }; identity.error.value = null
+  identityChecked.value = true; clearWorkspace()
+  if (!publicPage.value) navigate(loginPath(route.value.path), { replace: true })
+}
+async function signedOut() { sessionExpired(); navigate('/login', { replace: true }) }
+function refresh() { loadIdentity(); if (authenticated.value) { health.load(); modules.load() } }
 function refreshIdentity() { if (document.visibilityState === 'visible') loadIdentity() }
-onMounted(() => { refresh(); window.addEventListener('focus', refreshIdentity); document.addEventListener('visibilitychange', refreshIdentity) })
-onUnmounted(() => { health.cancel(); modules.cancel(); identity.cancel(); access.cancel(); window.removeEventListener('focus', refreshIdentity); document.removeEventListener('visibilitychange', refreshIdentity) })
+onMounted(() => { loadIdentity(); window.addEventListener('focus', refreshIdentity); document.addEventListener('visibilitychange', refreshIdentity); window.addEventListener('runtu-session-expired', sessionExpired) })
+onUnmounted(() => { clearWorkspace(); identity.cancel(); window.removeEventListener('focus', refreshIdentity); document.removeEventListener('visibilitychange', refreshIdentity); window.removeEventListener('runtu-session-expired', sessionExpired) })
 </script>
 <template>
-  <AuthLayout v-if="route.page === 'login' || route.page === 'register'">
-    <p v-if="!identityChecked" class="auth-check" role="status">正在确认登录状态…</p>
+  <AuthLayout v-if="publicPage || !authenticated">
+    <p v-if="!identityChecked || (!publicPage && identity.pending.value)" class="auth-check" role="status">正在确认登录状态…</p>
+    <div v-else-if="!publicPage && identity.error.value" role="alert"><h1>身份暂无法确认</h1><button @click="loadIdentity">重试身份查询</button></div>
     <RegisterPage v-else-if="route.page === 'register'" />
-    <LoginPage v-else-if="!identity.data.value?.authenticated" @authenticated="loadIdentity" />
+    <LoginPage v-else-if="!authenticated" @authenticated="loadIdentity" />
   </AuthLayout>
-  <AppLayout v-else :page="route.page" :title="route.title" :path="route.path" :can-manage-users="Boolean(access.data.value?.permissions.includes('users.manage'))" :platform="health.data.value?.platform || 'Runtu Platform'" @refresh="refresh">
+  <AppLayout v-else :page="route.page" :title="route.title" :path="route.path" :can-manage-users="Boolean(canManageUsers)" :platform="health.data.value?.platform || 'Runtu Platform'" @refresh="refresh">
     <template #account><UserMenu :identity="identity.data.value" :access="access" :pending="identity.pending.value" :unavailable="Boolean(identity.error.value)" @signed-out="signedOut" @refresh-identity="loadIdentity" /></template>
     <DashboardPage v-if="route.page === 'dashboard'" :health="health" :modules="directoryModules" :user-id="identity.data.value?.user?.id" />
     <ModulesPage v-else-if="route.page === 'modules'" :modules="directoryModules" :module-id="route.moduleId" :access="access" @changed="modules.load()" />
     <SettingsPage v-else-if="route.page === 'settings'" :access="access" />
-    <UsersPage v-else-if="route.page === 'users'" :access="access" :self-id="identity.data.value?.user?.id" />
+    <UsersPage v-else-if="route.page === 'users' && canManageUsers" :access="access" :self-id="identity.data.value?.user?.id" />
+    <p v-else-if="route.page === 'users'" role="status">{{ access.pending.value ? '正在确认用户管理权限…' : '当前身份没有用户管理权限。' }}</p>
     <NotFoundPage v-else />
   </AppLayout>
 </template>

@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted, useTemplateRef } from 'vue'
 import { logout } from '../api/auth.js'
-import RouteLink from './RouteLink.vue'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({ identity: Object, access: Object, pending: Boolean, unavailable: Boolean })
@@ -54,7 +53,6 @@ onUnmounted(() => {
       <button class="sign-out" :disabled="busy" @click="signOut">{{ busy ? '正在退出…' : '退出登录' }}</button>
     </div>
   </details>
-  <RouteLink v-else to="/login" class="button-link">管理员登录</RouteLink>
   <p v-if="error" class="account-error" role="alert">{{ error }}</p>
 </template>
 

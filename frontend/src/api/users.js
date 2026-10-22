@@ -1,3 +1,4 @@
+import { sessionFetch } from './session.js'
 import { ApiError } from './client.js'
 import { securityHeaders } from './auth.js'
 
@@ -21,7 +22,7 @@ async function result(response) {
 export async function readUsers(after, signal) {
   const query = new URLSearchParams({ limit: '20' })
   if (after != null) query.set('after_username', after)
-  const page = await result(await fetch(`/api/admin/users?${query}`, { signal, credentials: 'same-origin', headers: { Accept: 'application/json' } }))
+  const page = await result(await sessionFetch(`/api/admin/users?${query}`, { signal, credentials: 'same-origin', headers: { Accept: 'application/json' } }))
   if (!Array.isArray(page.items) || page.items.length > 20) throw new Error('用户列表格式异常。')
   page.items.forEach((item,index) => { user(item); if ((after != null && item.username <= after) || (index && item.username <= page.items[index-1].username)) throw new Error('用户列表顺序异常。') })
   if (!(page.next_after_username === null || (page.items.length === 20 && page.next_after_username === page.items.at(-1).username))) throw new Error('用户分页格式异常。')
@@ -29,7 +30,7 @@ export async function readUsers(after, signal) {
 }
 async function write(path, method, value, signal) {
   const headers = await securityHeaders(signal)
-  return user(await result(await fetch(path, { method, credentials: 'same-origin', signal, headers, body: JSON.stringify(value) })))
+  return user(await result(await sessionFetch(path, { method, credentials: 'same-origin', signal, headers, body: JSON.stringify(value) })))
 }
 export const createUser = (username, password, role, signal) => write('/api/admin/users', 'POST', { username, password, role }, signal)
 export const updateUser = (id, value, signal) => write(`/api/admin/users/${encodeURIComponent(id)}`, 'PATCH', value, signal)

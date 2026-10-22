@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseRoute, modulePath, createNavigation } from '../src/navigation/history.js'
+import { parseRoute, modulePath, createNavigation, returnTarget, loginPath } from '../src/navigation/history.js'
 
 test('known pages, encoded detail, trailing slash and route 404', () => {
   assert.equal(parseRoute('/').page, 'dashboard')
@@ -49,4 +49,9 @@ test('navigation never accepts an external origin or backslash path', () => {
   for (const path of ['https://evil.test', '//evil.test', '/\\evil.test', 'javascript:alert(1)', null]) assert.throws(() => navigation.navigate(path))
   assert.equal(browser.history.length, 1)
   navigation.dispose()
+})
+
+test('login return targets survive URL encoding and reject external/auth/unknown paths', () => {
+  for (const path of ['/', '/modules', '/modules/demo', '/users', '/settings']) assert.equal(returnTarget(loginPath(path).split('?')[1]), path)
+  for (const path of ['//evil.test', '/\\evil.test', 'https://evil.test', '/login', '/register', '/absent', '/modules/demo?secret=x', '/modules/demo#x']) assert.equal(returnTarget('?returnTo=' + encodeURIComponent(path)), '/')
 })

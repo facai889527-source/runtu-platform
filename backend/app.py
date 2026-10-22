@@ -103,12 +103,12 @@ def create_app(
         return result
 
     @app.get("/api/modules", response_model=list[ModuleManifest])
-    def list_modules(response: Response) -> list[ModuleManifest]:
+    def list_modules(response: Response, _identity=Depends(require_authenticated)) -> list[ModuleManifest]:
         response.headers['Cache-Control'] = 'no-store'
         return management.manifests()
 
     @app.get("/api/modules/{module_id}", response_model=ModuleDetail)
-    def module_detail(module_id: str, response: Response) -> ModuleDetail:
+    def module_detail(module_id: str, response: Response, _identity=Depends(require_authenticated)) -> ModuleDetail:
         response.headers['Cache-Control'] = 'no-store'
         try:
             return management.detail(module_id)

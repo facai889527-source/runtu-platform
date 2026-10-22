@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from backend.app import create_app
+from tests.metadata_app import create_app
 from backend.config import Settings
 from backend.modules import ModuleManifest, PublicModuleConfig
 

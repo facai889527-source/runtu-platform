@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from sqlalchemy import inspect, select
 from sqlalchemy.exc import IntegrityError
 
-from backend.app import create_app
+from tests.metadata_app import create_app
 from backend.config import Settings
 from backend.database import Database
 from backend.migrations import migrate_database, migration_config

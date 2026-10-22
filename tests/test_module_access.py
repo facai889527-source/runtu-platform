@@ -71,7 +71,7 @@ def exercise_grant_contract(client,app,actor):
 def test_grant_contract_enforcement_and_public_compatibility(assigned):
     client,app,actor,password,_=assigned
     assert client.get('/api/modules/example/ping').status_code==200
-    assert client.get('/api/modules').status_code==200
+    assert client.get('/api/modules').status_code==401
     assert client.get('/api/modules/alpha/ping').status_code==401
     assert client.get('/api/me/modules').status_code==401
     assert login(client,password).status_code==200
@@ -84,9 +84,9 @@ def test_grant_contract_enforcement_and_public_compatibility(assigned):
 
 def test_default_public_demo_has_no_fake_grant_candidate(auth):
     client,_,actor=auth
-    assert client.get('/api/modules/demo').status_code==200
-    assert client.get('/api/modules').json()[0]['access_mode']=='public'
+    assert client.get('/api/modules/demo').status_code==401
     assert login(client).status_code==200
+    assert client.get('/api/modules').json()[0]['access_mode']=='public'
     assert client.get('/api/me/modules').json()=={'items':[],'next_after_module':None}
     assert client.get(f'/api/admin/users/{actor}/modules').json()=={'items':[],'next_after_module':None}
     assert put_grant(client,actor,'demo').status_code==403

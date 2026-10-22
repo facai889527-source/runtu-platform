@@ -70,6 +70,8 @@ def test_assigned_module_grants_public_contract_and_atomicity(pg_auth):
     db,_,settings,actor,password=pg_auth
     app=create_app(settings,modules=access_modules())
     with TestClient(app,base_url='https://runtu.test') as client:
+        from tests.test_login_boundaries import exercise_metadata_boundary
+        exercise_metadata_boundary(client,app,actor,password)
         assert client.get('/api/modules/example/ping').status_code==200
         assert client.get('/api/modules/alpha/ping').status_code==401
         proof=client.get('/api/auth/csrf').json()['csrf_token']

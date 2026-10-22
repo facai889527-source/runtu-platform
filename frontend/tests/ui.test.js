@@ -40,3 +40,17 @@ test('cancellation prevents late updates and retry clears errors', async () => {
   await retry.load(); assert.equal(retry.error.value.message, 'offline')
   await retry.load(); assert.deepEqual(retry.data.value, []); assert.equal(retry.error.value, null)
 })
+
+test('retained identity survives an in-flight check but clears on failure', async () => {
+  let resolve, reject
+  const resource = useResource(() => new Promise((yes,no) => { resolve=yes; reject=no }), {retainData:true})
+  resource.data.value = {authenticated:true}
+  const first = resource.load()
+  assert.equal(resource.data.value.authenticated,true)
+  resolve({authenticated:true}); await first
+  const second = resource.load()
+  assert.equal(resource.data.value.authenticated,true)
+  reject(new Error('unavailable')); await second
+  assert.equal(resource.data.value,null)
+  assert.equal(resource.error.value.message,'unavailable')
+})
