@@ -1,0 +1,16 @@
+{
+  "task_id": "TASK-0037",
+  "signal_version": 37,
+  "state": "running",
+  "updated_at": "2026-10-22T09:35:29.832Z",
+  "summary": "Verifying isolated foundation migrations and registration-to-module-access integration; correcting applicant link text.",
+  "checks": [
+    "Remote ready version37 verified; no task PR or remote status; outbox empty; no active task.",
+    "PR25 merge verified on main; existing feature worktree clean and preserved."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0037-foundation-integration",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "Run disposable SQLite/PG integration and isolated browser regressions; submit PR without merge."
+}
