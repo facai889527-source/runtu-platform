@@ -1,18 +1,24 @@
 {
   "task_id": "TASK-0036",
   "signal_version": 36,
-  "state": "running",
-  "updated_at": "2026-10-22T09:23:58.310Z",
-  "summary": "Implementation submitted as PR25; local isolated validation passed; waiting for Linux/PostgreSQL CI.",
+  "state": "completed",
+  "updated_at": "2026-10-22T09:27:19.850Z",
+  "summary": "PR25 implements authenticated management pages and module metadata; public demo and health/auth behavior preserved; final CI passed.",
   "checks": [
-    "Product commit 7a16546d4390418fb6379a97f7b755520a1bd384; clean worktree; PR25 open.",
-    "Python143 passed,10 opt-in PostgreSQL skipped locally; Node27 passed; production build passed.",
-    "Chrome all-API fixtures passed at1440/390/360: anonymous deep links/reload, login return, owner/admin/viewer, session-expiry redirect and registration404/503.",
-    "Independent test preview stopped; no real database/user/session inspection, migration or existing service restart."
+    "Clean independent product branch; PR25 remains open for review; head f050c2e4255c6ebc6de69a49236e6f4da22c1839.",
+    "GET module metadata now requires valid session; anonymous/expired401 and unconfigured503; health and public business/sample routes preserved.",
+    "Owner-only user/grant/registration administration and existing module/audit role matrix and CSRF remain enforced.",
+    "Shared page session gate and protected-API401 expiry clear workspace; deep-link login return is allowlisted; removed anonymous workspace affordances.",
+    "Public registration404 now reports service unavailable; closed policy and503 expose no registration form.",
+    "Windows Python143 passed,10 opt-in PG skipped; Node27 passed; production build passed.",
+    "Chrome all-API fixtures1440/390/360 passed: deep links/reload, safe login return, role restrictions, expired-session redirect, registration closed/open/404/503 and existing module/user/grant/audit flows.",
+    "Final-head CI39755359017 and39755359090 completed/success; Linux Python andNode/build passed.",
+    "Owned PostgreSQL CI119745870953:10 passed,0 failed,0 skipped; disposable container removed.",
+    "No real database migration, real user/password/session reads, existing service restart, merge or deployment; independent test preview stopped."
   ],
   "blockers": [],
   "branch": "codex/TASK-0036-login-boundaries",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/25",
-  "commit_sha": "7a16546d4390418fb6379a97f7b755520a1bd384",
-  "next_action": "Verify CI runs39755058033 and39755058002, then report completion for review; do not merge."
+  "commit_sha": "f050c2e4255c6ebc6de69a49236e6f4da22c1839",
+  "next_action": "Review PR25 and the intentional anonymous metadata API compatibility change. Do not auto-merge or deploy. Any real local migration/service refresh requires separate formal authorization; do not execute another task."
 }
