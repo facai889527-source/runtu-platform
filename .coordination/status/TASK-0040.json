@@ -1,0 +1,16 @@
+{
+  "task_id": "TASK-0040",
+  "signal_version": 40,
+  "state": "running",
+  "updated_at": "2026-10-22T11:00:15.886Z",
+  "summary": "Polishing existing PR27 with role-neutral login copy, balanced auth composition and accessible transient signup toasts.",
+  "checks": [
+    "Ready version40 verified; no task PR or remote status; local outbox empty and no active task.",
+    "TASK-0039 completed; PR27 remains open at verified clean branch head."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0038-auth-design",
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/27",
+  "commit_sha": null,
+  "next_action": "Revise existing PR27, verify toast lifecycle and responsive fixtures, then rerun CI without merge."
+}
