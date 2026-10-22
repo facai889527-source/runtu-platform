@@ -1,9 +1,10 @@
+import { sessionFetch } from './session.js'
 import { ApiError } from './client.js'
 import { securityHeaders } from './auth.js'
 
 export async function saveModule(id, value, signal) {
   const headers = await securityHeaders(signal)
-  const response = await fetch(`/api/admin/modules/${encodeURIComponent(id)}`, {
+  const response = await sessionFetch(`/api/admin/modules/${encodeURIComponent(id)}`, {
     method: 'PUT', credentials: 'same-origin', signal, headers, body: JSON.stringify(value),
   })
   if (!response.ok) throw new ApiError(response.status, {

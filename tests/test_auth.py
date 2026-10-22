@@ -64,8 +64,8 @@ def test_real_login_rotation_cookie_logout_and_public_reads(auth):
     client.cookies.set('__Host-runtu_session', token)
     assert client.get('/test-admin').status_code == 401
     assert client.get('/api/health').status_code == 200
-    assert client.get('/api/modules').status_code == 200
-    assert client.get('/api/modules/demo').status_code == 200
+    assert client.get('/api/modules').status_code == 401
+    assert client.get('/api/modules/demo').status_code == 401
 
 
 def test_credentials_generic_and_no_secrets_in_audit_or_output(auth, caplog):
@@ -136,11 +136,11 @@ def test_rate_limit_reset_and_bootstrap_once(auth):
         service.bootstrap('second-admin', PASSWORD)
 
 
-def test_unconfigured_fails_closed_without_changing_anonymous_contract():
+def test_unconfigured_fails_closed_for_metadata_and_auth():
     with TestClient(create_app(Settings(_env_file=None))) as client:
         assert client.get('/api/auth/me').status_code == 503
         assert client.get('/api/health').json()['database'] == 'not_configured'
-        assert client.get('/api/modules').status_code == 200
+        assert client.get('/api/modules').status_code == 503
         assert client.get('/openapi.json').status_code == 404
 
 

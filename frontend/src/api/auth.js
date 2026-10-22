@@ -1,13 +1,14 @@
+import { sessionFetch } from './session.js'
 import { ApiError } from './client.js'
 
 async function request(path, signal, options = {}) {
-  const response = await fetch(`/api/auth/${path}`, { credentials: 'same-origin', signal,
+  const response = await sessionFetch(`/api/auth/${path}`, { credentials: 'same-origin', signal,
     ...options, headers: { Accept: 'application/json', ...options.headers } })
   if (!response.ok) throw new ApiError(response.status,
     response.status === 401 ? '用户名或密码不正确。' :
     response.status === 429 ? '尝试过于频繁，请等待五分钟后重试。' :
     response.status === 403 ? '安全校验未通过，请刷新页面后重试。' :
-    response.status === 503 ? '认证服务暂不可用，仍可浏览公开只读页面。' : '认证请求失败，请稍后重试。')
+    response.status === 503 ? '认证服务暂不可用，请稍后重试。' : '认证请求失败，请稍后重试。')
   return response.json()
 }
 

@@ -1,13 +1,14 @@
+import { sessionFetch } from './session.js'
 import { ApiError } from './client.js'
 import { securityHeaders } from './auth.js'
 
 async function request(path, signal, method = 'GET', value) {
   const headers = method === 'GET' ? { Accept: 'application/json' } : await securityHeaders(signal)
-  const response = await fetch(path, { signal, credentials: 'same-origin', method, headers,
+  const response = await sessionFetch(path, { signal, credentials: 'same-origin', method, headers,
     ...(value === undefined ? {} : { body: JSON.stringify(value) }) })
   if (!response.ok) throw new ApiError(response.status, {
     401: '请重新登录。', 403: '注册未开放、身份无权操作或安全校验失效，请刷新确认。',
-    404: '申请不存在，请刷新列表。', 409: '策略已变化，请刷新后重新确认。',
+    404: path.startsWith('/api/auth/') ? '注册服务暂不可用，请联系管理员确认后重试。' : '申请不存在，请刷新列表。', 409: '策略已变化，请刷新后重新确认。',
     422: '格式无效：用户名需3至64位小写字母、数字或 _.-，密码需14至128位。',
     429: '提交过于频繁，请等待五分钟后重试。', 503: '注册服务暂不可用，请稍后重试。',
   }[response.status] || '操作失败，请刷新确认结果。')

@@ -84,8 +84,9 @@ def test_anonymous_expired_revoked_disabled_and_role_changes(protected):
         row = db.get(AuthSession, digest(client.cookies.get('__Host-runtu_session')))
         row.expires_at = service.clock() - timedelta(seconds=1)
     assert client.get('/api/admin/me').status_code == 401
-    for path in ('/api/health', '/api/modules', '/api/modules/demo'):
-        assert client.get(path).status_code == 200
+    assert client.get('/api/health').status_code == 200
+    for path in ('/api/modules', '/api/modules/demo'):
+        assert client.get(path).status_code == 401
 
 
 def test_unknown_role_has_no_grants_and_database_rejects_it(auth):

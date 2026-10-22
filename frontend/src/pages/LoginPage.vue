@@ -25,7 +25,7 @@ onUnmounted(() => { clearTimeout(timer); controller?.abort(); password.value = '
 </script>
 <template>
   <section class="login-panel" aria-labelledby="login-title">
-    <div class="login-context"><h1 id="login-title">登录管理后台</h1><p>使用你的管理员账户继续。</p></div>
+    <div class="login-context"><h1 id="login-title">登录管理后台</h1><p>使用你的平台账户继续。</p></div>
     <form class="login-form" @submit.prevent="submit" :aria-busy="pending">
       <label for="login-username">用户名</label>
       <input id="login-username" v-model="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" :disabled="pending" />
@@ -36,7 +36,6 @@ onUnmounted(() => { clearTimeout(timer); controller?.abort(); password.value = '
       <p class="login-help">没有账户？请联系平台管理员。</p>
       <RouteLink to="/register">查看注册申请</RouteLink>
     </form>
-    <RouteLink to="/" class="guest-link">浏览公开概览</RouteLink>
   </section>
 </template>
 <style scoped>
@@ -51,5 +50,4 @@ onUnmounted(() => { clearTimeout(timer); controller?.abort(); password.value = '
 .login-submit:hover { background: var(--accent-hover); color: white; }
 .login-help { color: #526873; font-size: 12px; margin: 10px 0 0; }
 .auth-error { color: var(--danger); margin: 0; }
-.guest-link { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; margin-top: 16px; }
 </style>

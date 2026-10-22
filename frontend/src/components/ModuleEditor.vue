@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref, watch, onUnmounted } from 'vue'
 import { saveModule } from '../api/moduleManagement.js'
-import RouteLink from './RouteLink.vue'
 const props = defineProps({ detail: { type: Object, required: true }, access: { type: Object, required: true } })
 const emit = defineEmits(['saved', 'reload'])
 const enabled = ref(true), visible = ref(true), interval = ref('')
@@ -35,7 +34,7 @@ onUnmounted(() => { clearTimeout(timer); controller?.abort() })
     <div class="section-heading"><h2 id="module-management-title">模块管理</h2><span v-if="detail.required" class="readonly-label">必需模块</span></div>
     <p v-if="access.pending.value" role="status">正在确认管理权限…</p>
     <div v-else-if="access.error.value"><p>管理权限暂无法确认。</p><button @click="access.load()">重试权限查询</button></div>
-    <template v-else-if="!canManage"><p v-if="access.data.value">当前角色可查看模块，没有模块管理权限。</p><RouteLink v-else to="/login">登录后管理模块</RouteLink></template>
+    <p v-else-if="!canManage">当前角色可查看模块，没有模块管理权限。</p>
     <form v-else class="module-editor-form" @submit.prevent="submit" :aria-busy="busy">
       <fieldset :disabled="busy"><legend class="sr-only">模块状态与公开配置</legend>
         <label class="check-field"><input type="checkbox" v-model="enabled" :disabled="detail.required" />启用本模块</label>

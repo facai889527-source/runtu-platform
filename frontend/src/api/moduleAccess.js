@@ -1,3 +1,4 @@
+import { sessionFetch } from './session.js'
 import { ApiError } from './client.js'
 import { securityHeaders } from './auth.js'
 function item(row) {
@@ -15,7 +16,7 @@ async function result(response) {
 async function page(path,after,signal,own=false) {
   const query=new URLSearchParams({limit:'20'})
   if(after!=null) query.set('after_module',after)
-  const value=await result(await fetch(`${path}?${query}`,{signal,credentials:'same-origin',headers:{Accept:'application/json'}}))
+  const value=await result(await sessionFetch(`${path}?${query}`,{signal,credentials:'same-origin',headers:{Accept:'application/json'}}))
   if(!Array.isArray(value.items)||value.items.length>20) throw new Error('模块授权列表格式异常。')
   value.items.forEach((row,index)=>{item(row);if((own&&(!row.enabled||!row.granted))||(after!=null&&row.module_id<=after)||(index&&row.module_id<=value.items[index-1].module_id))throw new Error('模块授权顺序异常。')})
   if(!(value.next_after_module===null||(value.items.length===20&&value.next_after_module===value.items.at(-1).module_id)))throw new Error('模块授权分页异常。')
@@ -25,7 +26,7 @@ export const readUserModules=(id,after,signal)=>page(`/api/admin/users/${encodeU
 export const readMyModules=(after,signal)=>page('/api/me/modules',after,signal,true)
 export async function saveUserModule(id,moduleId,value,signal) {
   const headers=await securityHeaders(signal)
-  const saved=item(await result(await fetch(`/api/admin/users/${encodeURIComponent(id)}/modules/${encodeURIComponent(moduleId)}`,{method:'PUT',credentials:'same-origin',headers,signal,body:JSON.stringify(value)})))
+  const saved=item(await result(await sessionFetch(`/api/admin/users/${encodeURIComponent(id)}/modules/${encodeURIComponent(moduleId)}`,{method:'PUT',credentials:'same-origin',headers,signal,body:JSON.stringify(value)})))
   if(saved.module_id!==moduleId||saved.granted!==value.granted)throw new Error('授权保存结果无法确认，请刷新。')
   return saved
 }

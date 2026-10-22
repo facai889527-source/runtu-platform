@@ -1,5 +1,8 @@
 # 本地开发指南
 
+> TASK-0036 契约更新：`GET /api/modules` 与 `GET /api/modules/{id}` 现在要求有效登录。匿名/失效会话返回401，认证未配置返回503；健康、认证/注册必要接口及显式 public 模块业务/示例端点保留原公开行为。下文旧阶段的“公开元数据/匿名工作台”描述仅代表历史实现。详见 [登录边界](LOGIN_BOUNDARIES.md)。
+
+
 ## 环境与 PyCharm
 
 使用 Python 3.12+、Node.js 22.12+（推荐 Node 24 LTS）、pnpm 11.25.0。

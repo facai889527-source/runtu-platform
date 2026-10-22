@@ -1,3 +1,4 @@
+import { sessionFetch } from './session.js'
 import { ApiError } from './client.js'
 
 export async function readModuleAudit(id, beforeRevision, signal) {
@@ -6,7 +7,7 @@ export async function readModuleAudit(id, beforeRevision, signal) {
     if (!Number.isInteger(beforeRevision) || beforeRevision < 1 || beforeRevision > 2147483647) throw new Error('记录分页位置无效，请刷新。')
     query.set('before_revision', String(beforeRevision))
   }
-  const response = await fetch(`/api/admin/modules/${encodeURIComponent(id)}/changes?${query}`, {
+  const response = await sessionFetch(`/api/admin/modules/${encodeURIComponent(id)}/changes?${query}`, {
     method: 'GET', credentials: 'same-origin', signal, headers: { Accept: 'application/json' },
   })
   if (!response.ok) throw new ApiError(response.status, {

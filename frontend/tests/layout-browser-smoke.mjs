@@ -224,6 +224,14 @@ try {
     grantSets.clear()
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 761 })
     authenticated = false
+    for (const target of ['/', '/modules', '/modules/demo', '/settings', '/users']) {
+      await visit(target)
+      await until(`location.pathname === '/login' && document.querySelector('#login-password')`)
+      assert.equal(await evaluate(`!document.querySelector('.sidebar, .user-menu, .module-list, .users-page, .registration-policy')`),true)
+      assert.equal(await evaluate(`new URLSearchParams(location.search).get('returnTo')`),target)
+      await loadPage('Page.reload')
+      await until(`document.querySelector('#login-password')`)
+    }
     await visit('/login')
     await until(`document.querySelector('#login-password') && !document.querySelector('#login-password').disabled`)
     assert.equal(await evaluate(`!document.querySelector('.sidebar, .toolbar, .breadcrumb-current, .refresh-button')`), true)
@@ -328,7 +336,7 @@ try {
   }
   failIdentity = true
   await visit('/')
-  await until(`document.querySelector('.account-unavailable')`)
+  await until(`document.querySelector('.auth-layout [role=alert]')`)
   assert.equal(await evaluate(`!document.querySelector('.user-menu')`), true)
   failIdentity = false; authenticated = true; invalidRole = true
   await loadPage('Page.reload')
@@ -374,9 +382,8 @@ try {
   const allowedAuditRequests = auditRequests
   authenticated = false
   await loadPage('Page.reload')
-  await until(`document.querySelector('.module-editor a')`)
-  assert.equal(await evaluate(`!document.querySelector('.module-editor-form')`), true)
-  await until(`document.querySelector('.module-audit')?.textContent.includes('没有查看操作记录的权限')`)
+  await until(`location.pathname === '/login' && document.querySelector('#login-password')`)
+  assert.equal(await evaluate(`!document.querySelector('.sidebar, .module-editor, .module-audit')`), true)
   assert.equal(auditRequests, allowedAuditRequests)
   authenticated = true; viewer = true
   await loadPage('Page.reload')
@@ -389,18 +396,18 @@ try {
   await until(`document.querySelector('.module-list')`)
   assert.equal(await evaluate(`Boolean(document.querySelector('.module-card[href="/modules/alpha"]'))`),false)
   await visit('/users')
-  await until(`document.querySelector('.users-page')?.textContent.includes('没有用户管理权限')`)
+  await until(`document.querySelector('main')?.textContent.includes('没有用户管理权限')`)
   assert.equal(userRequests, previousUserRequests)
   viewer = false; admin = true
   await loadPage('Page.reload')
-  await until(`document.querySelector('.users-page')?.textContent.includes('没有用户管理权限')`)
+  await until(`document.querySelector('main')?.textContent.includes('没有用户管理权限')`)
   assert.equal(userRequests, previousUserRequests)
   admin = false; authenticated = false
   await loadPage('Page.reload')
-  await until(`document.querySelector('.users-page')?.textContent.includes('没有用户管理权限')`)
+  await until(`location.pathname === '/login' && document.querySelector('#login-password')`)
   assert.equal(userRequests, previousUserRequests)
   authenticated = true
-  await loadPage('Page.reload')
+  await visit('/users')
   await until(`document.querySelector('.user-create-form') && document.querySelectorAll('.managed-user').length === 20`)
   await evaluate(`(() => { window.confirm=()=>true; const name=document.querySelector('.user-create-form input:not([type=password])'); name.value='fixture-new'; name.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('.user-create-form input[type=password]').value=crypto.randomUUID(); document.querySelector('.user-create-form').requestSubmit(); })()`)
   await until(`document.querySelector('.user-create [role=status]') && document.querySelector('.managed-user h3')?.textContent === 'fixture-new'`)
@@ -428,6 +435,18 @@ try {
   grantStatus=200
   await click('.grant-content [role=alert] button')
   await until(`document.querySelector('.grant-items input')`)
+  authenticated=true; viewer=false; admin=false
+  await visit('/modules/demo')
+  await until(`document.querySelector('.module-editor-form')`)
+  authenticated=false
+  await click('.module-audit .section-heading button')
+  await until(`location.pathname === '/login' && document.querySelector('#login-password')`)
+  assert.equal(await evaluate(`!document.querySelector('.sidebar, .module-editor')`),true)
+  assert.equal(await evaluate(`new URLSearchParams(location.search).get('returnTo')`),'/modules/demo')
+  await loadPage('Page.reload')
+  await until(`document.querySelector('#login-password')`)
+  await evaluate(`(() => { for (const [id,value] of [['login-username','layout-fixture'],['login-password','fixture-only-not-a-real-password']]) { const el=document.getElementById(id);el.value=value;el.dispatchEvent(new Event('input',{bubbles:true})); } document.querySelector('.login-form').requestSubmit() })()`)
+  await until(`location.pathname === '/modules/demo' && document.querySelector('.module-editor-form')`)
   assert.ok(apiRequests > 0 && sessionWrites >= 6)
   for (const width of [1440,390,360]) {
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<761})
@@ -435,6 +454,13 @@ try {
     await visit('/register')
     await until(`document.querySelector('.register-panel')?.textContent.includes('当前未开放')`)
     assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel input[type=password]'))`),false)
+    for (registrationStatus of [404,503]) {
+      await click('.register-panel > button')
+      await until(`document.querySelector('.register-panel [role=alert]')?.textContent.includes('注册服务暂不可用')`)
+      assert.equal(await evaluate(`document.querySelector('.register-panel').textContent.includes('申请不存在')`),false)
+      assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel input[type=password]'))`),false)
+    }
+    registrationStatus=200
     registrationPolicy.enabled=true
     await click('.register-panel > button')
     await until(`document.querySelector('.register-panel input[type=password]')`)
@@ -463,5 +489,5 @@ try {
     viewer=false
   }
   assert.deepEqual(errors, [])
-  console.log('PASS isolated UI fixtures: registration disabled/submitted/pending, owner approval/policy save, 503 and permission boundaries at 1440/390/360; previous user/module/audit cases. No real user data used.')
+  console.log('PASS isolated UI fixtures: anonymous deep links/reload, safe login return, expired API session redirect; public registration 404/503; registration disabled/submitted/pending, owner approval/policy save, 503 and permission boundaries at 1440/390/360; previous user/module/audit cases. No real user data used.')
 } finally { socket?.close(); child.kill() }

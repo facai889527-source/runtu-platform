@@ -56,6 +56,7 @@ def test_toggle_config_idempotent_restart_and_route_gate(managed):
     assert client.get('/api/modules/example/ping').status_code == 200
     assert client.post('/api/modules/example/action', headers=headers(client)).status_code == 403
     with TestClient(create_app(settings, modules=[make_module()]), base_url=ORIGIN) as restarted:
+        assert login(restarted).status_code == 200
         detail = restarted.get('/api/modules/example').json()
         assert detail['revision'] == 2 and detail['public_config']['refresh_interval_seconds'] == 45
         assert restarted.get('/api/modules/example/ping').status_code == 200
