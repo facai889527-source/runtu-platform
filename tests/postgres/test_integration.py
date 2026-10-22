@@ -396,3 +396,9 @@ def test_same_preauth_session_cannot_login_twice_and_timezone_expiry(pg_auth):
             row.expires_at = utcnow() - timedelta(seconds=1)
             session.flush()
     assert service.current(issued[0]) is None
+
+
+def test_foundation_migration_registration_to_assigned_access(pg_database):
+    from tests.test_foundation_integration import exercise_foundation
+    settings = Settings(_env_file=None,database_url=pg_database.engine.url.render_as_string(hide_password=False),auth_origin='https://runtu.test')
+    exercise_foundation(pg_database,settings)

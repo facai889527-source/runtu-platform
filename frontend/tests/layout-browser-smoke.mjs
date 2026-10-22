@@ -236,6 +236,7 @@ try {
     await until(`document.querySelector('#login-password') && !document.querySelector('#login-password').disabled`)
     assert.equal(await evaluate(`!document.querySelector('.sidebar, .toolbar, .breadcrumb-current, .refresh-button')`), true)
     assert.equal(await evaluate(`document.querySelectorAll('h1').length`), 1)
+    assert.equal(await evaluate(`document.querySelector('.login-form a')?.textContent`),'申请注册账号')
     await evaluate(`(() => { const el = document.querySelector('#login-username'); el.value = 'layout-fixture'; el.dispatchEvent(new Event('input', { bubbles: true })); window.dispatchEvent(new Event('focus')); })()`)
     await new Promise(resolve => setTimeout(resolve, 100))
     assert.equal(await evaluate(`document.querySelector('#login-username').value`), 'layout-fixture')

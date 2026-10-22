@@ -28,5 +28,5 @@ def run_tests(paths, *, environment=None, expected_passed=None, expected_skipped
 
 
 if __name__ == '__main__':
-    # Full unit suite includes ten deliberately opt-in online tests, validated separately.
-    raise SystemExit(run_tests(['tests'], expected_skipped=10))
+    # Full unit suite includes eleven deliberately opt-in online tests, validated separately.
+    raise SystemExit(run_tests(['tests'], expected_skipped=11))
