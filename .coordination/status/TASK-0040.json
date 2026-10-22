@@ -2,15 +2,18 @@
   "task_id": "TASK-0040",
   "signal_version": 40,
   "state": "running",
-  "updated_at": "2026-10-22T11:00:15.886Z",
-  "summary": "Polishing existing PR27 with role-neutral login copy, balanced auth composition and accessible transient signup toasts.",
+  "updated_at": "2026-10-22T11:07:25.707Z",
+  "summary": "Existing PR27 updated with role-neutral login, refined slate/emerald composition and accessible auto-dismiss signup toast; isolated UI checks passed.",
   "checks": [
-    "Ready version40 verified; no task PR or remote status; local outbox empty and no active task.",
-    "TASK-0039 completed; PR27 remains open at verified clean branch head."
+    "Commitc8f1c3a147472ef299ef47ff8ca1c525bae0eae4 pushed to existing PR27 branch; no duplicate PR.",
+    "Node28 and production build passed; Chrome1440/390/360 all-API fixtures passed.",
+    "Verified exact closed-policy toast, error-policy toast, automatic fade/removal, manual dismiss, repeat trigger, pending and reduced motion.",
+    "Role-neutral headline/subtitle, tighter panel, old diagram/marketing removed; desktop/mobile screenshots reviewed after animation settles.",
+    "No backend/policy-setting change, real database/credential reads or migration; no existing service restart; independent preview stopped."
   ],
   "blockers": [],
   "branch": "codex/TASK-0038-auth-design",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/27",
-  "commit_sha": null,
-  "next_action": "Revise existing PR27, verify toast lifecycle and responsive fixtures, then rerun CI without merge."
+  "commit_sha": "c8f1c3a147472ef299ef47ff8ca1c525bae0eae4",
+  "next_action": "Verify final-head CI39768145917 and39768145846, then report updated PR27 for review; do not merge."
 }
