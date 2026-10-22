@@ -1,18 +1,25 @@
 {
   "task_id": "TASK-0038",
   "signal_version": 38,
-  "state": "running",
-  "updated_at": "2026-10-22T10:07:16.256Z",
-  "summary": "PR27 submits responsive authentication redesign, inline signup link and explicit closed-registration notice; isolated checks passed, CI pending.",
+  "state": "completed",
+  "updated_at": "2026-10-22T10:08:45.654Z",
+  "summary": "PR27 completes responsive authentication redesign and clear signup/closed-policy experience; local checks and final-head CI all passed.",
   "checks": [
-    "Python144 passed,11 opt-in online skipped; Node28 passed; production build passed.",
-    "Chrome all-API fixtures1440/390/360 passed including signup-link click, closed/open registration, login401/403/503, pending/password clearing, Tab and reduced motion.",
-    "Desktop/mobile/closed registration screenshots reviewed; fixture data only and empty password fields.",
-    "No backend/API/policy setting change, real database/credential reads, migration or existing service restart; independent preview stopped."
+    "PR26 merge verified before starting; independent clean branch; PR27 open for review at729c0f02aba89d8ee057543d1ca2c0a2fbc1111d.",
+    "Desktop dark teal/navy brand and light form composition; mobile compact shared layout; local CSS illustration and system fonts with no external dependency or asset.",
+    "Inline signup sentence links only applicant action; disabled policy shows explicit administrator-closed notice without form; public404/503 remain unavailable rather than disabled.",
+    "Reused login/registration APIs, CSRF, same-origin cookies, safe returnTo and owner-only approval; backend and policy settings unchanged.",
+    "Keyboard Tab, visible focus,44px targets, reduced motion, text/primary-action4.5:1 and input-boundary3:1 checks passed; shared layout handles login/register titles.",
+    "Python144 passed,11 online opt-in skipped locally; Node28 passed; production build passed.",
+    "Chrome all-API fixtures1440/390/360 passed: inline signup click, closed/open registration, login401/403/503, loading disabled/password cleared, deep links/login return, session expiry and original role/module/approval flows.",
+    "Desktop/mobile/closed registration fixture screenshots visually reviewed and included in documentation; password fields empty.",
+    "Final-head CI39760656610 and39760656685 completed/success; Linux Python andNode/build passed.",
+    "Owned PostgreSQL job119763696491:11 passed,0 failed,0 skipped; disposable container removed.",
+    "No real database/credential reads or migration, existing service restart, merge or deployment; independent test preview stopped."
   ],
   "blockers": [],
   "branch": "codex/TASK-0038-auth-design",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/27",
   "commit_sha": "729c0f02aba89d8ee057543d1ca2c0a2fbc1111d",
-  "next_action": "Verify final-head CI and report PR27 for review; do not merge, deploy or start another task."
+  "next_action": "Review PR27 and documented desktop/mobile screenshots. Do not auto-merge or deploy. Any real service refresh requires separate formal authorization; do not execute another task."
 }
