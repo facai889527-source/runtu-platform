@@ -2,15 +2,17 @@
   "task_id": "TASK-0037",
   "signal_version": 37,
   "state": "running",
-  "updated_at": "2026-10-22T09:35:29.832Z",
-  "summary": "Verifying isolated foundation migrations and registration-to-module-access integration; correcting applicant link text.",
+  "updated_at": "2026-10-22T09:39:25.553Z",
+  "summary": "PR26 submitted; isolated SQLite end-to-end journey and browser regression passed; PostgreSQL/Linux CI pending.",
   "checks": [
-    "Remote ready version37 verified; no task PR or remote status; outbox empty; no active task.",
-    "PR25 merge verified on main; existing feature worktree clean and preserved."
+    "Python144 passed,11 opt-in online skipped; Node27 and production build passed.",
+    "Chrome all-API fixtures1440/390/360 passed; applicant link text verified visually.",
+    "Sequential0004→0005→0006 and registration/approval/viewer/module grant lifecycle validated on disposable SQLite; shared PG case added.",
+    "No real database/credential/session reads or migration; no existing service restart; independent test preview stopped."
   ],
   "blockers": [],
   "branch": "codex/TASK-0037-foundation-integration",
-  "pr_url": null,
-  "commit_sha": null,
-  "next_action": "Run disposable SQLite/PG integration and isolated browser regressions; submit PR without merge."
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/26",
+  "commit_sha": "735054c4abfd1348986bec08408955bf6ebc0c84",
+  "next_action": "Verify final-head CI, including11required PG cases, then report PR26 for review without merge."
 }
