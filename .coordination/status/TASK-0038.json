@@ -1,0 +1,16 @@
+{
+  "task_id": "TASK-0038",
+  "signal_version": 38,
+  "state": "running",
+  "updated_at": "2026-10-22T10:00:54.247Z",
+  "summary": "Redesigning shared authentication layout and inline signup entry; preserving authoritative registration and session boundaries.",
+  "checks": [
+    "Ready version38 verified; no local task record, same-task PR or remote status; outbox empty and no active task.",
+    "PR26 merged on main verified; clean existing feature branch preserved."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0038-auth-design",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "Implement responsive Vue3 JavaScript authentication design; test isolated fixtures and create PR without merge."
+}
