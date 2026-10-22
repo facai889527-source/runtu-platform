@@ -33,21 +33,19 @@ onUnmounted(() => { clearTimeout(timer); controller?.abort(); password.value = '
       <input id="login-password" v-model="password" name="password" type="password" autocomplete="current-password" required maxlength="128" :disabled="pending" />
       <p v-if="error" class="auth-error" role="alert">{{ error }}</p>
       <button type="submit" class="login-submit" :disabled="pending">{{ pending ? '正在验证…' : '登录' }}</button>
-      <p class="login-help">没有账户？请联系平台管理员。</p>
-      <RouteLink to="/register">申请注册账号</RouteLink>
+      <p class="login-help">没有账户？ <RouteLink to="/register">申请注册账号</RouteLink></p>
     </form>
   </section>
 </template>
 <style scoped>
 .login-panel { width: 100%; }
-.login-context { margin-bottom: 28px; }
-.login-context h1 { font-size: 28px; margin-bottom: 10px; }
-.login-context p { color: var(--muted); margin: 0; }
+.login-context { margin-bottom: 32px; }
+.login-context p { color: var(--auth-muted); margin: 0; font-size: 14px; line-height: 1.8; }
 .login-form { display: flex; flex-direction: column; gap: 10px; }
-.login-form label { font-weight: 600; }
-.login-form input { width: 100%; min-height: 46px; border: 1px solid var(--line-strong); border-radius: 8px; background: white; padding: 10px 12px; margin-bottom: 12px; color: var(--ink); }
-.login-submit { background: var(--accent); color: white; border-color: var(--accent); margin-top: 6px; }
-.login-submit:hover { background: var(--accent-hover); color: white; }
-.login-help { color: #526873; font-size: 12px; margin: 10px 0 0; }
-.auth-error { color: var(--danger); margin: 0; }
+.login-form label { font-size: 13px; font-weight: 600; }
+.login-form input { margin-bottom: 14px; }
+.login-submit { margin-top: 6px; }
+.login-help { margin: 14px 0 0; color: var(--auth-muted); text-align: center; font-size: 13px; line-height: 2; }
+.login-help a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+.auth-error { margin: 0; }
 </style>

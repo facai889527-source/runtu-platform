@@ -60,6 +60,7 @@ try {
     await writeFile(path.join(output, name + '.png'), Buffer.from(shot.data, 'base64'))
   }
   let authenticated = false, failLogout = false, failIdentity = false, invalidRole = false
+  let loginStatus = 200, delayLogin = false
   let failSettings = false, delaySettings = false
   const scriptRequests = new Set()
   socket.addEventListener('message', event => {
@@ -190,7 +191,9 @@ try {
         assert.equal(request.method, 'POST')
         assert.ok(Object.keys(request.headers).some(key => key.toLowerCase() === 'x-csrf-token'))
         sessionWrites++
-        if (pathname.endsWith('logout') && failLogout) code = 503
+        if (pathname.endsWith('login') && delayLogin) await new Promise(resolve=>setTimeout(resolve,600))
+        if (pathname.endsWith('login') && loginStatus !== 200) code = loginStatus
+        else if (pathname.endsWith('logout') && failLogout) code = 503
         else authenticated = pathname.endsWith('login')
         body = { authenticated, user: authenticated ? user : null }
       } else throw new Error('Unexpected API path in isolated fixture')
@@ -236,7 +239,8 @@ try {
     await until(`document.querySelector('#login-password') && !document.querySelector('#login-password').disabled`)
     assert.equal(await evaluate(`!document.querySelector('.sidebar, .toolbar, .breadcrumb-current, .refresh-button')`), true)
     assert.equal(await evaluate(`document.querySelectorAll('h1').length`), 1)
-    assert.equal(await evaluate(`document.querySelector('.login-form a')?.textContent`),'申请注册账号')
+    assert.equal(await evaluate(`document.querySelector('.login-help').textContent.replace(/\s+/g,' ').trim()`),'没有账户？ 申请注册账号')
+    assert.equal(await evaluate(`document.querySelectorAll('.login-help a').length`),1)
     await evaluate(`(() => { const el = document.querySelector('#login-username'); el.value = 'layout-fixture'; el.dispatchEvent(new Event('input', { bubbles: true })); window.dispatchEvent(new Event('focus')); })()`)
     await new Promise(resolve => setTimeout(resolve, 100))
     assert.equal(await evaluate(`document.querySelector('#login-username').value`), 'layout-fixture')
@@ -249,6 +253,29 @@ try {
       await writeFile(path.join(output, 'login-script-requests.json'), JSON.stringify({ origin, scripts, excludedWorkspaceChunks: true }, null, 2))
       console.log(`PASS cold login resource boundary: ${scripts.length} script requests; no workspace/page chunks (${new URL(origin).port})`)
     }
+    await evaluate(`document.querySelector('#login-username').focus()`)
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
+    await until(`document.activeElement.id === 'login-password'`)
+    await click('.login-help a')
+    await until(`location.pathname === '/register' && document.querySelector('.registration-closed')?.textContent.includes('管理员暂未开放注册')`)
+    assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel form, .register-panel input'))`),false)
+    await noOverflow(); await screenshot(`registration-closed-${width}`)
+    await click('.login-link')
+    await until(`location.pathname === '/login' && document.querySelector('#login-password')`)
+    await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('#login-username')).transitionDuration`),'0s')
+    await send('Emulation.setEmulatedMedia',{features:[]})
+    delayLogin=true
+    for (loginStatus of [401,403,503]) {
+      await evaluate(`(() => { for (const [id,value] of [['login-username','layout-fixture'],['login-password','fixture-only-not-a-real-password']]) { const el=document.getElementById(id);el.value=value;el.dispatchEvent(new Event('input',{bubbles:true})); } document.querySelector('.login-form').requestSubmit() })()`)
+      await until(`document.querySelector('.login-submit').disabled && document.querySelector('#login-password').value === ''`)
+      await until(`document.querySelector('.auth-error') && !document.querySelector('.login-submit').disabled`)
+      assert.equal(authenticated,false)
+      assert.equal(await evaluate(`!document.querySelector('.sidebar, .user-menu')`),true)
+      await noOverflow()
+    }
+    await screenshot(`login-unavailable-${width}`)
+    loginStatus=200;delayLogin=false
     // Deliberately fake inputs; all APIs above are intercepted, no live account or DB used.
     await evaluate(`(() => { for (const [id, value] of [['login-username','layout-fixture'], ['login-password','fixture-only-not-a-real-password']]) { const el = document.getElementById(id); el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); } document.querySelector('.login-form').requestSubmit(); })()`)
     await until(`location.pathname === '/' && document.querySelector('.user-menu')`)
@@ -453,7 +480,7 @@ try {
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<761})
     authenticated=false; registrationPolicy={enabled:false,approval_required:true,revision:0}
     await visit('/register')
-    await until(`document.querySelector('.register-panel')?.textContent.includes('当前未开放')`)
+    await until(`document.querySelector('.register-panel')?.textContent.includes('管理员暂未开放注册')`)
     assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel input[type=password]'))`),false)
     for (registrationStatus of [404,503]) {
       await click('.register-panel > button')
