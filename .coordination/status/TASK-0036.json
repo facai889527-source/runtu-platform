@@ -1,0 +1,16 @@
+{
+  "task_id": "TASK-0036",
+  "signal_version": 36,
+  "state": "running",
+  "updated_at": "2026-10-22T09:11:48.361Z",
+  "summary": "Implementing authenticated management pages and module metadata while preserving public demo and health/auth endpoints.",
+  "checks": [
+    "Ready version 36 verified; no local record, same-task PR or remote status; outbox empty.",
+    "Clean existing feature branch preserved; new product branch will start from fetched main."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0036-login-boundaries",
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "Implement and test isolated authentication/role boundaries; create PR for review."
+}
