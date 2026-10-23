@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0044",
+  "signal_version": 44,
+  "state": "running",
+  "updated_at": "2026-10-23T10:27:01.481Z",
+  "summary": "Applying formal navigation and brand follow-up on existing PR28 branch.",
+  "checks": [
+    "No TASK-0044 PR or local execution record; remote status confirmed absent; prior TASK-0043 completed."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
+  "commit_sha": null,
+  "next_action": "Verify PR28 branch head; simplify navigation and expose permitted module administration under global settings."
+}
