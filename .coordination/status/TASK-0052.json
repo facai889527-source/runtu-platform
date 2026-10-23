@@ -1,15 +1,23 @@
 {
   "task_id": "TASK-0052",
   "signal_version": 52,
-  "state": "running",
-  "updated_at": "2026-10-23T16:06:39.933Z",
-  "summary": "Claimed explicit public/personal Telegram bots, encrypted secrets, owner management and authorized multi-target routing on PR28.",
+  "state": "failed",
+  "updated_at": "2026-10-23T16:24:51.209Z",
+  "summary": "Partial security-foundation milestone published on PR28; full TASK-0052 acceptance remains unfinished, not reported as complete.",
   "checks": [
-    "Ready version checked; no same-task local execution, status or PR; existing branch clean."
+    "Commit 403ee62dfbe2dade8781ef0d49b126048bce06c7 on existing PR28; clean product worktree; no merge or deployment.",
+    "20 new mocked security tests passed: account-bound authenticated encryption, rotation, malformed data, fixed-host API, bounded requests/responses and sanitized errors.",
+    "Full local and Linux CI Python regression: 209 passed; 11 optional PostgreSQL cases skipped in full suite; separate PostgreSQL job: 11 required passed, zero skipped.",
+    "Node 36 tests and Vite production build passed; dependency and diff checks passed.",
+    "Both current-commit CI workflows succeeded, all six jobs: runs 39986256229 and 39986255965.",
+    "No business route, UI or schema changed; primitives not integrated. No real migration, service restart, Telegram token or send."
   ],
-  "blockers": [],
+  "blockers": [
+    "Partial delivery only: explicit public/personal bot lifecycle, encrypted persistence and authorized owner management remain unimplemented.",
+    "Group discovery/current membership authorization, multiple targets and per-destination dedupe, migrations and responsive integration UI remain unimplemented."
+  ],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
-  "commit_sha": "3f781cb59c89a317b0282c7198f0bed809d05117",
-  "next_action": "Inspect encryption dependencies and establish secure bot selection, per-account lifecycle, discovery and membership boundaries before implementation."
+  "commit_sha": "403ee62dfbe2dade8781ef0d49b126048bce06c7",
+  "next_action": "Review bounded foundation milestone and remaining acceptance in docs/TELEGRAM_SECURITY_MILESTONE.md. Publish a formal follow-up task/version for unfinished scope; do not replay version 52. PR28 remains stacked on unmerged PR27. Real activation remains separately authorized."
 }
