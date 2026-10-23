@@ -73,4 +73,5 @@ onUnmounted(() => {
 .sign-out { width: 100%; color: var(--danger); }
 .account-error { color: var(--danger); font-size: 12px; width: 100%; margin: 0; }
 @media (max-width: 760px) { .user-name { max-width: 80px; } }
+@media(max-width:400px){.user-name{display:none}}
 </style>

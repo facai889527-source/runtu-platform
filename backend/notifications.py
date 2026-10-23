@@ -14,8 +14,10 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 
 from backend.auth.service import AuthDenied, AuthUnavailable, aware, digest
-from backend.models import AuthBootstrap, AuthEvent, AuthSession, AuthUser, AccountNotification, TelegramChallenge, NotificationDelivery, RegistrationApplication
+from backend.models import AuthBootstrap, AuthEvent, AuthSession, AuthUser, AccountNotification, TelegramChallenge, NotificationDelivery, RegistrationApplication, PersonalTelegramBot
 from backend.user_management import UserConflict
+from backend.personal_telegram import PersonalBots
+from backend.telegram_security import SecretStorageUnavailable, TelegramUnavailable
 
 TOKEN = re.compile(r'[1-9][0-9]{4,19}:[A-Za-z0-9_-]{30,80}\Z')
 PAIR = re.compile(r'[A-Za-z0-9_-]{43}\Z')
@@ -74,6 +76,7 @@ class NotificationService:
         self.auth, self.transport = auth, transport or TelegramTransport()
         self.queue, self.stopped, self.worker = Queue(maxsize=16), Event(), None
         self.lifecycle_lock, self.lifetimes = Lock(), 0
+        self.personal = PersonalBots(self)
 
     @property
     def configured(self):
@@ -114,11 +117,19 @@ class NotificationService:
             if create: session.add(row); session.flush()
         return row
 
-    def selected(self, row):
-        config = self.auth.settings
-        return bool(self.configured and row.bot_mode == 'public' and row.bot_key == digest(config.telegram_bot_token.get_secret_value()))
+    def context(self,session,row):
+        if row.bot_mode=='personal':return self.personal.context(session,row)
+        config=self.auth.settings
+        if self.configured and row.bot_mode=='public' and row.bot_key==digest(config.telegram_bot_token.get_secret_value()):
+            return config.telegram_bot_token,config.telegram_bot_username
+        raise NotificationIncomplete()
+
+    def selected(self,row,session):
+        try:self.context(session,row);return True
+        except (NotificationIncomplete,SecretStorageUnavailable,TelegramUnavailable):return False
 
     def clear(self, session, row):
+        session.execute(delete(PersonalTelegramBot).where(PersonalTelegramBot.user_id==row.user_id))
         session.execute(delete(TelegramChallenge).where(TelegramChallenge.user_id == row.user_id))
         row.bot_mode, row.bot_key = None, None
         row.chat_id, row.bound_at = None, None
@@ -152,8 +163,10 @@ class NotificationService:
                 expires_at=aware(challenge.expires_at).isoformat(),
                 candidate='••••'+challenge.chat_id[-4:] if challenge.chat_id else None)
         privileged = user.role in PRIVILEGED
-        return dict(enabled=row.enabled, revision=row.revision, available=self.selected(row),
-            bot_mode=row.bot_mode, public_available=self.configured, private_target=row.private_target,
+        try:_,username=self.context(session,row)
+        except (NotificationIncomplete,SecretStorageUnavailable,TelegramUnavailable):username=None
+        return dict(enabled=row.enabled, revision=row.revision, available=self.selected(row,session),
+            bot_mode=row.bot_mode, bot_username=username, public_available=self.configured, personal_available=self.personal.available, private_target=row.private_target,
             bound=bool(row.chat_id and row.bound_at), destination='••••'+row.chat_id[-4:] if row.chat_id else None,
             paused=row.paused, pairing=pairing,
             events=dict(registration=row.registration if privileged else False,
@@ -167,7 +180,7 @@ class NotificationService:
         with self.own(actor, key, True, target) as (session, user):
             row = self.profile(session, user.id, True); self.expect(row, value.expected_revision)
             if value.events.registration and user.role not in PRIVILEGED: raise AuthDenied()
-            if (value.enabled or value.private_target) and (not self.selected(row) or not user.active or not row.chat_id or not row.bound_at): raise NotificationIncomplete()
+            if (value.enabled or value.private_target) and (not self.selected(row,session) or not user.active or not row.chat_id or not row.bound_at): raise NotificationIncomplete()
             if value.enabled and not value.private_target: raise NotificationIncomplete()
             if (row.enabled, row.registration, row.private_target) != (value.enabled, value.events.registration, value.private_target) or row.paused:
                 row.enabled, row.registration, row.paused, row.private_target = value.enabled, value.events.registration, False, value.private_target
@@ -176,12 +189,11 @@ class NotificationService:
             return self.public(session, user, row)
 
     def begin(self, actor, key, revision, target=None):
-        if not self.configured: raise NotificationIncomplete()
         self.auth._reserve([('telegram-pair:'+actor, 5), ('telegram-pair-global', 30)])
         token = secrets.token_urlsafe(32)
         with self.own(actor, key, True, target) as (session, user):
             row = self.profile(session, user.id, True); self.expect(row, revision)
-            if not self.selected(row) or not user.active: raise NotificationIncomplete()
+            if not self.selected(row,session) or not user.active: raise NotificationIncomplete()
             row.registration, row.private_target = False, False
             row.enabled, row.chat_id, row.bound_at, row.paused = False, None, None, False
             self.change(row)
@@ -191,39 +203,39 @@ class NotificationService:
                 chat_id=None, expires_at=expires))
             self.auth._event(session, 'telegram_pair_started', 'notification-manager:'+actor, user.id)
             session.flush()
-            return dict(url='https://t.me/'+self.auth.settings.telegram_bot_username+'?start='+token,
+            _,username=self.context(session,row)
+            return dict(url='https://t.me/'+username+'?start='+token,
                 expires_at=expires.isoformat(), revision=row.revision)
 
-    def callback(self, data):
-        # Called only after the route verifies the webhook credential and origin.
-        message = data.get('message')
-        if not isinstance(message, dict): return
-        chat, sender, text = message.get('chat'), message.get('from'), message.get('text')
-        if not isinstance(chat, dict) or not isinstance(sender, dict) or chat.get('type') != 'private' or sender.get('is_bot') is not False: return
-        chat_id = chat.get('id')
-        if type(chat_id) is not int or not 0 < chat_id < 2**52 or sender.get('id') != chat_id or type(sender.get('id')) is not int: return
-        if not isinstance(text, str) or not text.startswith('/start ') or not PAIR.fullmatch(text[7:]): return
+    def callback(self,data):
+        if not self.configured:return
         with self.auth.transaction() as session:
             self.lock(session)
-            challenge = session.scalar(select(TelegramChallenge).where(TelegramChallenge.token_hash == digest(text[7:])))
-            if not challenge or aware(challenge.expires_at) <= self.auth.clock(): return
-            try: self.identity(session, challenge.initiator_id, challenge.session_hash)
-            except AuthDenied: return
-            recipient = session.get(AuthUser, challenge.user_id)
-            row = session.get(AccountNotification, challenge.user_id)
-            principal = session.get(AuthUser, challenge.initiator_id)
-            if (not recipient or not recipient.active or not row or not self.selected(row)
-                    or (challenge.initiator_id != challenge.user_id and principal.role != 'owner')): return
-            # Consume the bearer once, but do NOT bind or send until browser confirmation.
-            challenge.token_hash, challenge.chat_id = None, str(chat_id)
-            session.flush()
+            self.process_pair_message(session,data,'public',digest(self.auth.settings.telegram_bot_token.get_secret_value()))
+
+    def process_pair_message(self,session,data,mode,fingerprint,recipient=None):
+        message=data.get('message')
+        if not isinstance(message,dict):return
+        chat,sender,text=message.get('chat'),message.get('from'),message.get('text')
+        if not isinstance(chat,dict) or not isinstance(sender,dict) or chat.get('type')!='private' or sender.get('is_bot') is not False:return
+        chat_id=chat.get('id')
+        if type(chat_id) is not int or not 0<chat_id<2**52 or type(sender.get('id')) is not int or sender['id']!=chat_id:return
+        if not isinstance(text,str) or not text.startswith('/start ') or not PAIR.fullmatch(text[7:]):return
+        challenge=session.scalar(select(TelegramChallenge).where(TelegramChallenge.token_hash==digest(text[7:])))
+        if not challenge or aware(challenge.expires_at)<=self.auth.clock() or (recipient and challenge.user_id!=recipient):return
+        try:principal=self.identity(session,challenge.initiator_id,challenge.session_hash)
+        except AuthDenied:return
+        user=session.get(AuthUser,challenge.user_id);row=session.get(AccountNotification,challenge.user_id)
+        if (not user or not user.active or not row or row.bot_mode!=mode or row.bot_key!=fingerprint or not self.selected(row,session)
+                or (principal.id!=user.id and principal.role!='owner')):return
+        challenge.token_hash,challenge.chat_id=None,str(chat_id)
+        session.flush()
 
     def confirm(self, actor, key, revision, target=None):
-        if not self.configured: raise NotificationIncomplete()
         try:
             with self.own(actor, key, True, target) as (session, user):
                 row = self.profile(session, user.id, True); self.expect(row, revision)
-                if not self.selected(row) or not user.active: raise NotificationIncomplete()
+                if not self.selected(row,session) or not user.active: raise NotificationIncomplete()
                 challenge = session.get(TelegramChallenge, user.id)
                 if (not challenge or challenge.initiator_id != actor or challenge.session_hash != key or not challenge.chat_id
                         or challenge.token_hash is not None or aware(challenge.expires_at) <= self.auth.clock()): raise UserConflict()
@@ -281,14 +293,13 @@ class NotificationService:
         with self.own(actor, key, target=target) as (session, user):
             recipient = user.id
             row = self.profile(session, recipient); self.expect(row, revision)
-            if not self.selected(row) or not user.active or not row.private_target or not row.enabled or not row.chat_id or not row.bound_at: raise NotificationIncomplete()
+            if not self.selected(row,session) or not user.active or not row.private_target or not row.enabled or not row.chat_id or not row.bound_at: raise NotificationIncomplete()
         self.auth._reserve([('telegram-test:'+actor, 1), ('telegram-test-global', 20)])
         future = Future()
         if not self._offer(('test', recipient, key, revision, self.auth.clock(), actor, future)): future.set_result(False)
         return future
 
     def _deliver(self, actor, revision, text, event_id=None, key=None, queued_at=None, principal=None):
-        if not self.configured: return False
         now = self.auth.clock()
         if queued_at is not None and aware(queued_at)+timedelta(minutes=5) <= now: return False
         # Reserve before the short claim transaction; rate-limit failures are dropped.
@@ -301,7 +312,7 @@ class NotificationService:
             user = session.get(AuthUser, actor)
             row = session.get(AccountNotification, actor)
             if (not user or not user.active or not row or row.revision != revision or not row.enabled
-                    or row.paused or not row.chat_id or not row.bound_at or not row.private_target or not self.selected(row)): return False
+                    or row.paused or not row.chat_id or not row.bound_at or not row.private_target or not self.selected(row,session)): return False
             if event_id:
                 event = session.get(AuthEvent, event_id)
                 if (not event or event.event != 'registration_submitted' or user.role not in PRIVILEGED or not row.registration
@@ -314,9 +325,10 @@ class NotificationService:
                 session.add(NotificationDelivery(event_id=event_id, user_id=actor, binding_revision=revision, claimed_at=now))
                 session.flush()
             chat_id = row.chat_id
+            token,_=self.context(session,row)
         # No network while holding the business mutex or transaction. A request
         # already in flight cannot be recalled by unlink; queued stale revisions drop.
-        try: success = self.transport.send(self.auth.settings.telegram_bot_token.get_secret_value(), chat_id, text) is True
+        try: success = self.transport.send(token.get_secret_value(), chat_id, text) is True
         except Exception: success = False
         if not success:
             with self.auth.transaction() as session:

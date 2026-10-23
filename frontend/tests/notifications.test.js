@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readNotifications, saveNotifications, testNotifications, connectTelegram, confirmTelegram, disconnectTelegram, choosePublicBot } from '../src/api/notifications.js'
+import { readNotifications, saveNotifications, testNotifications, connectTelegram, confirmTelegram, disconnectTelegram, choosePublicBot, choosePersonalBot, syncPersonalBot, rotatePersonalSecret, readTelegramPlatform } from '../src/api/notifications.js'
 import { parseRoute, returnTarget } from '../src/navigation/history.js'
-const value=()=>({enabled:false,revision:0,available:false,bot_mode:null,public_available:true,private_target:false,bound:false,destination:null,paused:false,pairing:{state:'none',expires_at:null,candidate:null},events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:false,account_security:false,tool_outcomes:false,system_errors:false}})
+const value=()=>({enabled:false,revision:0,available:false,bot_mode:null,bot_username:null,personal_available:true,public_available:true,private_target:false,bound:false,destination:null,paused:false,pairing:{state:'none',expires_at:null,candidate:null},events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:false,account_security:false,tool_outcomes:false,system_errors:false}})
 
 test('self notification requests never carry target user or chat and use CSRF for pairing and delivery',async()=>{
  const previous=globalThis.fetch,calls=[]
@@ -48,9 +48,30 @@ test('owner notification scope uses an explicit path, encodes no target in self 
 test('unbound or unverified DTO cannot imply selected routes or enabled delivery',async()=>{
  const previous=globalThis.fetch
  try{
-  for(const patch of [{bot_mode:'personal'},{enabled:true},{private_target:true},{available:'true'},{public_available:null}]){
+  for(const patch of [{bot_mode:'unknown'},{enabled:true},{private_target:true},{available:'true'},{public_available:null}]){
    globalThis.fetch=async()=>({ok:true,json:async()=>({...value(),...patch})})
    await assert.rejects(readNotifications(),/格式异常/)
   }
+ }finally{globalThis.fetch=previous}
+})
+
+
+test('personal Bot uses protected scoped POST; responses reject ciphertext and platform secrets',async()=>{
+ const previous=globalThis.fetch,calls=[]
+ try{
+  const safe={...value(),bot_mode:'personal',bot_username:'PrivateFixtureBot',available:true}
+  globalThis.fetch=async(url,options)=>{calls.push([url,options]);return{ok:true,json:async()=>url==='/api/auth/csrf'?{csrf_token:'a'.repeat(64)}:safe}}
+  await choosePersonalBot('fixture-only-secret',true,0,undefined,'fixture-target')
+  await syncPersonalBot(1,undefined,'fixture-target');await rotatePersonalSecret(1,undefined,'fixture-target')
+  const writes=calls.filter(([url])=>url.includes('/api/admin/notifications/users/'))
+  assert.equal(writes.length,3)
+  for(const [,options]of writes){assert.equal(options.method,'POST');assert.equal(options.headers['X-CSRF-Token'],'a'.repeat(64));assert.equal(options.credentials,'same-origin')}
+  assert.equal(JSON.parse(writes[0][1].body).token,'fixture-only-secret')
+  for(const extra of [{token:'leak'},{ciphertext:'leak'},{update_offset:1}]){
+   globalThis.fetch=async url=>({ok:true,json:async()=>url==='/api/auth/csrf'?{csrf_token:'a'.repeat(64)}:{...safe,...extra}})
+   await assert.rejects(syncPersonalBot(1),/格式异常/)
+  }
+  globalThis.fetch=async()=>({ok:true,json:async()=>({feature_enabled:true,public_ready:false,token_present:false,username_present:false,webhook_secret_present:false,encryption_ready:true,token:'leak'})})
+  await assert.rejects(readTelegramPlatform(),/状态未确认/)
  }finally{globalThis.fetch=previous}
 })

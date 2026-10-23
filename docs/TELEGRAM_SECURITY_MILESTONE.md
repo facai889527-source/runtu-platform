@@ -1,6 +1,6 @@
 # TASK-0052: security foundation milestone (partial delivery)
 
-Historical TASK-0052 boundary. TASK-0053 subsequently adds explicit public-bot choice, private target opt-in and owner management; see [current notification behavior](NOTIFICATIONS.md). Personal bots and group/multi-target integration remain unfinished.
+Historical TASK-0052 boundary. TASK-0053 subsequently adds explicit public-bot choice, private target opt-in and owner management; see [current notification behavior](NOTIFICATIONS.md). TASK-0054 subsequently integrates personal Bot encrypted persistence, private proof and rotation; group/multi-target integration remains unfinished. See the current notification guide for operational prerequisites.
 
 This is a bounded foundation milestone, **not completion of TASK-0052**. No new notification endpoints, personal bot binding, group discovery, owner cross-account controls, multi-target routing, UI, or migration are activated by this change. Existing TASK-0051 behavior remains; it must not be presented as satisfying TASK-0052. Unfinished integration drafts are excluded from the PR. No real database, Telegram credentials, service restart, or delivery was used for validation.
 

@@ -1,55 +1,70 @@
-# Telegram 消息设置：公共 Bot 私聊里程碑（TASK-0053，部分交付）
+# Telegram 消息设置：个人与公共 Bot（TASK-0054）
 
-TASK-0053 **尚未完整完成**。本阶段实现显式选择公共 Bot、私聊证明、主动选择私聊目标和 owner 跨账户管理；个人 Bot 绑定、群组发现/成员过滤及多目标投递仍未实现。界面明确禁用个人 Bot 入口，不接收 Token。TASK-0052 的认证加密/固定 API 基础保留，但没有个人 Token 持久化或轮换操作；不能把这些基础模块当成已交付的个人 Bot 功能。
+本版交付可使用的个人 Bot 与公共 Bot 私聊流程、加密存储和 owner 代管；不是独立基础模块。页面以两种 Bot 为首要选择，owner 的“平台公共 Bot 管理”和“管理其他账户”默认收起，只有展开时才读取对应 owner 数据。未部署、未启用或未配置密钥时禁用不具备条件的选择，提供具体步骤，不把前端更新当成后端启用。
 
-## 账户与配置生命周期
+**明确剩余产品范围：群组发现、成员过滤、owner 全群组可见性、多目标选择与逐目标去重尚未交付。** TASK-0054 明确允许优先个人 Bot/UI；群组需正式后续任务，不能输入任意 Chat ID 或伪装群组已可用。只接入真实注册申请事件，其他事件源保持关闭。
 
-新账户包括 owner，初始均无 Bot 选择、Telegram 身份、私聊目标、订阅和启用状态。配置了公共 Bot 不等于为账户自动选择它。点击“使用公共 Bot”才登记公共模式及服务端 Bot Token 指纹；重新选择先清除旧绑定、私聊目标、订阅、启用和配对挑战。指纹仅用于检测配置变化，不返回 API。
+## 账户操作
 
-随后点击连接生成 256-bit 一次性 /start 链接：数据库只保存其 SHA-256 摘要、发起账户/会话、目标平台账户及五分钟期限。Telegram 只通过独立密钥认证、HTTPS/Host 校验的 webhook 提交候选。仅接受 private chat，非 Bot sender 的正整数 ID 必须等于 chat ID 且小于 2^52；群组/频道消息不能作为身份或目标。回调重新验证发起会话有效、目标账户启用、公共 Bot 选择匹配当前配置；跨账户时发起者仍须为 owner。消费挑战只保存候选，**不绑定、不发送**。
+所有账户包括 owner 初始无 Bot 模式、身份/chat、目标、订阅或启用。任选一种：
 
-发起浏览器再次通过 Origin/CSRF 确认候选，才能建立身份。成功后私聊目标仍未选择，通知仍关闭。用户必须主动选择“已验证私聊”，再保存启用及支持的订阅；取消目标选择时页面同步关闭启用，保存增加 revision，使排队旧消息失效。当前每账户仅有一个私聊目标；一个 Telegram 身份仍只能绑定一个平台账户，冲突仅返回泛化 409。
+- **公共 Bot**：平台配置就绪后点击“使用公共 Bot”。无需 Token，但仍须完成私聊证明和主动选择私聊目标。平台配置不是对账户的自动绑定。
+- **个人 Bot**：在 Telegram 的 BotFather 创建仅供本平台使用的 Bot。点击“绑定个人 Bot”，输入 Token，并确认对其拥有控制权、专供本平台且未被其他部署使用。后端通过固定 HTTPS getMe 检查 is_bot、ID/Token 前缀和用户名；getWebhookInfo 必须明确没有 webhook，否则拒绝接管。验证和持有 Token 证明的是访问控制权，不声称能识别 BotFather 原始创建者。Token 提交后立即从输入清空，取消、错误或离开页面也会清空；不写浏览器存储，不回显 Token。
 
-断开清空 Bot 模式/指纹、身份/chat、目标、所有订阅、启用/暂停和挑战，返回原始未绑定状态。已发送或已经进入网络请求的消息不能撤回。重新连接同一 Bot 也会关闭通知、清除身份/私聊目标/订阅，并撤销旧挑战，必须重新确认和启用。公共 Token 配置变化后，旧绑定无法配对、确认或发送，需要显式重新选择并验证。
+个人 Token 使用 TASK-0052 的 Fernet/MultiFernet，连同平台账户 ID 放入认证加密封套，数据库只存密文。解密校验账户、密文、指纹和当前模式；密文换账户、密钥缺失/错误、Token/配置变化一律停止对应路由。每个 Bot ID 只能由一个平台账户持有，公共 Bot ID 也不能作为个人 Bot 占用。API 只返回安全模式、Bot 用户名、就绪布尔值和末四位身份；不返回 Token、密文、指纹或更新 offset。
 
-链接是短时 bearer 凭证，不存入 localStorage、日志、历史记录或截图，不可代点或仅凭候选状态盲目确认。界面仅显示候选/绑定末四位；外链使用 noopener noreferrer 和 no-referrer，响应 no-store。普通用户仅使用自己的 Telegram。owner 代管时，界面明确标注目标账户，目标 Telegram 身份需完成 Start，随后由发起管理会话确认；这是 owner 的显式管理权限，不是普通资料编辑权限。
+### 私聊证明与测试
 
-## 权限与接口
+1. 选择 Bot 后点击连接，产生 256-bit 一次性 /start 链接，五分钟有效；数据库只保存摘要、发起会话/账户、目标账户和期限。
+2. 由预期的 Telegram 身份在该 Bot **私聊**中点击 Start。私聊 chat ID 与非 Bot sender ID 必须同为正整数且相等、小于 2^52；群消息不能作为证明。
+3. 公共 Bot 由独立密钥认证的 HTTPS/Host webhook 接入，回到页面检查状态。个人 Bot 在页面点击“同步 Bot 消息”，经服务器持有的 Token 调用 getUpdates 读取；公共 webhook 不能消费个人 Bot 挑战。
+4. 接入只消费一次摘要并产生候选，**不绑定、不发送**。发起浏览器核对末四位，再以原登录会话和 Origin/CSRF 确认。owner 代管时只有发起 owner 会话能确认，目标账户不能顶替。
+5. 确认后通知仍关闭、目标仍未选择。主动选择已验证私聊，选择支持的订阅并保存启用，才可测试。每五分钟最多一次测试，返回成功仅在 Telegram transport 确认发送后；失败暂停，未确认不要立即重发。
 
-所有启用账户可自助使用 `/api/me/notifications`。自助路径拒绝 target query、任意 Chat ID、user_id、Bot Token 等额外字段。owner 额外使用独立路径 `/api/admin/notifications/users/{target}`，可读取、选择公共 Bot、配对、确认、改偏好、测试或断开任意账户；admin/viewer 连指向自己的 owner 路径也不可使用。禁用目标可以被 owner 查看、关闭或断开，但不能选择、配对或启用投递。每次服务调用重新从数据库核实会话与角色；队列测试也检查当前 owner 权限和收件账户状态，owner 被降权后不能继续代发。
+重复、过期、撤销会话、目标停用、owner 降权或 Bot/版本变化均拒绝旧结果。链接不进浏览器持久化或日志；外链 noopener noreferrer/no-referrer、响应 no-store。不要公开分享或让无关身份操作。当前保持私聊 ID 全库唯一，即一个 Telegram 身份只能绑定一个平台账户；冲突不透露占用账户。
 
-- GET 基础路径：读取已脱敏配置，无额外 query。
-- PUT 基础路径：`enabled`、`private_target`、四个固定事件布尔值和 `expected_revision`。未知字段、未接入事件源、未验证目标均拒绝；viewer 不可订阅注册申请，即使 owner 代管也不能替其越权。
-- POST `/choose-public`、`/connect`、`/confirm`、`/disconnect`、`/test`：只接收 expected_revision。
-- POST `/api/telegram/webhook`：只允许下述独立回调认证，不使用浏览器会话替代 Telegram 证明。
+## 个人 Bot 更新与独占边界
 
-owner 页面账户选择器使用现有 owner-only 用户列表，每页最多 20 条，并提供首批/下一批；切换目标会卸载旧表单、取消读取并清除一次性链接，不把一个账户的结果套入另一个账户。admin/viewer 页面不读取 owner 账户列表。普通资料权限未扩大。旧 `/api/admin/notifications/telegram` 保持移除。
+不自动注册/删除 webhook、不自动接管其他部署，也不运行背景长轮询。个人更新仅由明确的同步操作触发，getUpdates 使用 timeout=0、limit=20、仅 message；每批最多 20 个更新、64 KiB 响应，已提交 offset 之前的消息不重复处理。配对消息深度在队列中时可继续同步，页面不会谎称已读完所有历史消息。
 
-## 操作员配置与迁移
+同步前核查没有 webhook；HTTP 409 或已有 webhook 安全失败。每账户数据库租约带唯一 ID 和 30 秒期限，网络不持业务锁；提交时重新核实发起者、目标状态、绑定版本、Bot 指纹、租约所有权和期限。失败不消费挑战或推进 offset，旧请求不能清除替代租约。角色撤销、失效结果和错误批次都会回滚。
 
-功能默认关闭。操作员需独立审查并配置服务器端环境：
+**无法证明外部程序完全没有轮询。** 操作员必须先在原部署安全停止轮询/webhook，用户需明确承诺独占；本平台不会为了成功而自动 deleteWebhook。没有冲突响应不等于已证明独占，凭据外泄后也不能保证其他持有者不会再次使用。原部署必须由其维护者处理。Telegram 无法枚举全部历史群组，本版尚不提供群组发现。
 
-- `RUNTU_TELEGRAM_BINDING_ENABLED=true`。
-- `RUNTU_TELEGRAM_BOT_TOKEN`：SecretStr 持有，仅环境配置，不写入 API/UI/日志。
-- `RUNTU_TELEGRAM_BOT_USERNAME`：不含 @，需核对属于该 Token，生成固定 t.me 链接。
-- `RUNTU_TELEGRAM_WEBHOOK_SECRET`：独立高熵 32–256 字符 URL-safe secret，不能复用 Token，不放 URL。回调恒定时间校验 X-Telegram-Bot-Api-Secret-Token。
-- `RUNTU_AUTH_ORIGIN` 为正确外部 HTTPS origin，反向代理必须提供经过可信配置的 HTTPS scheme 和匹配 Host。不能伪造 origin 关闭认证。
-- 由操作员通过 Telegram 官方管理设置固定 `/api/telegram/webhook`、独立 secret_token；本应用不自动注册、删除或接管 webhook。当前阶段仅处理私聊 message，群消息不做路由。
+## Owner、权限与清理
 
-部署新代码前必须单独审查并授权 `0010_explicit_public_bot`（及前置 0008/0009）迁移。0010 **清空已有私聊绑定和挑战，禁用原订阅，revision 增加**；不把旧绑定转换为默认公共模式。该破坏性转换是为落实主动选择要求，需提前告知账户重新选择和配对。先做受控备份，禁止运行时自动迁移。
+所有启用账户可使用自助 `/api/me/notifications`；admin/viewer 仅自助。owner 通过独立 `/api/admin/notifications/users/{target}` 和次要的账户选择器管理其他账户，包括个人 Token 替换、重新加密、私聊证明、偏好、测试或断开。API 每次从数据库重新认证，网络结果和队列测试也重新核实当前 owner 权限；不扩大普通资料编辑权限。禁用目标可被 owner 检查、关闭或断开，但不可绑定/启用发送。viewer 无注册提醒权限，即使 owner 代管也不越权。
 
-降级前需断开所有 Bot 选择/绑定/目标并取消挑战；跨多级回退还保留旧单例和待审核申请保护。检查失败不应先删除新增列。迁移与 downgrade、Alembic 元数据检查只使用临时数据库。当前真实库、后台进程和实际 Telegram 均未更改或验收；不能仅刷新前端就宣称已激活。
+切换公共/个人模式或替换 Token 前先完成外部验证，提交时清除旧身份、目标、订阅、启用/暂停、挑战及个人密文，必须重新配对。验证失败保留旧配置，界面不声称已切换。断开无需密钥也可删除所有个人密文和清空上述状态。重新配对关闭投递并清除旧身份/目标/订阅；旧 revision 排队消息被丢弃。已进入网络请求的消息无法撤回。
 
-## 投递边界
+## 在服务器哪里、如何启用（需另行授权）
 
-只有真实注册提交事务成功后发出的 registration_submitted 事件会通知当前启用、已验证、主动选中私聊并 opt-in 的 owner/admin。撤销角色、停用账户、解绑、移除目标、修改版本或超过五分钟均抑制投递。账户安全/工具结果/系统错误未接权威事件源，保持不可用，无虚构工具通知。
+**本任务没有执行真实迁移、修改实际配置、重启或真实 Telegram 操作。** 页面可显示“需部署/启用”，并提供下述清单；不能仅刷新前端就声称可用。
 
-继续使用单个 16 项 best-effort 队列、每事件/收件人持久化去重、固定 TLS Telegram sendMessage、无重定向/代理、2 秒 socket 超时、3 秒测试 API 截止及数据库限流。网络不持有业务互斥锁；未确认发送会安全暂停该账户，不重放历史事件。当前去重只适用于一个私聊；**多目标需要新的逐目标授权和去重设计，尚未交付**。
+1. 审查 PR27/PR28 的堆叠依赖、备份和迁移影响。部署包含 TASK-0054 后端/前端的版本。维护人员获得授权后，在项目根目录执行 `python -m alembic upgrade head` 并检查 `python -m alembic current` 应为 `0011_personal_telegram_bot`。0010 会清空旧私聊绑定并关闭订阅，需提前通知重新配对；0011 只建立个人密文表，不导入任何 Token。应用不自动建表或迁移。
+2. 在服务器受保护的进程环境或私有环境配置文件设置 `RUNTU_TELEGRAM_BINDING_ENABLED=true`。为个人 Bot 另设 `RUNTU_NOTIFICATION_ENCRYPTION_KEYS`，内容为一到四个逗号分隔的 Fernet 密钥，新密钥在前、无空格。维护人员可在受保护、不会录屏或保存输出的终端使用 `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` 生成，将输出直接送入受控 secret storage，勿贴入网页、聊天、仓库或日志。与数据库备份分离保管；丢失所有解密密钥无法恢复 Token。
+3. 正确配置认证数据库和 HTTPS `RUNTU_AUTH_ORIGIN`；仅受控本地开发可使用已有 loopback 例外。按维护授权流程激活服务，本应用不会自动修改环境或重启。浏览器 GET 配置成功、personal_available=true 才能绑定个人 Bot；没有共享 Bot Token 也能使用个人模式。
+4. 公共 Bot 额外由 owner/维护人员在服务端设 `RUNTU_TELEGRAM_BOT_TOKEN`、匹配的 `RUNTU_TELEGRAM_BOT_USERNAME`、独立高熵 32–256 字符 URL-safe `RUNTU_TELEGRAM_WEBHOOK_SECRET`。通过 Telegram 官方 API 为正确外部 HTTPS origin 的 `/api/telegram/webhook` 配置 secret_token。独立回调密钥不得复用 Bot Token 或放进 URL；反向代理需可信 HTTPS scheme 与匹配 Host。网页“平台公共 Bot 管理”只展示就绪/缺失布尔状态及清单，不读取或修改服务器秘密。
+5. 用授权的测试账户完成两种模式各自的 Start→候选→确认→选择私聊→保存启用→测试→断开验收。真实 Token/Telegram 发送属于独立授权，不是本次模拟测试的一部分。
 
-## 已验证与剩余范围
+### 密钥轮换
 
-新增隔离测试覆盖 owner IDOR/RBAC、Origin/CSRF、发起 owner 降权、收件账户禁用、主动选择/目标移除/断开、配置轮换失效和迁移旧绑定重置；保留单次挑战、过期/重放、并发去重、审计回滚、限流/队列测试。Node 严格 DTO 和 owner 路径检查；全部拦截 API 的 Chrome 检查 1440/390/360、键盘目标选择、owner 管理不修改本人、admin/viewer 不读 owner 数据、私聊选择与失败暂停。
+先在操作员环境把新 Fernet 密钥放第一位，保留旧解密密钥；按授权激活后，账户本人或 owner 在选定账户使用“用当前密钥重新加密”（POST rotate-secret）。服务端验证所属账户封套后重加密，不返回明文；同一 Bot/身份/偏好保持不变。确认**每个已存密文**都已轮换，并在隔离验证及备份策略允许后，才移除旧密钥。不能仅因一个账户成功就删旧密钥；错误删除会令未轮换账户不可用。Token 本身更换须重新验证并清空绑定，这是另一种操作。
 
-未完成：个人 Bot getMe/加密持久化/轮换/专属私聊证明，安全 webhook/getUpdates 冲突与独占/offset/lease，群组更新发现、当前成员/发送权限校验及 owner 全群组可见性，多目标选择/移除/逐目标去重与新 UI/完整集成验收。需正式后续任务继续，不自动启动下一任务。本阶段不能标记 TASK-0053 completed。
+## API、限流与回滚
 
-[当前里程碑截图](ui/TASK-0053/README.md)。[TASK-0052 安全基础](TELEGRAM_SECURITY_MILESTONE.md) 保留其历史边界；旧 TASK-0051 截图/说明不能代表当前主动选择行为。官方依据：[Deep linking](https://core.telegram.org/bots/features#deep-linking)、[setWebhook](https://core.telegram.org/bots/api#setwebhook)、[sendMessage](https://core.telegram.org/bots/api#sendmessage)。
+GET/PUT 基础路径；POST choose-public/connect/confirm/disconnect/test/sync-personal/rotate-secret 只接收 expected_revision。choose-personal 仅接收 token、exclusive=true 和 expected_revision。PUT 接收 enabled、private_target、四个固定事件布尔值、expected_revision。拒绝任意 query、额外 user_id/chat_id/URL 等字段；所有浏览器写入要求会话、Origin/CSRF。个人 Token 验证每发起者 5 次/五分钟、全局 30；同步 10/60；保留原配对/测试/发送限流。
+
+GET `/api/admin/notifications/platform` 仅 owner，返回 feature_enabled/public_ready/token_present/username_present/webhook_secret_present/encryption_ready；不返回配置值。所有 GET/写响应 no-store，平台状态不开放给 admin/viewer。
+
+保留单个 16 项 best-effort 队列、事件/收件人持久化去重、当前角色/启用/私聊目标/绑定版本复核、五分钟事件期限、固定 TLS sendMessage、无重定向/代理、socket 超时和三秒测试 API 截止。个人控制 API 固定 api.telegram.org，方法白名单和 64 KiB 请求/响应上限，不打印上游诊断。socket 超时不是整个网络调用的硬实时保证；同步租约过期的结果不能提交。无历史重试或送达保证。
+
+0011 降级必须先断开所有个人 Bot 并删除密文；跨 0010 降级还检查全部 Bot 选择/目标/挑战及早期旧单例、待审核保护，拒绝时不先删除表。只在临时 SQLite 和 CI PostgreSQL 验证。
+
+## 验证与后续
+
+个人模式集成测试模拟 getMe、getWebhookInfo、getUpdates 与发送，覆盖完整私聊/测试/解绑、跨账户加密隔离、Bot 唯一性、缺失密钥、轮换、公共回调不能消费个人挑战、Origin/CSRF、owner/IDOR、角色/账户撤销、过期/重放/租约竞争和迁移保护。Node 验证敏感字段拒绝与 owner 路径；浏览器 API 全拦截，验证 Token 成功/失败后清空、重试、个人全流程、公共流程保留、owner 次要入口、部署状态与键盘/1440/390/360。
+
+[当前界面截图](ui/TASK-0054/README.md)。历史 TASK-0052/0053 部分里程碑不能作为当前能力说明。群组/多个目标和对应成员校验、逐目标去重仍需正式后续任务，本任务不自动创建或执行下一任务。
+
+官方依据：[Telegram getMe](https://core.telegram.org/bots/api#getme)、[getUpdates](https://core.telegram.org/bots/api#getupdates)、[getWebhookInfo](https://core.telegram.org/bots/api#getwebhookinfo)、[Deep linking](https://core.telegram.org/bots/features#deep-linking)、[Fernet/MultiFernet](https://cryptography.io/en/stable/fernet/)。依赖许可在 [licenses/telegram](licenses/telegram/README.md)。

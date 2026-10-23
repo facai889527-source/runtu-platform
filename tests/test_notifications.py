@@ -33,7 +33,7 @@ def payload(revision=0, enabled=False, registration=False):
 def exercise_notification_preferences(client):
     current=client.get(PATH)
     assert current.status_code==200 and current.headers['cache-control']=='no-store'
-    assert set(current.json())=={'enabled','revision','available','bound','destination','paused','pairing','events','supported','bot_mode','public_available','private_target'}
+    assert set(current.json())=={'enabled','revision','available','bound','destination','paused','pairing','events','supported','bot_mode','bot_username','personal_available','public_available','private_target'}
     assert current.json()['bound'] is False and current.json()['destination'] is None
     saved=client.put(PATH,json=payload(),headers=headers(client))
     assert saved.status_code==200 and saved.json()['revision']==0

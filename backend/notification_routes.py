@@ -11,6 +11,8 @@ from backend.auth.routes import auth_error, require_authenticated, token_from
 from backend.auth.service import AuthDenied, digest
 from backend.notifications import NotificationIncomplete, NotificationInput, NotificationService, TestInput
 from backend.registration_routes import body
+from backend.personal_telegram import PersonalBotInput
+from backend.telegram_security import SecretStorageUnavailable, TelegramUnavailable, TelegramBusy
 
 
 def install_notifications(app):
@@ -47,9 +49,13 @@ def install_notifications(app):
     @router.post('/api/admin/notifications/users/{target}/{action}')
     async def action(action: str, request: Request, identity=Depends(require_authenticated), target: str | None = None):
         owner_scope(request, identity, target)
-        if action not in ('choose-public', 'connect', 'confirm', 'disconnect', 'test'): raise auth_error(404, 'Action unavailable')
-        value = await body(request, TestInput)
+        if action not in ('choose-public', 'choose-personal', 'sync-personal', 'rotate-secret', 'connect', 'confirm', 'disconnect', 'test'): raise auth_error(404, 'Action unavailable')
+        value = await body(request, PersonalBotInput if action=='choose-personal' else TestInput)
         try:
+            if action=='choose-personal':return result(await run_in_threadpool(service.personal.bind,identity.id,key(request),value,target))
+            if action in ('sync-personal','rotate-secret'):
+                method=service.personal.sync if action=='sync-personal' else service.personal.rotate
+                return result(await run_in_threadpool(method,identity.id,key(request),value.expected_revision,target))
             if action == 'test':
                 future = await run_in_threadpool(service.test, identity.id, key(request), value.expected_revision, target)
                 success = await asyncio.wait_for(asyncio.shield(asyncio.wrap_future(future)), timeout=3)
@@ -59,7 +65,20 @@ def install_notifications(app):
             return result(await run_in_threadpool(method, identity.id, key(request), value.expected_revision, target))
         except AuthDenied: raise auth_error(403, 'Notification access denied') from None
         except NotificationIncomplete: raise auth_error(422, 'Verified Telegram binding or platform setup required') from None
+        except SecretStorageUnavailable: raise auth_error(503, 'Secure Telegram storage unavailable; operator key setup required') from None
+        except TelegramBusy: raise auth_error(409, 'Bot has an active webhook or polling conflict; no takeover performed') from None
+        except TelegramUnavailable: raise auth_error(502, 'Telegram control verification or synchronization failed') from None
         except TimeoutError: raise auth_error(504, 'Delivery unconfirmed; do not retry immediately') from None
+
+    @router.get('/api/admin/notifications/platform')
+    def platform(request: Request,identity=Depends(require_authenticated)):
+        if request.query_params:raise auth_error(422,'Unexpected query')
+        with service.own(identity.id,key(request)) as (_,user):
+            if user.role!='owner':raise auth_error(403,'Owner required')
+        config=service.auth.settings
+        return result(dict(feature_enabled=config.telegram_binding_enabled,public_ready=service.configured,
+            token_present=bool(config.telegram_bot_token),username_present=bool(config.telegram_bot_username),
+            webhook_secret_present=bool(config.telegram_webhook_secret),encryption_ready=service.personal.vault.available))
 
     app.include_router(router)
 

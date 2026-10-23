@@ -7,9 +7,10 @@ const events = ['registration','account_security','tool_outcomes','system_errors
 const exact = (v,keys) => v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === keys.length && keys.every(k=>Object.hasOwn(v,k))
 const date = v => typeof v === 'string' && Number.isFinite(Date.parse(v))
 export function preferences(v) {
-  if (!exact(v,['enabled','revision','available','bound','destination','paused','pairing','events','supported','bot_mode','public_available','private_target'])
-    || ['enabled','available','bound','paused','public_available','private_target'].some(k=>typeof v[k]!=='boolean')
-    || ![null,'public'].includes(v.bot_mode) || (v.bot_mode===null && (v.bound || v.enabled || v.private_target || v.pairing?.state!=='none'))
+  if (!exact(v,['enabled','revision','available','bound','destination','paused','pairing','events','supported','bot_mode','bot_username','personal_available','public_available','private_target'])
+    || ['enabled','available','bound','paused','public_available','personal_available','private_target'].some(k=>typeof v[k]!=='boolean')
+    || ![null,'public','personal'].includes(v.bot_mode)
+    || !(v.bot_username===null || (typeof v.bot_username==='string' && /^[A-Za-z][A-Za-z0-9_]{1,28}[Bb][Oo][Tt]$/.test(v.bot_username))) || (v.bot_mode===null && (v.bound || v.enabled || v.private_target || v.pairing?.state!=='none'))
     || (v.private_target && !v.bound) || (v.enabled && !v.private_target)
     || !Number.isInteger(v.revision) || v.revision<0 || v.revision>2147483646
     || !(v.destination===null || /^••••[0-9]{1,4}$/.test(v.destination)) || (v.bound !== (v.destination!==null))
@@ -27,10 +28,10 @@ async function request(suffix,method,value,signal,target) {
   const headers=method==='GET'?{Accept:'application/json'}:await securityHeaders(signal)
   const r=await sessionFetch(scoped+suffix,{method,signal,credentials:'same-origin',headers,...(value===undefined?{}:{body:JSON.stringify(value)})})
   if(!r.ok) throw new ApiError(r.status,{
-    401:'登录已失效，请重新登录。',403:'身份或安全校验已失效，请刷新身份。',404:'个人消息服务尚未启用，请联系维护人员。',
-    409:'绑定或设置已变化、配对已失效，或目标无法绑定。请刷新后重新配对。',422:'请先完成个人绑定验证；平台机器人未就绪时请联系维护人员。',
-    429:'操作已限流，请五分钟后重试。',502:'未确认发送成功，通知可能已暂停。请刷新并检查机器人是否被屏蔽。',
-    503:'个人消息服务暂不可用，请联系维护人员。',504:'发送结果未确认，请勿立即重试。',
+    401:'登录已失效，请重新登录。',403:'身份或安全校验已失效，请刷新身份。',404:'当前后端尚未部署消息接口，请按下方步骤部署后重试。',
+    409:'配置已变化，或 Bot 已被其他账户、Webhook 或轮询占用。请刷新；不要接管其他部署。',422:suffix==='/choose-personal'?'Token 格式或专用控制确认无效，请重新核对 BotFather 提供的 Token。':'请先选择 Bot、完成私聊验证并选择接收目标；检查服务端启用状态。',
+    429:'操作已限流，请五分钟后重试。',502:suffix==='/test'?'未确认发送成功，通知可能已暂停。请刷新并检查机器人是否被屏蔽。':'Telegram 验证或同步失败，请检查 Bot Token、网络和原部署状态。',
+    503:'消息服务暂不可用，可能需要部署、迁移或配置加密密钥。请查看下方启用步骤。',504:'发送结果未确认，请勿立即重试。',
   }[r.status]||'操作结果未确认，请刷新。')
   return r.json()
 }
@@ -51,3 +52,14 @@ export async function testNotifications(revision,signal,target) {
 }
 
 export const choosePublicBot=async (revision,signal,target)=>preferences(await request('/choose-public','POST',{expected_revision:revision},signal,target))
+
+export const choosePersonalBot=async (token,exclusive,revision,signal,target)=>preferences(await request('/choose-personal','POST',{token,exclusive,expected_revision:revision},signal,target))
+export const syncPersonalBot=async (revision,signal,target)=>preferences(await request('/sync-personal','POST',{expected_revision:revision},signal,target))
+export const rotatePersonalSecret=async (revision,signal,target)=>preferences(await request('/rotate-secret','POST',{expected_revision:revision},signal,target))
+export async function readTelegramPlatform(signal){
+ const r=await sessionFetch('/api/admin/notifications/platform',{signal,credentials:'same-origin',headers:{Accept:'application/json'}})
+ if(!r.ok)throw new ApiError(r.status,'需部署/启用：请按清单检查服务端，配置值不会在页面展示。')
+ const v=await r.json(),keys=['feature_enabled','public_ready','token_present','username_present','webhook_secret_present','encryption_ready']
+ if(!exact(v,keys)||keys.some(k=>typeof v[k]!=='boolean'))throw new Error('平台状态未确认，请检查部署。')
+ return v
+}

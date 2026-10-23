@@ -1,90 +1,86 @@
 <script setup>
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import PolicySwitch from './PolicySwitch.vue'
-import { readNotifications, saveNotifications, testNotifications, connectTelegram, confirmTelegram, disconnectTelegram, choosePublicBot } from '../api/notifications.js'
-
-const props=defineProps({target:{type:String,default:''}})
-const privateTarget=ref(false)
-const current=ref(null), enabled=ref(false), registration=ref(false), link=ref('')
-const busy=ref(false), error=ref(''), message=ref(''), cooldown=ref(false)
-const dirty=computed(()=>current.value && (enabled.value!==current.value.enabled || registration.value!==current.value.events.registration || privateTarget.value!==current.value.private_target))
-const canSave=computed(()=>dirty.value && (!enabled.value || (current.value.available && current.value.bound && privateTarget.value)))
-const canTest=computed(()=>current.value?.available && current.value.bound && current.value.enabled && !dirty.value && !cooldown.value)
+import TelegramSetup from './TelegramSetup.vue'
+import { readNotifications,saveNotifications,testNotifications,connectTelegram,confirmTelegram,disconnectTelegram,choosePublicBot,choosePersonalBot,syncPersonalBot,rotatePersonalSecret } from '../api/notifications.js'
+const props=defineProps({target:{type:String,default:''},owner:Boolean})
+const current=ref(null),enabled=ref(false),registration=ref(false),privateTarget=ref(false),link=ref('')
+const busy=ref(false),error=ref(''),message=ref(''),cooldown=ref(false),setupOpen=ref(false),personalForm=ref(false),choicesOpen=ref(false),token=ref(''),exclusive=ref(false)
+const dirty=computed(()=>current.value&&(enabled.value!==current.value.enabled||registration.value!==current.value.events.registration||privateTarget.value!==current.value.private_target))
+const canSave=computed(()=>dirty.value&&(!enabled.value||(current.value.available&&current.value.bound&&privateTarget.value)))
+const canTest=computed(()=>current.value?.available&&current.value.bound&&current.value.enabled&&!dirty.value&&!cooldown.value)
+const showChoices=computed(()=>!current.value?.bot_mode||choicesOpen.value||personalForm.value)
 watch(privateTarget,value=>{if(!value)enabled.value=false})
 let controller,timer,cooldownTimer,live=true
 function adopt(v){current.value=v;enabled.value=v.enabled;registration.value=v.events.registration;privateTarget.value=v.private_target;if(v.bound||v.pairing.state==='none')link.value=''}
-async function operation(action='read') {
-  if(busy.value)return
-  busy.value=true;error.value='';message.value=''
-  controller=new AbortController();timer=setTimeout(()=>controller.abort(),8000)
-  try {
-    if(action==='test'){await testNotifications(current.value.revision,controller.signal,props.target);if(live)message.value='Telegram 已确认测试消息发送成功。'}
-    else if(action==='connect') {
-      const pairing=await connectTelegram(current.value.revision,controller.signal,props.target)
-      if(live)link.value=pairing.url
-      const v=await readNotifications(controller.signal,props.target);if(live)adopt(v)
-    } else {
-      const v=action==='save'?await saveNotifications({enabled:enabled.value,private_target:privateTarget.value,events:{registration:registration.value,account_security:false,tool_outcomes:false,system_errors:false},expected_revision:current.value.revision},controller.signal,props.target)
-        :action==='choose-public'?await choosePublicBot(current.value.revision,controller.signal,props.target)
-        :action==='confirm'?await confirmTelegram(current.value.revision,controller.signal,props.target)
-        :action==='disconnect'?await disconnectTelegram(current.value.revision,controller.signal,props.target):await readNotifications(controller.signal,props.target)
-      if(live){adopt(v);if(action!=='read')message.value={'choose-public':'已选择公共 Bot。接下来验证 Telegram 身份。',save:'消息设置已保存。',confirm:'Telegram 已验证并连接，请选择偏好后保存启用。',disconnect:'Telegram 已断开，配对链接和排队旧消息已失效。'}[action]}
-    }
-  }catch(cause){if(live){error.value=cause.name==='AbortError'?'结果未确认，请刷新；测试消息请勿立即重发。':cause.message;if([401,403].includes(cause.status)){current.value=null;link.value=''}}}
-  finally{clearTimeout(timer);if(live){busy.value=false;if(action==='test'){cooldown.value=true;cooldownTimer=setTimeout(()=>{cooldown.value=false},300000)}}}
+function editPersonal(){if(!current.value?.personal_available){setupOpen.value=true;return}personalForm.value=true;choicesOpen.value=true;token.value='';exclusive.value=false}
+function cancelPersonal(){personalForm.value=false;token.value='';exclusive.value=false}
+async function operation(action='read'){
+ if(busy.value)return
+ busy.value=true;error.value='';message.value='';controller=new AbortController();timer=setTimeout(()=>controller.abort(),12000)
+ try{
+  if(action==='test'){await testNotifications(current.value.revision,controller.signal,props.target);if(live)message.value='Telegram 已确认测试消息发送成功。'}
+  else if(action==='connect'){
+   const pairing=await connectTelegram(current.value.revision,controller.signal,props.target)
+   if(live)link.value=pairing.url
+   const v=await readNotifications(controller.signal,props.target);if(live)adopt(v)
+  }else{
+   let v
+   if(action==='personal'){
+    const submitted=token.value;token.value=''
+    v=await choosePersonalBot(submitted,exclusive.value,current.value.revision,controller.signal,props.target)
+   }else if(action==='choose-public')v=await choosePublicBot(current.value.revision,controller.signal,props.target)
+   else if(action==='sync')v=await syncPersonalBot(current.value.revision,controller.signal,props.target)
+   else if(action==='rotate')v=await rotatePersonalSecret(current.value.revision,controller.signal,props.target)
+   else if(action==='confirm')v=await confirmTelegram(current.value.revision,controller.signal,props.target)
+   else if(action==='disconnect')v=await disconnectTelegram(current.value.revision,controller.signal,props.target)
+   else if(action==='save')v=await saveNotifications({enabled:enabled.value,private_target:privateTarget.value,events:{registration:registration.value,account_security:false,tool_outcomes:false,system_errors:false},expected_revision:current.value.revision},controller.signal,props.target)
+   else v=await readNotifications(controller.signal,props.target)
+   if(live){adopt(v);if(['personal','choose-public','disconnect'].includes(action)){cancelPersonal();choicesOpen.value=false}
+    if(action!=='read')message.value={personal:'Bot 身份已验证，Token 已加密保存。请继续完成私聊配对。','choose-public':'已选择公共 Bot。接下来验证 Telegram 身份。',sync:v.pairing.state==='confirm'?'已读取私聊证明，请核对后确认。':'同步完成，尚未收到有效配对。确认已在 Telegram 点击 Start；消息较多时可稍后再同步。',rotate:'密文已用当前首选密钥重新加密，身份与偏好未改变。',confirm:'身份已验证。选择私聊目标后保存启用。',disconnect:'已断开并清除 Bot、身份、目标与所有偏好。',save:'消息设置已保存。'}[action]
+   }
+  }
+ }catch(cause){if(live){error.value=cause.name==='AbortError'?'操作结果未确认，请刷新后核对；不要立即重复发送。':cause.message;if([404,503].includes(cause.status)||!current.value)setupOpen.value=true;if([401,403,404,503].includes(cause.status)){current.value=null;link.value='';cancelPersonal()}}}
+ finally{token.value='';clearTimeout(timer);if(live){busy.value=false;if(action==='test'){cooldown.value=true;cooldownTimer=setTimeout(()=>cooldown.value=false,300000)}}}
 }
 onMounted(()=>operation())
-onUnmounted(()=>{live=false;controller?.abort();clearTimeout(timer);clearTimeout(cooldownTimer);link.value=''})
+onUnmounted(()=>{live=false;controller?.abort();clearTimeout(timer);clearTimeout(cooldownTimer);token.value='';link.value=''})
 </script>
 
 <template>
-  <div class="notification-settings" :aria-busy="busy">
-    <div class="notification-section-heading"><h3>Telegram 连接</h3><button type="button" :disabled="busy" @click="operation()">检查连接状态</button></div>
-    <p v-if="busy" role="status" class="notification-feedback">正在处理个人消息设置…</p>
-    <p v-if="error" role="alert" class="notification-error">{{ error }}</p>
-    <p v-if="message" role="status" class="notification-success">{{ message }}</p>
-    <template v-if="current">
-      <div class="telegram-binding">
-        <strong class="binding-state">{{ current.bound ? '已验证连接 '+current.destination : '尚未连接 Telegram' }}</strong>
-        <p v-if="props.target" class="manager-note">正在管理指定账户。选择、重新配对或断开会撤销该账户的旧路由。配对需由目标 Telegram 身份完成，并由当前管理会话确认。</p>
-        <div v-if="!current.bot_mode" class="bot-choices">
-          <div><strong>公共 Bot</strong><p>由平台维护。主动选择后，仍需私聊验证和选择接收目标。</p><button class="choose-public" type="button" :disabled="busy || !current.public_available" @click="operation('choose-public')">使用公共 Bot</button></div>
-          <div><strong>个人 Bot</strong><p>个人 Bot、群组发现与多目标路由尚未开放。本阶段不会收集 Token。</p><button type="button" disabled>绑定个人 Bot（暂不可用）</button></div>
-        </div>
-        <p v-else>已选择公共 Bot。当前阶段支持一个经验证、主动选择的 Telegram 私聊目标。</p>
-        <p v-if="!current.public_available" class="binding-unavailable">平台机器人尚未开放配对。请联系维护人员完成安全回调配置。</p>
-        <p v-if="current.bot_mode && !current.available && current.public_available" class="notification-error">公共 Bot 配置已变化，旧连接已停止投递。请断开后重新选择并验证。</p>
-        <p v-if="current.paused" class="notification-error">上次发送失败，通知已暂停。请确认未屏蔽机器人，再保存启用。</p>
-        <div v-if="current.bot_mode" class="binding-actions"><button class="telegram-connect" type="button" :disabled="busy || !current.available" @click="operation('connect')">{{ current.bound ? '重新连接 Telegram' : '连接 Telegram' }}</button><button v-if="current.bot_mode" class="telegram-disconnect" type="button" :disabled="busy" @click="operation('disconnect')">断开并撤销配对</button></div>
-        <p v-if="current.bound" class="binding-note">重新连接会立即停用并取消旧绑定，验证后需要重新保存启用。</p>
-        <div v-if="current.pairing.state!=='none'" class="telegram-pairing" role="region" aria-label="Telegram 配对步骤">
-          <ol><li>打开下方一次性链接，仅在{{props.target?'目标账户使用的':'自己的'}} Telegram 中点击 Start。</li><li>返回此页，点击“检查连接状态”。</li><li>确认刚才由自己的 Telegram 完成操作，再在网页确认绑定。</li></ol>
-          <a v-if="link" class="telegram-pair-link" :href="link" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">在 Telegram 中配对</a>
-          <p v-else>如尚未点击 Start，请重新连接以生成新链接。</p>
-          <p class="binding-note">链接五分钟有效、仅能使用一次。不要分享链接或让他人代为配对；退出登录后需重新生成。</p>
-          <p v-if="current.pairing.state==='confirm'" class="pairing-candidate">待确认身份 {{ current.pairing.candidate }}。仅在确认刚才由自己的 Telegram 完成操作时继续。</p>
-          <button v-if="current.pairing.state==='confirm'" class="telegram-confirm" type="button" :disabled="busy" @click="operation('confirm')">{{props.target?'确认目标 Telegram':'确认我的 Telegram'}}</button>
-        </div>
-      </div>
-      <p v-if="current.bound" class="target-chip">已验证身份 {{ current.destination }} · 私聊目标 {{ current.private_target?'已选择':'未选择' }}</p>
-      <form @submit.prevent="operation('save')"><fieldset :disabled="busy" class="notification-fields"><legend class="visually-hidden">个人通知偏好</legend>
-        <PolicySwitch v-model="privateTarget" label="选择已验证私聊" description="主动选择此目标后才能启用。取消选择并保存会撤销排队投递。" :disabled="!current.available || !current.bound" />
-        <PolicySwitch v-model="enabled" :label="props.target?'启用此账户通知':'启用我的通知'" description="仅向此配置已验证、主动选择的 Telegram 私聊发送通知。" :disabled="(!current.available || !current.bound || !privateTarget) && !enabled" />
-        <div class="notification-section-heading event-heading"><h3>通知事件</h3><span>个人订阅</span></div>
-        <PolicySwitch v-model="registration" label="注册申请" :disabled="!current.supported.registration" :description="current.supported.registration ? '仅所有者或管理员可订阅；收到需审核的新申请时提醒。' : '仅所有者或管理员可订阅。普通用户不会收到注册提醒。'" />
-        <PolicySwitch :model-value="false" disabled label="账户安全与重要变更" description="暂不可用：尚未接入专用通知事件源。" />
-        <PolicySwitch :model-value="false" disabled label="我的工具任务结果" description="暂不可用：尚无真实任务结果事件源；不会订阅他人的工具活动。" />
-        <PolicySwitch :model-value="false" disabled label="系统错误" description="暂不可用：尚未接入安全的聚合错误事件源。" />
-        <p class="notification-delivery-note">尽力投递，失败可能丢弃且不重试历史事件。发送失败会暂停个人通知，业务操作不受影响。</p>
-        <div class="notification-actions"><span>{{ dirty?'有未保存的更改':'个人偏好已同步' }}</span><button type="submit" class="notification-save" :disabled="!canSave">保存个人偏好</button></div>
-      </fieldset></form>
-      <div class="notification-test"><div><strong>{{props.target?'测试此账户连接':'测试我的连接'}}</strong><p>{{ cooldown?'已尝试发送，请五分钟后再试。':dirty?'请先保存更改。':!canTest?'验证绑定、选择私聊并保存启用后可测试。':'只向本人已验证会话发送一条测试消息，每五分钟最多一次。' }}</p></div><button type="button" :disabled="busy || !canTest" @click="operation('test')">发送测试消息</button></div>
-    </template>
+ <div class="notification-settings" :aria-busy="busy">
+  <div class="connection-summary">
+   <span class="telegram-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4 10 16-6-4 16-5-6-7-4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m11 14 5-6" stroke="currentColor" stroke-width="1.6"/></svg></span>
+   <div><h3>Telegram 通知</h3><p class="binding-state">{{ !current?'正在检查服务':current.bound?'已验证连接 '+current.destination:current.bot_mode?'等待私聊验证':'尚未连接 Telegram' }}</p></div>
+   <span class="connection-badge" :class="{connected:current?.bound}">{{!current?(busy?'检查中':'需部署/启用'):current.bound?'已验证':'默认关闭'}}</span>
   </div>
+  <p v-if="props.target" class="manager-note">正在管理指定账户。所有修改、测试和断开仅作用于所选账户；配对需目标 Telegram 身份操作，并由当前管理会话确认。</p>
+  <p v-if="busy" role="status" class="notification-feedback">正在处理，请稍候…</p>
+  <p v-if="error" role="alert" class="notification-error">{{error}}</p>
+  <p v-if="message" role="status" class="notification-success">{{message}}</p>
+  <div v-if="!current&&!busy" class="deployment-notice"><strong>需要部署或启用消息服务</strong><p>前端页面已就绪，但当前后端未确认可用。先按下方清单完成版本、迁移和服务端配置，再检查状态。</p></div>
+  <div v-if="showChoices" class="bot-choices">
+   <section><span class="choice-caption">平台维护</span><h4>公共 Bot</h4><p>无需创建机器人。选择后，用自己的 Telegram 私聊验证身份。</p><button class="choose-public" type="button" :disabled="busy||!current?.public_available" @click="operation('choose-public')">使用公共 Bot</button><small>{{current?.public_available?'公共机器人已就绪':'需配置平台公共 Bot'}}</small></section>
+   <section><span class="choice-caption">自主控制</span><h4>个人 Bot</h4><p>使用 BotFather 创建的专用机器人。Token 在服务端加密保存。</p><button class="choose-personal" type="button" :disabled="busy||!current?.personal_available" @click="editPersonal">绑定个人 Bot</button><small>{{current?.personal_available?'可验证并安全绑定':'需启用功能并配置加密密钥'}}</small></section>
+  </div>
+  <form v-if="personalForm" class="personal-bot-form" @submit.prevent="operation('personal')"><h4>绑定你的专用 Bot</h4><p>在 Telegram 的 BotFather 创建 Bot，将它提供的 Token 填在这里。提交后输入立即清空，网页不会显示或保存 Token。</p><label for="personal-bot-token">Bot Token</label><input id="personal-bot-token" v-model="token" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" maxlength="101" required :disabled="busy" placeholder="仅用于本次安全验证" /><label class="exclusive-control"><input v-model="exclusive" type="checkbox" required :disabled="busy" /><span>此 Bot 由我控制，并专用于本平台。它未在其他程序运行，也没有现有 webhook；否则请先在原部署安全停用。</span></label><p v-if="current?.bot_mode" class="switch-warning">切换将清除现有 Bot 绑定、私聊目标和订阅，需重新验证。</p><div class="binding-actions"><button type="submit" class="personal-submit" :disabled="busy||!exclusive||!token">验证并加密保存</button><button type="button" :disabled="busy" @click="cancelPersonal">取消</button></div></form>
+  <div v-if="current?.bot_mode" class="telegram-binding">
+   <div class="notification-section-heading"><h4>{{current.bot_mode==='personal'?'个人 Bot':'公共 Bot'}} <span v-if="current.bot_username">@{{current.bot_username}}</span></h4><button type="button" :disabled="busy" @click="operation()">检查连接状态</button></div>
+   <p v-if="!current.available" class="notification-error">当前 Bot 或安全存储不可用，旧路由已停止。检查服务端配置，或断开后重新绑定。</p>
+   <p v-if="current.paused" class="notification-error">上次发送失败，通知已暂停。确认机器人未被屏蔽，再保存启用。</p>
+   <div class="binding-actions"><button class="telegram-connect" type="button" :disabled="busy||!current.available" @click="operation('connect')">{{current.bound?'重新验证身份':'连接 Telegram'}}</button><button type="button" :disabled="busy" @click="choicesOpen=!choicesOpen;cancelPersonal()">选择另一种 Bot</button><button class="telegram-disconnect" type="button" :disabled="busy" @click="operation('disconnect')">断开并清除</button></div>
+   <div v-if="current.pairing.state!=='none'" class="telegram-pairing" role="region" aria-label="Telegram 配对步骤"><ol><li>打开一次性链接，在{{props.target?'目标身份的':'自己的'}} Telegram 私聊中点击 Start。</li><li>{{current.bot_mode==='personal'?'返回这里，点击“同步 Bot 消息”读取证明。':'返回这里，点击“检查连接状态”读取证明。'}}</li><li>核对候选身份后，在当前会话确认绑定。</li></ol><a v-if="link" class="telegram-pair-link" :href="link" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">在 Telegram 中配对 ↗</a><p v-else>链接只在创建时显示。若还未点击 Start，可重新连接获取新链接。</p><p>五分钟有效、仅能使用一次。不要公开分享或交给无关人员操作。</p><button v-if="current.bot_mode==='personal'" class="sync-personal" type="button" :disabled="busy||!current.available" @click="operation('sync')">同步 Bot 消息</button><p v-if="current.pairing.state==='confirm'" class="pairing-candidate">待确认身份 {{current.pairing.candidate}}。请确认刚才的私聊操作来自预期身份。</p><button v-if="current.pairing.state==='confirm'" class="telegram-confirm" type="button" :disabled="busy" @click="operation('confirm')">{{props.target?'确认目标 Telegram':'确认我的 Telegram'}}</button></div>
+   <button v-if="current.bot_mode==='personal'" class="rotate-secret" type="button" :disabled="busy||!current.available" @click="operation('rotate')">用当前密钥重新加密</button>
+  </div>
+  <template v-if="current?.bound">
+   <form @submit.prevent="operation('save')"><fieldset :disabled="busy" class="notification-fields"><legend>接收目标与订阅</legend><span class="target-chip">已验证私聊 {{current.destination}}</span><PolicySwitch v-model="privateTarget" label="选择已验证私聊" description="主动选择接收目标。取消并保存会关闭通知、撤销排队旧消息。" :disabled="!current.available" /><PolicySwitch v-model="enabled" :label="props.target?'启用此账户通知':'启用我的通知'" description="只发送到此账户验证并选中的私聊。" :disabled="(!current.available||!privateTarget)&&!enabled" /><div class="event-heading"><h4>通知事件</h4><span>仅提供已接入的真实事件</span></div><PolicySwitch v-model="registration" label="注册申请" :disabled="!current.supported.registration" :description="current.supported.registration?'收到需审核的新申请时提醒。仅所有者与管理员可订阅。':'普通用户不接收注册申请提醒。'" /><details class="unsupported-events"><summary>其他事件与群组支持</summary><p>账户安全、工具结果、系统错误尚未接入通知事件源。群组发现与多个接收目标留待后续，当前不能添加群组或任意 Chat ID。</p></details><div class="notification-actions"><span>{{dirty?'有未保存的更改':'偏好已同步'}}</span><button type="submit" class="notification-save" :disabled="!canSave">保存个人偏好</button></div></fieldset></form>
+   <div class="notification-test"><div><strong>测试{{props.target?'此账户':'我的'}}连接</strong><p>{{cooldown?'已尝试发送，请五分钟后再试。':dirty?'请先保存更改。':!canTest?'选择私聊并保存启用后可测试。':'每五分钟最多一次，仅向已验证目标发送。'}}</p></div><button type="button" :disabled="busy||!canTest" @click="operation('test')">发送测试消息</button></div>
+  </template>
+  <div class="settings-help"><button class="refresh-notifications" type="button" :disabled="busy" @click="operation()">重新检查服务</button><button type="button" :aria-expanded="setupOpen" @click="setupOpen=!setupOpen">{{setupOpen?'收起配置步骤':'需要帮助？查看启用步骤'}}</button></div>
+  <TelegramSetup v-if="setupOpen" :owner="owner" />
+ </div>
 </template>
 
 <style scoped>
-.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.notification-section-heading{display:flex;justify-content:space-between;align-items:center;gap:16px}.notification-section-heading h3{font-size:15px;margin:0;font-weight:600}.notification-section-heading>span{font-size:12px;color:var(--muted)}.notification-settings button{min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;cursor:pointer}.notification-settings button:disabled{opacity:.5;cursor:not-allowed}.notification-fields{border:0;margin:0;padding:0;min-width:0}.event-heading{padding-top:20px;border-top:1px solid var(--line)}.notification-delivery-note,.notification-test p{font-size:12px;line-height:1.8;color:var(--muted)}.notification-delivery-note{margin:18px 0;max-width:70ch}.notification-actions{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:8px 0 26px}.notification-actions>span{font-size:12px;color:var(--muted)}.notification-actions .notification-save{background:var(--accent);color:white;border-color:var(--accent)}.notification-test{border-top:1px solid var(--line);padding:24px 0;display:flex;align-items:center;justify-content:space-between;gap:24px}.notification-test strong{font-size:13px}.notification-test p{margin-top:8px}.notification-test button{flex-shrink:0}.notification-feedback,.notification-error,.notification-success{font-size:13px;line-height:1.8;margin:16px 0}.notification-error{color:var(--danger)}.notification-success{color:var(--accent)}@media(max-width:600px){.notification-test{align-items:stretch;flex-direction:column;gap:16px}.notification-actions{align-items:stretch;flex-direction:column;gap:12px}.notification-actions>span{align-self:flex-start}.notification-settings :deep(.policy-switch){gap:16px}}
-.bot-choices{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:24px 0}.bot-choices>div{border-top:2px solid var(--line);padding-top:18px}.bot-choices strong{font-size:14px}.target-chip{display:inline-block;padding:8px 12px;border-radius:6px;background:var(--accent-soft);font-size:12px;overflow-wrap:anywhere}.manager-note{border-left:3px solid var(--accent);padding-left:12px}@media(max-width:600px){.bot-choices{grid-template-columns:1fr;gap:18px}}
-.telegram-binding{padding:24px 0;border-bottom:1px solid var(--line)}.binding-state{font-size:15px}.telegram-binding p,.telegram-pairing li{font-size:12px;line-height:1.9;color:var(--muted);max-width:70ch}.binding-actions{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0 10px}.binding-actions .telegram-connect,.telegram-confirm{background:var(--accent);color:white;border-color:var(--accent)}.telegram-pairing{border-left:3px solid var(--accent);padding:4px 0 4px 20px;margin-top:24px}.telegram-pairing ol{padding-left:18px}.telegram-pair-link{display:inline-flex;min-height:44px;align-items:center;color:var(--accent);font-size:14px;font-weight:550}.notification-settings .telegram-binding .notification-error{color:var(--danger)}@media(max-width:600px){.binding-actions{display:grid}.telegram-pairing{padding-left:14px}}
+.notification-settings{min-width:0;background:var(--surface);border:1px solid #e2e9eb;border-radius:18px;padding:26px}.connection-summary{display:flex;align-items:center;gap:14px}.telegram-symbol{display:grid;place-items:center;background:#e8f3f0;color:var(--accent);width:48px;height:48px;border-radius:14px;flex-shrink:0}.telegram-symbol svg{width:27px;height:27px}.connection-summary h3{margin:0;font-size:17px;letter-spacing:-.02em}.binding-state{font-size:12px;margin:5px 0 0;color:var(--muted)}.connection-badge{margin-left:auto;white-space:nowrap;border-radius:20px;background:#f0f3f5;color:#60717b;font-size:11px;padding:6px 10px}.connection-badge.connected{background:#e7f4ee;color:#216b51}.notification-settings button{min-height:44px;padding:0 15px;border:1px solid #d7e3e2;border-radius:8px;background:white;color:var(--ink);font:inherit;font-size:12px;cursor:pointer}.notification-settings button:disabled{opacity:.5;cursor:not-allowed}.notification-settings button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:3px}.bot-choices{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}.bot-choices section{padding:20px;border-radius:12px;background:#f5f8f9;border:1px solid #e8edef}.bot-choices section:last-child{background:#f1f7f4;border-color:#e0ece6}.choice-caption{font-size:10px;color:var(--muted)}h4{font-size:14px;margin:7px 0 8px}.bot-choices p{font-size:12px;line-height:1.8;color:var(--muted);margin:0 0 16px;max-width:32ch}.bot-choices small{display:block;color:var(--muted);font-size:10px;margin-top:10px}.bot-choices .choose-public,.bot-choices .choose-personal,.personal-submit,.binding-actions .telegram-connect,.telegram-confirm,.notification-actions .notification-save{background:var(--accent);border-color:var(--accent);color:white}.personal-bot-form{margin-top:18px;padding:20px;border-radius:12px;background:#f3f7fa;border:1px solid #dce7ed}.personal-bot-form p,.exclusive-control,.manager-note,.telegram-binding>p,.telegram-pairing p,.telegram-pairing li{font-size:12px;line-height:1.8;color:var(--muted)}.personal-bot-form>label:not(.exclusive-control){display:block;font-size:12px;margin:16px 0 8px}input[type=password]{width:100%;min-height:44px;padding:10px 12px;border:1px solid #cadbdc;border-radius:8px;font:inherit;font-size:14px;box-sizing:border-box}.exclusive-control{display:flex;gap:10px;margin-top:16px;align-items:flex-start}.exclusive-control input{margin-top:4px;flex-shrink:0}.binding-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.telegram-binding{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}.notification-section-heading{display:flex;justify-content:space-between;align-items:center;gap:14px}.notification-section-heading h4 span{display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:5px;overflow-wrap:anywhere}.telegram-pairing{padding:16px;margin-top:18px;border-radius:10px;background:#f2f7f6}.telegram-pairing ol{padding-left:18px;margin:0 0 10px}.telegram-pair-link{display:inline-flex;align-items:center;min-height:44px;font-size:13px;color:var(--accent);font-weight:600}.telegram-confirm{margin-left:8px}.rotate-secret{margin-top:14px}.notification-fields{min-width:0;border:0;padding:24px 0 0;margin:24px 0 0;border-top:1px solid var(--line)}legend{float:left;width:100%;font-size:14px;font-weight:600;margin-bottom:14px}.target-chip{display:inline-block;padding:6px 10px;margin-bottom:8px;background:#e9f4ef;border-radius:6px;font-size:11px;color:#276b54}.notification-fields :deep(.policy-switch){padding:14px 0}.event-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:18px}.event-heading span,.notification-actions span{color:var(--muted);font-size:11px}.unsupported-events{margin-top:14px;color:var(--muted);font-size:12px;line-height:1.8}.unsupported-events summary{cursor:pointer;min-height:36px;align-content:center}.notification-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0}.notification-test{display:flex;align-items:center;justify-content:space-between;gap:20px;border-top:1px solid var(--line);padding-top:18px;margin-top:8px}.notification-test strong{font-size:13px}.notification-test p{font-size:11px;line-height:1.8;color:var(--muted);margin:6px 0}.notification-test button{flex-shrink:0}.settings-help{display:flex;justify-content:space-between;gap:12px;margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}.settings-help button{border:0;background:transparent;padding:0;color:var(--accent);font-size:12px}.telegram-setup{margin-top:16px}.notification-error,.notification-success,.notification-feedback{font-size:12px;line-height:1.8;padding:10px 12px;border-radius:8px;margin:16px 0 0}.notification-error{color:var(--danger);background:var(--danger-soft)}.notification-success{color:var(--accent);background:#edf6f2}.notification-feedback{color:var(--muted);background:#f4f6f7}.manager-note{border-left:3px solid var(--accent);padding-left:12px;margin:18px 0 0}.deployment-notice{margin-top:18px;padding:16px;background:#f3f6fa;border-radius:10px}.deployment-notice strong{font-size:13px}.deployment-notice p{font-size:12px;color:var(--muted);line-height:1.8;margin-bottom:0}@media(max-width:600px){.notification-settings{padding:18px 16px;border-radius:14px}.connection-summary{gap:10px}.telegram-symbol{width:40px;height:40px;border-radius:11px}.connection-summary h3{font-size:15px}.connection-badge{padding:5px 8px;font-size:10px}.bot-choices{grid-template-columns:1fr;gap:12px;margin-top:20px}.bot-choices section{padding:16px}.bot-choices p{max-width:none}.personal-bot-form{padding:16px}.binding-actions{display:grid;grid-template-columns:1fr}.telegram-confirm{margin:10px 0 0}.notification-test{align-items:stretch;flex-direction:column;gap:10px}.notification-actions{align-items:flex-start;flex-direction:column}.notification-actions button{width:100%}.event-heading{align-items:flex-start;flex-direction:column;gap:0}.notification-settings :deep(.policy-switch){gap:14px}.settings-help{flex-wrap:wrap}.notification-section-heading h4{min-width:0}.notification-section-heading>button{flex-shrink:0}}@media(prefers-reduced-motion:reduce){.notification-settings :deep(.switch-track),.notification-settings :deep(.switch-track::before){transition:none}}
 </style>

@@ -71,7 +71,7 @@ onUnmounted(() => { clearWorkspace(); identity.cancel(); window.removeEventListe
     <SettingsPage v-else-if="route.page === 'settings' || route.page === 'modules'" :access="access" :modules="directoryModules" @changed="modules.load()" />
     <UsersPage v-else-if="route.page === 'users' && canManageUsers" :access="access" :self-id="identity.data.value?.user?.id" />
     <p v-else-if="route.page === 'users'" role="status">{{ access.pending.value ? '正在确认用户管理权限…' : '当前身份没有用户管理权限。' }}</p>
-    <NotificationsPage :access="access" v-else-if="route.page === 'notifications' && canManageNotifications" :key="identity.data.value?.user?.id" />
+    <NotificationsPage :self-id="identity.data.value?.user?.id" :access="access" v-else-if="route.page === 'notifications' && canManageNotifications" :key="identity.data.value?.user?.id" />
     <p v-else-if="route.page === 'notifications'" role="status">{{ access.pending.value ? '正在确认消息设置权限…' : '当前身份没有消息设置权限。' }}</p>
     <NotFoundPage v-else />
   </AppLayout>

@@ -165,3 +165,15 @@ class NotificationDelivery(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
     binding_revision: Mapped[int] = mapped_column(Integer, nullable=False)
     claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PersonalTelegramBot(Base):
+    __tablename__ = 'personal_telegram_bots'
+    user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
+    ciphertext: Mapped[str] = mapped_column(String(2048), nullable=False)
+    bot_id: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(32), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    update_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    lease_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
