@@ -1,15 +1,20 @@
 {
   "task_id": "TASK-0050",
   "signal_version": 50,
-  "state": "running",
-  "updated_at": "2026-10-23T14:39:08.586Z",
-  "summary": "Claimed Telegram-only notification settings and settings cleanup on existing PR28.",
+  "state": "completed",
+  "updated_at": "2026-10-23T14:57:42.820Z",
+  "summary": "Telegram-only platform notification settings and stale Global Settings hint cleanup delivered on existing PR28.",
   "checks": [
-    "Remote ready version checked; no same-task PR, status or local execution; existing branch clean."
+    "Local Python full suite: 174 passed, 11 optional PostgreSQL tests skipped; final notification/transport suite: 16 passed; one existing dependency warning.",
+    "Node 36 passed; Vite production build passed with 89 modules; full isolated Chrome regression and notification-specific checks passed at 1440/390/360.",
+    "Current commit CI: both workflows and all six jobs passed, including PostgreSQL online 11 required, zero skipped.",
+    "Owner/admin RBAC, session revocation, Origin/CSRF, optimistic concurrency, audit rollback, secret masking, fixed HTTPS destination, bounded responses, rate limits, test deadline and queue pressure covered.",
+    "Token is environment-managed only; preferences migration contains no secrets. Only committed new approval-required registrations emit; unsupported event categories remain disabled.",
+    "13 fixture-only screenshots archived. No real Token, credentials, Telegram send, database migration, service restart, merge or deployment used."
   ],
   "blockers": [],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
-  "commit_sha": "e132b3953ff3bb559830f34d5767d8ea3ca04c12",
-  "next_action": "Inspect secret management, authoritative event sources and admin configuration before implementing isolated changes."
+  "commit_sha": "449082b1b6331c41219ba77fc473033042e26e3a",
+  "next_action": "Review PR28 after PR27. Separately authorize 0008 migration and backend activation before using the new settings. Telegram remains unconfigured/disabled until operator configuration; delivery is bounded best effort without retry or guarantee. No next task started."
 }
