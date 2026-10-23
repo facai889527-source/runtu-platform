@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0052",
+  "signal_version": 52,
+  "state": "running",
+  "updated_at": "2026-10-23T16:06:39.933Z",
+  "summary": "Claimed explicit public/personal Telegram bots, encrypted secrets, owner management and authorized multi-target routing on PR28.",
+  "checks": [
+    "Ready version checked; no same-task local execution, status or PR; existing branch clean."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
+  "commit_sha": "3f781cb59c89a317b0282c7198f0bed809d05117",
+  "next_action": "Inspect encryption dependencies and establish secure bot selection, per-account lifecycle, discovery and membership boundaries before implementation."
+}
