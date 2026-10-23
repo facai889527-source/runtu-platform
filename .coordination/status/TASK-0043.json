@@ -2,12 +2,16 @@
   "task_id": "TASK-0043",
   "signal_version": 43,
   "state": "running",
-  "updated_at": "2026-10-23T10:08:00.913830+00:00",
-  "summary": "Inspecting authenticated UI and PR27 integration for independent internal product redesign.",
-  "checks": [],
+  "updated_at": "2026-10-23T10:21:54.143Z",
+  "summary": "Internal UI redesign implemented; PR28 open on isolated branch; awaiting CI.",
+  "checks": [
+    "Node 28 passed; production build passed.",
+    "Isolated browser regression passed at 1440/390/360; owner/admin/viewer/anonymous, grants, audit, registration and keyboard.",
+    "Backend relevant regression 64 passed; eight final desktop/mobile screenshots reviewed and committed at docs/ui/TASK-0043."
+  ],
   "blockers": [],
-  "branch": null,
-  "pr_url": null,
-  "commit_sha": null,
-  "next_action": "Verify clean auth branch and CI, then isolate internal UI branch."
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
+  "commit_sha": "449fe6995c96f6e5c61379b375727cc5cc292ae6",
+  "next_action": "Verify PR28 CI, then report completed for review; integrate PR27 before retargeting PR28 to main."
 }
