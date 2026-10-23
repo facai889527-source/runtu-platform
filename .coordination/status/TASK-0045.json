@@ -1,17 +1,22 @@
 {
   "task_id": "TASK-0045",
   "signal_version": 45,
-  "state": "running",
-  "updated_at": "2026-10-23T10:54:07.489Z",
-  "summary": "Unified topbar titles, authorized tools menu and inline tool administration pushed to existing PR28; awaiting current-head CI.",
+  "state": "completed",
+  "updated_at": "2026-10-23T10:55:28.782Z",
+  "summary": "Unified tool vocabulary, topbar page titles, authorized tools disclosure and inline administration delivered on PR28; screenshots and current-head CI verified.",
   "checks": [
-    "Node 28 passed; Vite production build passed (74 modules).",
-    "Isolated Chrome regression passed at 1440/390/360, including role/auth boundaries, menu states and 26-item pagination, active children, inline tool state conflict/config preservation/required-tool protection, grants, audit and registration.",
-    "Ten exact desktop/mobile screenshots reviewed and committed at docs/ui/TASK-0045/README.md."
+    "Authenticated page H1 moved into white topbar; redundant content title/intro removed. Interface consistently uses tools vocabulary; backend module identifiers/APIs preserved.",
+    "Personal tools parent is a toggle; existing own-tools API supplies enabled/granted children with session-only open preference, active-child expansion, pagination/scroll, loading/empty/error/retry and mobile/compact behavior.",
+    "Global settings contains inline tools catalog, version/state/detail/config and direct status controls using current config, changed-state detection, expected revision and required-tool protection. Legacy module paths remain compatible; owner/admin/viewer authorization preserved.",
+    "Node 28 passed; production Vite build passed (74 modules).",
+    "Isolated Windows Chrome regression passed at 1440/390/360: owner/admin/viewer/anonymous, auth/deep links, menu states and 26-tool pagination, enabled/granted exclusion, active child reload, inline conflict/config preservation/required protection, grants, audit, registration, user protection and keyboard/responsive controls.",
+    "Ten exact 1440x900 and 390x844 screenshots visually reviewed and committed at docs/ui/TASK-0045/README.md for home, users, global settings, expanded tools and tool detail.",
+    "CI Read-only validation 39942273777 and Linux/PostgreSQL validation 39942273841 succeeded at 63a3a332ccde289ea5f10005c63582090a0472e3; all six jobs passed, including PostgreSQL online 11 required and 0 skipped.",
+    "PR28 updated on original branch/base, no competing PR; clean worktree. Original frontend/backend processes preserved; no backend schema change, live database operation, service restart, merge or deployment."
   ],
   "blockers": [],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
   "commit_sha": "63a3a332ccde289ea5f10005c63582090a0472e3",
-  "next_action": "Verify current-head CI, then report completed for PR28 review; no merge/deployment/next task."
+  "next_action": "Review PR28 and TASK-0045 screenshots; integrate PR27 first, then retarget PR28 to main and verify diff. No automatic merge, deployment or next task."
 }
