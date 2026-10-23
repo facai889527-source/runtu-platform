@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0050",
+  "signal_version": 50,
+  "state": "running",
+  "updated_at": "2026-10-23T14:39:08.586Z",
+  "summary": "Claimed Telegram-only notification settings and settings cleanup on existing PR28.",
+  "checks": [
+    "Remote ready version checked; no same-task PR, status or local execution; existing branch clean."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
+  "commit_sha": "e132b3953ff3bb559830f34d5767d8ea3ca04c12",
+  "next_action": "Inspect secret management, authoritative event sources and admin configuration before implementing isolated changes."
+}
