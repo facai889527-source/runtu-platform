@@ -1,5 +1,7 @@
 # TASK-0044 navigation follow-up
 
+Current title/tools revision: [TASK-0045](../TASK-0045/README.md). The captures below are an archived iteration.
+
 This revision updates the existing PR28 branch, still based on PR27. No competing UI PR is created. The upper-left sidebar is the single brand area: **Runtu / 多功能工具平台**. The topbar contains only the mobile navigation control and account/data actions. The redundant brand text, management divider and home introduction are removed.
 
 The owner navigation is exactly **首页 → 我的工具 → 用户管理 → 全局设置**. Admins see 首页, 我的工具 and 全局设置; global settings shows only module administration. Viewers see 首页 and 我的工具. Owner account management, registration policy and approval remain owner-only. Unauthorized direct settings visits retain a clear denial message. Server RBAC is unchanged.

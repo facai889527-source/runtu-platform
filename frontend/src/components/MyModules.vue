@@ -16,10 +16,10 @@ onUnmounted(mine.cancel)
 </script>
 <template>
   <section v-if="userId" class="panel my-modules" aria-labelledby="my-modules-title"><div class="section-heading"><h2 id="my-modules-title">可用工具</h2><button :disabled="mine.pending.value" @click="first">刷新工具</button></div>
-    <p v-if="mine.pending.value" role="status">正在确认可用模块…</p>
-    <div v-else-if="mine.error.value" role="alert"><p>{{mine.error.value.message}}</p><button @click="load">重试可用模块</button></div>
+    <p v-if="mine.pending.value" role="status">正在确认可用工具…</p>
+    <div v-else-if="mine.error.value" role="alert"><p>{{mine.error.value.message}}</p><button @click="load">重试可用工具</button></div>
     <template v-else-if="mine.data.value"><p v-if="!mine.data.value.items.length" class="subtle">暂无可用工具。获得工具授权后，将在这里显示；如需访问，请联系平台所有者。</p><ul v-else class="tool-grid"><li v-for="row in mine.data.value.items" :key="row.module_id"><RouteLink class="tool-link" :to="modulePath(row.module_id)"><span class="module-avatar"><AppIcon name="module" /></span><span>{{row.name}}</span><AppIcon name="right" :size="16" /></RouteLink></li></ul></template>
-    <nav v-if="previous.length || mine.data.value?.next_after_module != null" aria-label="我的模块分页"><button :disabled="mine.pending.value||!previous.length" @click="back">上一页模块</button><button :disabled="mine.pending.value||mine.data.value?.next_after_module==null" @click="next">下一页模块</button></nav>
+    <nav v-if="previous.length || mine.data.value?.next_after_module != null" aria-label="我的工具分页"><button :disabled="mine.pending.value||!previous.length" @click="back">上一页工具</button><button :disabled="mine.pending.value||mine.data.value?.next_after_module==null" @click="next">下一页工具</button></nav>
   </section>
 </template>
 <style scoped>

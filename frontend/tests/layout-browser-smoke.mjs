@@ -6,7 +6,7 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 const origin = process.env.RUNTU_UI_BASE_URL || 'http://127.0.0.1:5173'
 assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:4173'].includes(origin), 'Only explicit loopback dev/preview origins are supported')
-const output = path.resolve('.git/codex-coordination/task44-after', new URL(origin).port)
+const output = path.resolve('.git/codex-coordination/task45-after', new URL(origin).port)
 await mkdir(output, { recursive: true })
 let occupied = false
 try { occupied = (await fetch('http://127.0.0.1:9229/json')).ok } catch { /* Free port. */ }
@@ -31,13 +31,16 @@ try {
     const message = JSON.parse(event.data)
     if (message.id) {
       const pending = waiting.get(message.id); waiting.delete(message.id)
+      if (!pending) return
+      clearTimeout(pending.timer)
       message.error ? pending.reject(new Error(message.error.message || 'Browser command failed')) : pending.resolve(message.result)
     }
     if (message.method === 'Page.loadEventFired') loads++
     if (message.method === 'Runtime.exceptionThrown') errors.push('Browser runtime exception')
+    if (message.method === 'Page.javascriptDialogOpening') send('Page.handleJavaScriptDialog', { accept: true }).catch(() => {})
   })
   function send(method, params = {}) {
-    return new Promise((resolve, reject) => { const id = ++seq; waiting.set(id, { resolve, reject }); socket.send(JSON.stringify({ id, method, params })) })
+    return new Promise((resolve, reject) => { const id = ++seq; const timer = setTimeout(() => { waiting.delete(id); reject(new Error('Browser command timed out: ' + method)) }, 15000); waiting.set(id, { resolve, reject, timer }); socket.send(JSON.stringify({ id, method, params })) })
   }
   async function evaluate(expression) {
     const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })
@@ -72,10 +75,11 @@ try {
     }
   })
   const user = { id: 'layout-fixture-id', username: 'layout-fixture', is_admin: true }
-  let module = { id: 'demo', name: '演示模块', version: '1.0.0', description: '仅用于布局验证的模块夹具。', category: 'tools', status: 'enabled', capabilities: ['inspect'], required: false, revision: 0, public_config: { show_in_navigation: true, refresh_interval_seconds: null } }
+  let module = { id: 'demo', name: '演示工具', version: '1.0.0', description: '仅用于布局验证的工具夹具。', category: 'tools', status: 'enabled', capabilities: ['inspect'], required: false, revision: 0, public_config: { show_in_navigation: true, refresh_interval_seconds: null } }
   let saveStatus = 200, viewer = false, admin = false
   let usersStatus = 200, usersWriteStatus = 200, userRequests = 0
   const grantSets = new Map()
+  let ownStatus = 200, ownDelay = false, ownExtraRows = []
   let grantStatus = 200, emptyGrantCandidates = false
   const grantCandidates = [{ module_id:'alpha',name:'受保护业务示例',enabled:true },{ module_id:'beta',name:'停用业务示例',enabled:false }]
   let managedUsers = [{ id: 'layout-fixture-id', username: 'layout-fixture', role: 'owner', active: true, created_at: '2026-10-21T08:00:00Z' }, ...Array.from({ length: 21 }, (_, index) => ({ id: `user-fixture-${index}`, username: `user-${String(index).padStart(3,'0')}`, role: 'viewer', active: true, created_at: '2026-10-21T08:00:00Z' }))]
@@ -129,8 +133,11 @@ try {
         else body={items:applications,next_after_username:null}
       }
       else if (pathname === '/api/me/modules') {
-        code = authenticated ? 200 : 401
-        body = { items: grantCandidates.filter(row => row.enabled && grantSets.get(user.id)?.has(row.module_id)).map(row => ({...row,granted:true})), next_after_module:null }
+        if(ownDelay) await new Promise(resolve=>setTimeout(resolve,600))
+        code = authenticated ? ownStatus : 401
+        const after = new URL(request.url).searchParams.get('after_module')
+        const rows = [...grantCandidates.filter(row => row.enabled && grantSets.get(user.id)?.has(row.module_id)).map(row => ({...row,granted:true})), ...ownExtraRows].sort((a,b)=>a.module_id.localeCompare(b.module_id)).filter(row=>after==null||row.module_id>after)
+        body = {items:rows.slice(0,20),next_after_module:rows.length>20?rows[19].module_id:null}
       }
       else if (/^\/api\/admin\/users\/[^/]+\/modules(?:\/[^/]+)?$/.test(pathname)) {
         code = !authenticated ? 401 : viewer || admin ? 403 : grantStatus
@@ -168,6 +175,8 @@ try {
         } else body = { detail: 'fixture-user-error' }
       }
       else if (pathname === '/api/modules') body = [module, { ...module, id:'alpha',name:'受保护业务示例',access_mode:'assigned' }]
+      else if (pathname === '/api/modules/alpha') body = {...module,id:'alpha',name:'受保护业务示例',access_mode:'assigned'}
+      else if (pathname === '/api/admin/modules/alpha/changes') body = {items:[],next_before_revision:null}
       else if (pathname === '/api/modules/demo') body = module
       else if (pathname === '/api/admin/modules/demo/changes') {
         auditRequests++
@@ -347,30 +356,40 @@ try {
     assert.equal(await evaluate(`document.activeElement.matches('.user-trigger')`), true)
     await loadPage('Page.reload')
     await until(`document.querySelector('.user-menu') && document.querySelector('.my-modules') && document.querySelector('.overview-name')`)
-    assert.equal(await evaluate(`document.querySelector('h1').textContent === '首页' && document.querySelectorAll('.sidebar nav a').length === 4 && !document.querySelector('.system-status').open`), true)
-    assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.sidebar nav a')).map(el=>el.textContent.trim())`), ['首页','我的工具','用户管理','全局设置'])
-    assert.equal(await evaluate(`!document.querySelector('.platform-context, .nav-caption') && !document.querySelector('.toolbar-title').textContent.trim() && document.querySelector('.brand-sub').textContent === '多功能工具平台'`), true)
+    assert.equal(await evaluate(`document.querySelector('h1').textContent === '首页' && document.querySelectorAll('.sidebar nav > a').length === 3 && !document.querySelector('.system-status').open`), true)
+    assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.sidebar nav > a, .tools-toggle')).map(el=>el.textContent.trim())`), ['首页','我的工具','用户管理','全局设置'])
+    assert.equal(await evaluate(`!document.querySelector('.platform-context, .nav-caption') && document.querySelector('.toolbar-title').textContent.trim() === '首页' && !document.querySelector('main h1, .page-intro') && document.querySelector('.brand-sub').textContent === '多功能工具平台'`), true)
     await screenshot(`dashboard-${width}`)
+    if(width===1440){
+      await evaluate(`document.querySelector('.tools-toggle').click()`)
+      await until(`document.querySelector('.tools-empty')`)
+      ownStatus=503
+      await evaluate(`window.dispatchEvent(new Event('runtu-tools-changed'))`)
+      await until(`document.querySelector('.tools-children [role=alert]')`)
+      assert.equal(await evaluate(`document.querySelectorAll('.tools-children a').length`),0)
+      ownStatus=200;ownDelay=true
+      await click('.tools-children [role=alert] button')
+      await until(`document.querySelector('.tools-children [role=status]')`)
+      await until(`document.querySelector('.tools-empty')`)
+      ownDelay=false
+    }
+
     await visit('/tools')
     await until(`document.querySelector('h1')?.textContent === '我的工具' && document.querySelector('.my-modules')`)
-    assert.equal(await evaluate(`document.querySelector('[aria-current=page]').getAttribute('href')`), '/tools')
+    assert.equal(await evaluate(`!document.querySelector('.sidebar a[href="/tools"]')`), true)
     // An authenticated visit to /login must leave the authentication layout.
     await visit('/login')
     await until(`location.pathname === '/' && document.querySelector('.user-menu')`)
     for (const pathname of ['/modules', '/modules/demo', '/settings']) {
       await visit(pathname)
-      await until(`document.querySelector('main')?.textContent.includes(${JSON.stringify(pathname === '/modules' ? '模块目录' : pathname === '/settings' ? '注册策略' : '公开配置')})`)
-      assert.equal(await evaluate(`document.querySelector('.sidebar [aria-current=page]')?.textContent.trim()`),'全局设置')
-      if (pathname === '/settings') {
-        assert.equal(await evaluate(`document.querySelector('h1').textContent`),'全局设置')
-        await click('.settings-module-link')
-        await until(`location.pathname === '/modules' && document.querySelector('.module-list')`)
-        assert.equal(await evaluate(`document.querySelector('.sidebar [aria-current=page]')?.textContent.trim()`),'全局设置')
-        await visit('/settings')
-        await until(`document.querySelector('.registration-policy fieldset')`)
+      await until(`document.querySelector('main')?.textContent.includes(${JSON.stringify(pathname === '/modules' ? '工具管理' : pathname === '/settings' ? '注册策略' : '公开配置')})`)
+      if(pathname !== '/modules/demo') assert.equal(await evaluate(`document.querySelector('.sidebar [aria-current=page]')?.textContent.trim()`),'全局设置')
+      if (pathname === '/settings' || pathname === '/modules') {
+        assert.equal(await evaluate(`document.querySelector('.toolbar h1').textContent`),'全局设置')
+        assert.equal(await evaluate(`Boolean(document.querySelector('.directory-panel .module-list')) && !document.querySelector('.settings-module-link')`),true)
       }
       if (pathname === '/modules/demo') {
-        await until(`document.querySelector('.module-audit')?.textContent.includes('此模块暂无操作记录')`)
+        await until(`document.querySelector('.module-audit')?.textContent.includes('此工具暂无操作记录')`)
         auditEntries = Array.from({ length: 12 }, (_, index) => ({ module_id: 'demo', actor_id: 'fixture-actor-identifier-123456789', action: 'updated', revision: 12-index, created_at: '2026-10-21T08:00:00Z' }))
         delayAudit = true
         await click('.module-audit .section-heading button')
@@ -401,12 +420,12 @@ try {
     assert.equal(await evaluate(`document.querySelector('.managed-user fieldset').disabled`), true)
     emptyGrantCandidates=true
     await click('.managed-user:first-child .user-module-access > button')
-    await until(`document.querySelector('.grant-content')?.textContent.includes('当前没有可授权的受保护业务模块')`)
+    await until(`document.querySelector('.grant-content')?.textContent.includes('当前没有可授权的受保护业务工具')`)
     emptyGrantCandidates=false
     await click('.grant-content > button')
     await until(`document.querySelector('.grant-items input')`)
     await evaluate(`window.confirm=()=>true; document.querySelector('.grant-items input').click()`)
-    await until(`document.querySelector('.grant-content [role=status]')?.textContent.includes('模块授权已保存')`)
+    await until(`document.querySelector('.grant-content [role=status]')?.textContent.includes('工具授权已保存')`)
     assert.equal(grantSets.get(user.id)?.has('alpha'),true)
     await evaluate(`document.querySelector('.grant-content').scrollIntoView({block:'center'})`)
     await noOverflow(); await screenshot(`grant-editor-${width}`)
@@ -415,6 +434,32 @@ try {
     assert.equal(await evaluate(`document.querySelector('.my-modules').textContent.includes('停用业务示例')`),false)
     await evaluate(`document.querySelector('.my-modules').scrollIntoView({block:'center'})`)
     await noOverflow(); await screenshot(`my-modules-${width}`)
+    await until(`document.querySelector('.tools-children a[href="/modules/alpha"]')`)
+    if(width===1440){
+      ownExtraRows=Array.from({length:25},(_,i)=>({module_id:'tool_'+String(i).padStart(2,'0'),name:'授权夹具工具 '+i,enabled:true,granted:true}))
+      await evaluate(`window.dispatchEvent(new Event('runtu-tools-changed'))`)
+      await until(`document.querySelectorAll('.tools-children li').length===20`)
+      await evaluate(`document.querySelector('.tools-more').click()`)
+      await until(`document.querySelectorAll('.tools-children li').length===26`)
+      assert.equal(await evaluate(`document.querySelector('.tools-children').scrollHeight>document.querySelector('.tools-children').clientHeight`),true)
+      ownExtraRows=[]
+      await evaluate(`window.dispatchEvent(new Event('runtu-tools-changed'))`)
+      await until(`document.querySelectorAll('.tools-children li').length===1`)
+    }
+
+    assert.equal(await evaluate(`!document.querySelector('.tools-children a[href="/modules/beta"]')`),true)
+    if (!await evaluate(`document.querySelector('.tools-toggle').getAttribute('aria-expanded') === 'true'`)) await evaluate(`document.querySelector('.tools-toggle').click()`)
+    if(width<761) await click('[aria-label="打开导航"]')
+    await noOverflow(); await screenshot(`tools-expanded-${width}`)
+    await click('.tools-children a[href="/modules/alpha"]')
+    await until(`location.pathname === '/modules/alpha' && document.querySelector('.detail-identity')`)
+    assert.equal(await evaluate(`document.querySelector('.tools-toggle').getAttribute('aria-expanded')`),'true')
+    assert.equal(await evaluate(`document.querySelector('.toolbar h1').textContent`),'工具详情')
+    await noOverflow(); await screenshot(`tool-detail-${width}`)
+    await loadPage('Page.reload')
+    await until(`document.querySelector('.tools-children a[aria-current=page]')`)
+    assert.equal(await evaluate(`document.querySelector('.tools-toggle').getAttribute('aria-expanded')`),'true')
+
     await visit('/users')
     await until(`document.querySelectorAll('.managed-user').length === 20`)
     await noOverflow(); await screenshot(`users-${width}`)
@@ -489,15 +534,15 @@ try {
   assert.equal(auditRequests, allowedAuditRequests)
   authenticated = true; viewer = true
   await loadPage('Page.reload')
-  await until(`document.querySelector('.module-editor')?.textContent.includes('没有模块管理权限')`)
+  await until(`document.querySelector('.detail-identity')`)
   assert.equal(await evaluate(`!document.querySelector('.module-editor-form')`), true)
-  await until(`document.querySelector('.module-audit')?.textContent.includes('没有查看操作记录的权限')`)
+  assert.equal(await evaluate(`!document.querySelector('.module-editor, .module-audit')`),true)
   assert.equal(auditRequests, allowedAuditRequests)
-  assert.equal(await evaluate(`document.querySelectorAll('.sidebar nav a').length === 2 && !document.querySelector('.system-status')`), true)
+  assert.equal(await evaluate(`document.querySelectorAll('.sidebar nav > a').length === 1 && !document.querySelector('.system-status')`), true)
   const previousUserRequests = userRequests
   await visit('/modules')
-  await until(`document.querySelector('.module-list')`)
-  assert.equal(await evaluate(`Boolean(document.querySelector('.module-card[href="/modules/alpha"]'))`),false)
+  await until(`document.querySelector('.settings')?.textContent.includes('没有全局设置权限')`)
+  assert.equal(await evaluate(`!document.querySelector('.module-list')`),true)
   await visit('/users')
   await until(`document.querySelector('main')?.textContent.includes('没有用户管理权限')`)
   assert.equal(userRequests, previousUserRequests)
@@ -505,12 +550,12 @@ try {
   await loadPage('Page.reload')
   await until(`document.querySelector('main')?.textContent.includes('没有用户管理权限')`)
   assert.equal(userRequests, previousUserRequests)
-  assert.equal(await evaluate(`document.querySelectorAll('.sidebar nav a').length === 3 && !document.querySelector('.sidebar a[href="/modules"]') && Boolean(document.querySelector('.sidebar a[href="/settings"]'))`), true)
+  assert.equal(await evaluate(`document.querySelectorAll('.sidebar nav > a').length === 2 && !document.querySelector('.sidebar a[href="/modules"]') && Boolean(document.querySelector('.sidebar a[href="/settings"]'))`), true)
   await visit('/settings')
-  await until(`document.querySelector('.settings-module-link')`)
+  await until(`document.querySelector('.directory-panel .module-list')`)
   assert.equal(await evaluate(`!document.querySelector('.registration-policy, .approvals')`),true)
-  await click('.settings-module-link')
-  await until(`location.pathname === '/modules' && document.querySelector('.module-list')`)
+  await visit('/modules')
+  await until(`document.querySelector('.directory-panel .module-list')`)
   assert.equal(userRequests,previousUserRequests)
   admin = false; authenticated = false
   await loadPage('Page.reload')
@@ -560,6 +605,28 @@ try {
   await evaluate(`(() => { for (const [id,value] of [['login-username','layout-fixture'],['login-password','fixture-only-not-a-real-password']]) { const el=document.getElementById(id);el.value=value;el.dispatchEvent(new Event('input',{bubbles:true})); } document.querySelector('.login-form').requestSubmit() })()`)
   await until(`location.pathname === '/modules/demo' && document.querySelector('.module-editor-form')`)
   assert.ok(apiRequests > 0 && sessionWrites >= 6)
+  console.log('CHECK inline tool state actions')
+  await visit('/settings')
+  await until(`document.querySelector('.tool-admin-actions button')`)
+  saveStatus=409
+  await evaluate(`document.querySelector('.module-list li:first-child .tool-admin-actions button').click()`)
+  await until(`document.querySelector('.tool-admin-actions [role=alert]')`)
+  console.log('CHECK inline conflict surfaced')
+  assert.equal(module.status,'disabled')
+  saveStatus=200
+  await evaluate(`document.querySelector('.module-list li:first-child .tool-admin-actions button').click()`)
+  await until(`document.querySelector('.module-list li:first-child .badge')?.textContent.includes('已启用')`)
+  console.log('CHECK inline enable saved')
+  assert.equal(module.status,'enabled')
+  assert.equal(module.public_config.refresh_interval_seconds,60,'Inline status save preserves current config')
+  await evaluate(`window.confirm=()=>true`)
+  module.required=true
+  const protectedRevision=module.revision
+  await evaluate(`document.querySelector('.module-list li:first-child .tool-admin-actions button').click()`)
+  await until(`document.querySelector('.tool-admin-actions [role=alert]')?.textContent.includes('不能禁用')`)
+  assert.equal(module.revision,protectedRevision)
+  module.required=false
+  console.log('CHECK required tool protected')
   for (const width of [1440,390,360]) {
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<761})
     authenticated=false; registrationPolicy={enabled:false,approval_required:true,revision:0}

@@ -51,10 +51,8 @@ ul { list-style: none; padding: 0; margin: 0; }
 .toolbar-title { margin-right:auto; min-width: 0; font-size: 14px; white-space: nowrap; }
 .toolbar-actions { flex-shrink: 0; gap: 12px; }
 .refresh-button { box-shadow: 0 1px 2px #182c3a06; }
-main { max-width: 1360px; margin: auto; padding: 32px 40px 48px; }
+main { max-width: 1360px; margin: auto; padding: 24px 40px 48px; }
 .workspace>main { min-height: calc(100dvh - 132px); }
-.page-intro { margin-bottom: 28px; }
-.page-intro p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-5); margin-bottom: 20px; box-shadow: var(--shadow); }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
 .section-heading .subtle { font-size: 12px; }
@@ -183,7 +181,7 @@ footer { line-height: 1.7; padding: 18px 36px; font-size: 12px; color: var(--mut
   .icon-button { padding: 9px; width: 44px; border-color: var(--line); }
   .refresh-button { padding: 9px 10px; font-size: 12px; min-height: 44px; }
   .refresh-button>.app-icon { width: 14px; height: 14px; }
-  main { padding: 26px 18px 40px; }
+  main { padding: 20px 18px 40px; }
   h1 { font-size: 26px; }
   .panel { padding: 20px; margin-bottom: 18px; }
   .section-heading { gap: 10px; margin-bottom: 18px; }
@@ -252,3 +250,5 @@ footer { line-height: 1.7; padding: 18px 36px; font-size: 12px; color: var(--mut
 @media(max-width:760px){.tool-grid{grid-template-columns:1fr}.tool-link{min-height:96px;padding:16px}.diagnostic-grid{grid-template-columns:1fr;gap:20px}.system-status{padding-inline:20px}.system-status>summary span{display:block;margin:6px 0 0}.brand-word{color:var(--ink)}}
 
 .status-dot { width:6px; height:6px; background:var(--accent); border-radius:50%; flex-shrink:0; }
+
+.page-title{font-size:18px;line-height:1.45;font-weight:600;letter-spacing:-.02em;overflow-wrap:anywhere;min-width:0}.toolbar-title{white-space:normal;flex:1}.sidebar{overflow-y:auto;overscroll-behavior:contain}.collapsed .tools-toggle{justify-content:center;padding:12px}.collapsed .sidebar nav a{justify-content:center}.sidebar nav .tools-children a{padding:10px 12px;font-size:13px}.toolbar-actions{margin-left:auto}@media(max-width:760px){.page-title{font-size:16px}.collapsed .tools-toggle{justify-content:flex-start;padding:12px 14px}.collapsed .sidebar nav a{justify-content:flex-start}.toolbar-title{flex:1;gap:10px}.toolbar{flex-wrap:nowrap}.tools-children{max-height:38dvh}}

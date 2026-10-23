@@ -10,7 +10,7 @@ export function parseRoute(pathname) {
   const pages = {
     '/': { page: 'dashboard', title: '首页' },
     '/tools': { page: 'tools', title: '我的工具' },
-    '/modules': { page: 'modules', title: '模块管理' },
+    '/modules': { page: 'modules', title: '全局设置' },
     '/settings': { page: 'settings', title: '全局设置' },
     '/users': { page: 'users', title: '用户管理' },
     '/login': { page: 'login', title: '管理员登录' },
@@ -21,7 +21,7 @@ export function parseRoute(pathname) {
   if (match) {
     try {
       const moduleId = decodeURIComponent(match[1])
-      if (moduleIdPattern.test(moduleId)) return { page: 'modules', title: '模块详情', path, moduleId }
+      if (moduleIdPattern.test(moduleId)) return { page: 'modules', title: '工具详情', path, moduleId }
     } catch { /* Malformed encoding belongs to the route 404, never the API. */ }
   }
   return { page: 'not-found', title: '页面不存在', path, moduleId: null }

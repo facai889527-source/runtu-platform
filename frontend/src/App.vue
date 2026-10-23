@@ -11,7 +11,6 @@ import { useResource } from './composables/useResource.js'
 import { readHealth, readModules } from './api/client.js'
 const AppLayout = asyncView(() => import('./components/AppLayout.vue'))
 const UserMenu = asyncView(() => import('./components/UserMenu.vue'))
-const MyModules = asyncView(() => import('./components/MyModules.vue'))
 const DashboardPage = asyncView(() => import('./pages/DashboardPage.vue'))
 const ModulesPage = asyncView(() => import('./pages/ModulesPage.vue'))
 const SettingsPage = asyncView(() => import('./pages/SettingsPage.vue'))
@@ -62,12 +61,11 @@ onUnmounted(() => { clearWorkspace(); identity.cancel(); window.removeEventListe
     <RegisterPage v-else-if="route.page === 'register'" />
     <LoginPage v-else-if="!authenticated" @authenticated="loadIdentity" />
   </AuthLayout>
-  <AppLayout v-else :page="route.page" :title="route.title" :path="route.path" :can-manage-users="Boolean(canManageUsers)" :can-manage-settings="Boolean(canManageUsers || access.data.value?.permissions.includes('module.manage'))" :platform="health.data.value?.platform || 'Runtu Platform'" @refresh="refresh">
+  <AppLayout v-else :page="route.page" :title="route.title" :path="route.path" :user-id="identity.data.value?.user?.id" :can-manage-users="Boolean(canManageUsers)" :can-manage-settings="Boolean(canManageUsers || access.data.value?.permissions.includes('module.manage'))" :platform="health.data.value?.platform || 'Runtu Platform'" @refresh="refresh">
     <template #account><UserMenu :identity="identity.data.value" :access="access" :pending="identity.pending.value" :unavailable="Boolean(identity.error.value)" @signed-out="signedOut" @refresh-identity="loadIdentity" /></template>
-    <DashboardPage v-if="route.page === 'dashboard'" :health="health" :modules="directoryModules" :user-id="identity.data.value?.user?.id" :show-diagnostics="Boolean(access.data.value?.permissions.includes('module.manage'))" />
-    <MyModules v-else-if="route.page === 'tools'" :user-id="identity.data.value?.user?.id" />
-    <ModulesPage v-else-if="route.page === 'modules'" :modules="directoryModules" :module-id="route.moduleId" :access="access" @changed="modules.load()" />
-    <SettingsPage v-else-if="route.page === 'settings'" :access="access" />
+    <DashboardPage v-if="['dashboard', 'tools'].includes(route.page)" :health="health" :modules="directoryModules" :user-id="identity.data.value?.user?.id" :show-diagnostics="Boolean(access.data.value?.permissions.includes('module.manage'))" />
+    <ModulesPage v-else-if="route.page === 'modules' && route.moduleId" :modules="directoryModules" :module-id="route.moduleId" :access="access" @changed="modules.load()" />
+    <SettingsPage v-else-if="route.page === 'settings' || route.page === 'modules'" :access="access" :modules="directoryModules" @changed="modules.load()" />
     <UsersPage v-else-if="route.page === 'users' && canManageUsers" :access="access" :self-id="identity.data.value?.user?.id" />
     <p v-else-if="route.page === 'users'" role="status">{{ access.pending.value ? '正在确认用户管理权限…' : '当前身份没有用户管理权限。' }}</p>
     <NotFoundPage v-else />

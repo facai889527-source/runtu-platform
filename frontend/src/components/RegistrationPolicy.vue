@@ -22,12 +22,12 @@ onUnmounted(() => { live = false; controller?.abort(); clearTimeout(timer) })
 <template>
   <section class="panel registration-policy" aria-labelledby="registration-policy-title">
     <div class="section-heading"><h2 id="registration-policy-title">注册策略</h2><button :disabled="busy" @click="operation()">刷新策略</button></div>
-    <p class="subtle">新账户仅为只读成员，默认没有业务模块授权。关闭审核仅影响之后的注册。</p>
+    <p class="subtle">新账户仅为只读成员，默认没有业务工具授权。关闭审核仅影响之后的注册。</p>
     <p v-if="busy" role="status">正在处理注册策略…</p>
     <form v-if="current" @submit.prevent="operation(true)"><fieldset :disabled="busy"><legend>账户申请规则</legend>
       <PolicySwitch v-model="enabled" label="开放公开注册" description="允许访客提交账户申请。关闭后不再接受新申请。" />
       <PolicySwitch v-model="approval" label="新账户需要所有者审核" description="审核通过后才能登录；工具访问仍需单独授权。" />
-      <p v-if="enabled && !approval" class="warning">未要求审核：后续新账户可直接登录，但仍没有业务模块授权。</p>
+      <p v-if="enabled && !approval" class="warning">未要求审核：后续新账户可直接登录，但仍没有业务工具授权。</p>
       <div class="policy-actions"><span class="subtle">{{ dirty ? '有未保存的更改' : '当前策略已同步' }}</span><button type="submit" :disabled="!dirty">保存注册策略</button></div>
     </fieldset></form>
     <p v-if="error" role="alert">{{ error }}</p><p v-if="message" role="status">{{ message }}</p>
