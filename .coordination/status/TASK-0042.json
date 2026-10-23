@@ -1,0 +1,13 @@
+{
+  "task_id": "TASK-0042",
+  "signal_version": 42,
+  "state": "running",
+  "updated_at": "2026-10-23T09:38:06.122412+00:00",
+  "summary": "Verifying development SQLite before authorized backup, sequential migration and backend restoration.",
+  "checks": [],
+  "blockers": [],
+  "branch": "codex/TASK-0038-auth-design",
+  "pr_url": null,
+  "commit_sha": "c8f1c3a147472ef299ef47ff8ca1c525bae0eae4",
+  "next_action": "Verify database integrity and consistent backup before migrations."
+}
