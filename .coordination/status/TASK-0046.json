@@ -2,14 +2,17 @@
   "task_id": "TASK-0046",
   "signal_version": 46,
   "state": "running",
-  "updated_at": "2026-10-23T11:06:03.055Z",
-  "summary": "Inspecting existing authentication/session history for a secure personalized home on PR28.",
+  "updated_at": "2026-10-23T11:30:47.772Z",
+  "summary": "Personalized home and own previous-login audit delivered to PR28; local regression/screenshots passed; awaiting CI. Real database upgrade remains unapplied.",
   "checks": [
-    "No prior TASK-0046 execution or PR; remote status absent; clean isolated PR28 branch."
+    "Node 29 passed; Vite build passed (77 modules).",
+    "Python full suite 153 passed, 11 optional PostgreSQL tests skipped locally; final focused auth/history tests passed.",
+    "Full isolated browser regression and focused home roles/history/0-or-26-tools/long-name cases passed at 1440/390/360; 15 screenshots reviewed under docs/ui/TASK-0046.",
+    "Migration 0007_login_activity implemented and tested only on disposable databases; real SQLite remains unmodified, no service restart or live account operation."
   ],
   "blockers": [],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
-  "commit_sha": null,
-  "next_action": "Evaluate history reuse, implement scoped account activity and personalized home; test migration only on disposable databases if needed."
+  "commit_sha": "b7f73b9938451317a39ebd506e6ac6eb24f4f9ac",
+  "next_action": "Verify current-head CI. Review migration/proxy/privacy boundaries; actual local upgrade and backend enablement require separate authorization, not an automatic action."
 }
