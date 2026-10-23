@@ -45,6 +45,7 @@ class AuthUser(Base):
     __table_args__ = (CheckConstraint("role IN ('owner', 'admin', 'viewer')", name="ck_auth_users_role"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True)
+    last_login_event_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -54,6 +55,7 @@ class AuthUser(Base):
 
 class AuthSession(Base):
     __tablename__ = "auth_sessions"
+    previous_login_event_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str | None] = mapped_column(ForeignKey("auth_users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -66,6 +68,7 @@ class AuthEvent(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     event: Mapped[str] = mapped_column(String(32))
     user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    source_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     source_hash: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 

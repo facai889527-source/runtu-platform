@@ -6,7 +6,7 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 const origin = process.env.RUNTU_UI_BASE_URL || 'http://127.0.0.1:5173'
 assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:4173'].includes(origin), 'Only explicit loopback dev/preview origins are supported')
-const output = path.resolve('.git/codex-coordination/task45-after', new URL(origin).port)
+const output = path.resolve('.git/codex-coordination/task46-after', new URL(origin).port)
 await mkdir(output, { recursive: true })
 let occupied = false
 try { occupied = (await fetch('http://127.0.0.1:9229/json')).ok } catch { /* Free port. */ }
@@ -79,6 +79,7 @@ try {
   let saveStatus = 200, viewer = false, admin = false
   let usersStatus = 200, usersWriteStatus = 200, userRequests = 0
   const grantSets = new Map()
+  let activityHistory = null, activityStatus = 200
   let ownStatus = 200, ownDelay = false, ownExtraRows = []
   let grantStatus = 200, emptyGrantCandidates = false
   const grantCandidates = [{ module_id:'alpha',name:'受保护业务示例',enabled:true },{ module_id:'beta',name:'停用业务示例',enabled:false }]
@@ -196,6 +197,7 @@ try {
         }
         body = module
       }
+      else if (pathname === '/api/auth/activity') { code = authenticated ? activityStatus : 401; body = { previous_login: activityHistory } }
       else if (pathname === '/api/auth/me') {
         code = failIdentity ? 503 : 200
         body = { authenticated, user: authenticated ? user : null }
@@ -240,6 +242,39 @@ try {
   }
   async function click(selector) { await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`) }
   async function noOverflow() { assert.equal(await evaluate(`document.documentElement.scrollWidth <= innerWidth`), true) }
+  if (process.env.RUNTU_HOME_ONLY === '1') {
+    for (const [width,height] of [[1440,900],[390,844],[360,800]]) {
+      await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<761})
+      authenticated=true;activityStatus=200;user.username='layout-fixture'
+      for (const role of ['owner','admin','viewer']) {
+        viewer=role==='viewer';admin=role==='admin';activityHistory=null;ownExtraRows=[];grantSets.clear()
+        await visit('/')
+        await until(`document.querySelector('.account-facts')?.textContent.includes(${JSON.stringify(role==='owner'?'所有者':role==='admin'?'管理员':'只读成员')}) && document.querySelector('.authorized-total strong')?.textContent==='0'`)
+        assert.equal(await evaluate(`Boolean(document.querySelector('.system-status'))`),role==='owner')
+        assert.equal(await evaluate(`!document.querySelector('main h1') && document.querySelector('.toolbar h1').textContent==='首页'`),true)
+        await noOverflow();await screenshot(`home-${role}-empty-${width}`)
+        activityHistory={at:'2026-10-22T08:45:00+00:00',ip:'198.51.100.24'}
+        ownExtraRows=Array.from({length:26},(_,i)=>({module_id:'tool_'+String(i).padStart(2,'0'),name:'授权夹具工具 '+i,enabled:true,granted:true}))
+        await loadPage('Page.reload')
+        await until(`document.querySelector('.authorized-total strong')?.textContent==='26' && document.querySelector('.login-activity')?.textContent.includes('198.51.100.24')`)
+        await noOverflow();await screenshot(`home-${role}-history-many-${width}`)
+      }
+      user.username='member-'+ 'x'.repeat(50)
+      await loadPage('Page.reload')
+      await until(`document.querySelector('#welcome-title')?.textContent.includes('member-')`)
+      await noOverflow();await screenshot(`home-long-name-${width}`)
+      activityHistory={at:'2026-10-22T08:45:00Z',ip:null}
+      await loadPage('Page.reload')
+      await until(`document.querySelector('.login-activity')?.textContent.includes('未记录')`)
+      assert.equal(await evaluate(`document.querySelector('.login-activity').textContent.includes('暂无记录')`),false)
+      authenticated=false
+      await visit('/')
+      await until(`location.pathname==='/login' && document.querySelector('#login-password')`)
+      assert.equal(await evaluate(`!document.querySelector('.home-welcome, .login-activity')`),true)
+    }
+    assert.deepEqual(errors,[])
+    console.log('PASS personalized home: owner/admin/viewer/anonymous, no history/UTC history/no IP, 0/26 tools, long username, 1440/390/360; no live account used.')
+  } else {
   for (const [width, height] of [[1440, 900], [390, 844], [360, 800]]) {
     auditEntries = []
     grantSets.clear()
@@ -359,7 +394,21 @@ try {
     assert.equal(await evaluate(`document.querySelector('h1').textContent === '首页' && document.querySelectorAll('.sidebar nav > a').length === 3 && !document.querySelector('.system-status').open`), true)
     assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.sidebar nav > a, .tools-toggle')).map(el=>el.textContent.trim())`), ['首页','我的工具','用户管理','全局设置'])
     assert.equal(await evaluate(`!document.querySelector('.platform-context, .nav-caption') && document.querySelector('.toolbar-title').textContent.trim() === '首页' && !document.querySelector('main h1, .page-intro') && document.querySelector('.brand-sub').textContent === '多功能工具平台'`), true)
+    await until(`document.querySelector('.login-activity')?.textContent.includes('暂无记录') && document.querySelector('.authorized-total strong')?.textContent==='0'`)
+    assert.equal(await evaluate(`document.querySelector('#welcome-title').textContent`),'layout-fixture，您好！')
     await screenshot(`dashboard-${width}`)
+    activityHistory={at:'2026-10-22T08:45:00+00:00',ip:'198.51.100.24'}
+    await loadPage('Page.reload')
+    await until(`document.querySelector('.login-activity')?.textContent.includes('198.51.100.24')`)
+    await noOverflow(); await screenshot(`home-history-${width}`)
+    activityStatus=503
+    await loadPage('Page.reload')
+    await until(`document.querySelector('.login-activity')?.textContent.includes('登录记录暂不可用')`)
+    assert.equal(await evaluate(`document.querySelector('.login-activity').textContent.includes('暂无记录')`),false)
+    activityStatus=200;activityHistory=null
+    await click('.activity-error button')
+    await until(`document.querySelector('.login-activity')?.textContent.includes('暂无记录')`)
+
     if(width===1440){
       await evaluate(`document.querySelector('.tools-toggle').click()`)
       await until(`document.querySelector('.tools-empty')`)
@@ -435,13 +484,16 @@ try {
     await evaluate(`document.querySelector('.my-modules').scrollIntoView({block:'center'})`)
     await noOverflow(); await screenshot(`my-modules-${width}`)
     await until(`document.querySelector('.tools-children a[href="/modules/alpha"]')`)
-    if(width===1440){
+    {
       ownExtraRows=Array.from({length:25},(_,i)=>({module_id:'tool_'+String(i).padStart(2,'0'),name:'授权夹具工具 '+i,enabled:true,granted:true}))
       await evaluate(`window.dispatchEvent(new Event('runtu-tools-changed'))`)
       await until(`document.querySelectorAll('.tools-children li').length===20`)
       await evaluate(`document.querySelector('.tools-more').click()`)
       await until(`document.querySelectorAll('.tools-children li').length===26`)
       assert.equal(await evaluate(`document.querySelector('.tools-children').scrollHeight>document.querySelector('.tools-children').clientHeight`),true)
+      await until(`document.querySelector('.authorized-total strong')?.textContent==='26'`)
+      await evaluate(`window.scrollTo(0,0); new Promise(resolve=>requestAnimationFrame(resolve))`)
+      await noOverflow(); await screenshot(`home-many-tools-${width}`)
       ownExtraRows=[]
       await evaluate(`window.dispatchEvent(new Event('runtu-tools-changed'))`)
       await until(`document.querySelectorAll('.tools-children li').length===1`)
@@ -675,4 +727,5 @@ try {
   }
   assert.deepEqual(errors, [])
   console.log('PASS isolated UI fixtures: anonymous deep links/reload, safe login return, expired API session redirect; public registration 404/503; registration disabled/submitted/pending, owner approval/policy save, 503 and permission boundaries at 1440/390/360; previous user/module/audit cases. No real user data used.')
+  }
 } finally { socket?.close(); child.kill() }

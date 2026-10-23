@@ -1,3 +1,4 @@
+import ipaddress
 import json
 from urllib.parse import urlsplit
 
@@ -86,6 +87,17 @@ async def protected_post(request: Request, service=Depends(auth_service)):
     return service, token
 
 
+def observed_login_ip(request: Request):
+    # Fail closed if an upstream server may have rewritten ASGI client from a
+    # forwarded header. No forwarded address or arbitrary hostname is trusted.
+    if any(name in request.headers for name in ('forwarded', 'x-forwarded-for', 'x-real-ip')):
+        return None
+    try:
+        return str(ipaddress.ip_address(request.client.host)) if request.client and '%' not in request.client.host else None
+    except ValueError:
+        return None
+
+
 @router.post('/login')
 async def login(request: Request, context=Depends(protected_post)):
     service, old_token = context
@@ -107,7 +119,7 @@ async def login(request: Request, context=Depends(protected_post)):
         raise auth_error(400, 'Invalid login request') from None
     try:
         token, identity = await run_in_threadpool(service.login, old_token, username, password,
-            request.client.host if request.client else 'unknown')
+            request.client.host if request.client else 'unknown', source_ip=observed_login_ip(request))
     except AuthDenied:
         raise auth_error(401, 'Invalid credentials') from None
     return response(service, identity_json(identity), token=token)
@@ -130,6 +142,17 @@ def require_authenticated(request: Request, service=Depends(auth_service)):
         except AuthDenied:
             raise auth_error(403, 'Invalid security context') from None
     return identity
+
+
+@router.get('/activity')
+def activity(request: Request, identity=Depends(require_authenticated), service=Depends(auth_service)):
+    if request.query_params:
+        raise auth_error(422, 'Invalid activity query')
+    try:
+        previous = service.previous_login(token_from(request, service), identity.id)
+    except AuthDenied:
+        raise auth_error(401, 'Authentication required') from None
+    return response(service, {'previous_login': previous})
 
 
 def require_admin(identity=Depends(require_authenticated)):

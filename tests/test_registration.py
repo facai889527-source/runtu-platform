@@ -9,7 +9,7 @@ from sqlalchemy.exc import OperationalError
 
 from backend.auth.service import AuthDenied, HASHER, digest
 from backend.models import AuthEvent, AuthSession, AuthUser, RegistrationApplication, UserModuleGrant
-from backend.migrations import migration_config
+from backend.migrations import migration_config, migrate_database
 from backend.registration import PolicyInput, Signup
 from tests.test_auth import auth, login, ORIGIN
 from tests.test_module_management import headers
@@ -162,6 +162,7 @@ def test_pending_downgrade_refused_and_missing_policy_fails_closed(auth):
         with service.database.engine.begin() as connection:
             config=migration_config();config.attributes['connection']=connection
             command.downgrade(config,'0005_user_module_access')
+    migrate_database(service.database)  # Restore newer columns before using the current application.
     row=owner.get(PENDING).json()['items'][0]
     assert owner.post(PENDING+'/'+row['id']+'/approve',headers=headers(owner)).status_code==200
     with service.database.engine.begin() as connection:

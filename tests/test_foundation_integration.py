@@ -13,6 +13,7 @@ from backend.database import Database
 from backend.migrations import migrate_database, migration_config
 from backend.models import AuthUser, AuthSession, RegistrationApplication, RegistrationPolicy
 from tests.test_auth import ORIGIN, login
+from tests.legacy_auth import seed_legacy_owner
 from tests.test_module_access import access_modules, put_grant
 from tests.test_module_management import headers, payload
 from tests.test_registration import set_policy, PENDING
@@ -23,12 +24,13 @@ def exercise_foundation(database, settings):
     assert not inspect(database.engine).get_table_names()
     migrate_database(database, '0004_module_management')
     owner_password = secrets.token_urlsafe(24)
-    owner_id = AuthService(database, settings).bootstrap('operator', owner_password)
+    owner_id = seed_legacy_owner(database, owner_password)
     assert 'user_module_grants' not in inspect(database.engine).get_table_names()
     migrate_database(database, '0005_user_module_access')
     assert 'user_module_grants' in inspect(database.engine).get_table_names()
     assert 'registration_policies' not in inspect(database.engine).get_table_names()
     migrate_database(database, '0006_registration_policy')
+    migrate_database(database)  # Current application runs only after the login audit upgrade.
     with database.transaction() as session:
         original = session.get(AuthUser, owner_id)
         assert original.active and original.role == 'owner'

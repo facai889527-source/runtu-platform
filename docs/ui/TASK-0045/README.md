@@ -1,5 +1,7 @@
 # TASK-0045 unified tools and page titles
 
+Current personalized home follow-up: [TASK-0046](../TASK-0046/README.md).
+
 This update stays on PR28, based on PR27. Every authenticated page has one H1 in the white topbar. The redundant large content title/intro is removed; refresh and account actions stay on the right. Titles wrap within the remaining width on narrow screens.
 
 Global settings contains an inline **工具管理** section with registered tool names, versions, state, search/filter, detail/configuration links and direct enable/disable controls. Status writes read the current detail, preserve its public configuration, detect a changed state and use the existing expected revision. Required tools cannot be disabled; conflicts and uncertain outcomes are visible. Backend module routes, models and RBAC are unchanged. `/modules` is a compatible alias showing the settings tools section; `/modules/:id` still opens the tool detail. Reader roles cannot see administration controls.
