@@ -1,15 +1,19 @@
 {
   "task_id": "TASK-0049",
   "signal_version": 49,
-  "state": "running",
-  "updated_at": "2026-10-23T13:51:10.913Z",
-  "summary": "Claimed unified account/review center, borderless directory and accessible custom dropdown task on existing PR28.",
+  "state": "completed",
+  "updated_at": "2026-10-23T14:16:46.879Z",
+  "summary": "Unified account and registration review center, flat directory and accessible custom dropdowns delivered on existing PR28.",
   "checks": [
-    "New ready version, clean existing branch; no same-task PR/status or local execution."
+    "Local Python full suite: 158 passed, 11 optional PostgreSQL skipped; final registration refactor: 17 passed; one existing dependency warning.",
+    "Node 33 passed; Vite build 84 modules passed; full isolated Chrome regression and final account/review checks passed at 1440/390/360.",
+    "18 fixture-only screenshots archived; no real credentials, account mutations, database operations, migrations or service restarts.",
+    "Current commit CI: both workflows and all six jobs passed, including PostgreSQL online 11 required, zero skipped.",
+    "Owner-only details/rejection, Origin/CSRF, session revocation, opposing-decision concurrency and audit rollback covered. Pending/rejected applications excluded from accounts."
   ],
   "blockers": [],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
-  "commit_sha": "f6f925056a438ca7cba876880f09de891122287a",
-  "next_action": "Inspect registration review contracts and implement isolated UI/API changes with permission and concurrency regression."
+  "commit_sha": "e132b3953ff3bb559830f34d5767d8ea3ca04c12",
+  "next_action": "Review PR28 after PR27; no merge/deploy performed. New review APIs require separately authorized backend activation. Preserve canonical registration_rejected decision events when changing audit retention."
 }
