@@ -1,18 +1,21 @@
 {
   "task_id": "TASK-0046",
   "signal_version": 46,
-  "state": "running",
-  "updated_at": "2026-10-23T11:30:47.772Z",
-  "summary": "Personalized home and own previous-login audit delivered to PR28; local regression/screenshots passed; awaiting CI. Real database upgrade remains unapplied.",
+  "state": "completed",
+  "updated_at": "2026-10-23T11:32:14.274Z",
+  "summary": "Personalized home and secure own previous-login activity implemented on PR28 with verified regression, screenshots and CI. Actual local database upgrade was not performed.",
   "checks": [
-    "Node 29 passed; Vite build passed (77 modules).",
-    "Python full suite 153 passed, 11 optional PostgreSQL tests skipped locally; final focused auth/history tests passed.",
-    "Full isolated browser regression and focused home roles/history/0-or-26-tools/long-name cases passed at 1440/390/360; 15 screenshots reviewed under docs/ui/TASK-0046.",
-    "Migration 0007_login_activity implemented and tested only on disposable databases; real SQLite remains unmodified, no service restart or live account operation."
+    "Home shows authenticated username greeting, localized role/enabled status, exact enabled/granted tool count and shortcuts; public demos separate, no fabricated recents, owner-only compact diagnostics.",
+    "Own previous-login API is no-store and scoped to the valid current user. Reuses auth audit with transactional session/user event references; failed/current logins and other users cannot become previous history. Trusted connection IP only; arbitrary forwarding headers and invalid/scoped sources yield unknown.",
+    "Migration 0007_login_activity reuses existing tables, preserves legacy successful times without reconstructing IP, and guards same-instant/session boundaries and lower downgrade safety. Tested only on disposable databases; real SQLite migration not applied.",
+    "Node 29 passed; Vite production build passed (77 modules). Python full suite 153 passed, 11 optional PostgreSQL tests skipped locally; final focused auth/history tests passed after UTC normalization.",
+    "Full isolated browser regression plus personalized-home owner/admin/viewer/anonymous, no history/known history/no IP, 0/26 tools, service errors and long username passed at 1440/390/360. Fifteen reviewed screenshots at docs/ui/TASK-0046/README.md.",
+    "CI Read-only validation 39946464604 and Linux/PostgreSQL validation 39946464523 succeeded at b7f73b9938451317a39ebd506e6ac6eb24f4f9ac; all six jobs passed, PostgreSQL online 11 required and 0 skipped including extended own-history checks.",
+    "PR28 updated on original branch/base with clean worktree. Original frontend/backend processes preserved; no real account/password/session/grant operation, service restart, merge or deployment."
   ],
   "blockers": [],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
   "commit_sha": "b7f73b9938451317a39ebd506e6ac6eb24f4f9ac",
-  "next_action": "Verify current-head CI. Review migration/proxy/privacy boundaries; actual local upgrade and backend enablement require separate authorization, not an automatic action."
+  "next_action": "Review PR28 screenshots and auth/migration/proxy/privacy documentation. Integrate PR27 before retargeting PR28. Actual 0007 local upgrade and backend enablement need separate explicit authorization; no automatic migration/restart or next task."
 }
