@@ -1,13 +1,24 @@
 {
   "task_id": "TASK-0042",
   "signal_version": 42,
-  "state": "running",
-  "updated_at": "2026-10-23T09:38:06.122412+00:00",
-  "summary": "Verifying development SQLite before authorized backup, sequential migration and backend restoration.",
-  "checks": [],
+  "state": "completed",
+  "updated_at": "2026-10-23T09:39:48.791735+00:00",
+  "summary": "Development SQLite consistently backed up, sequentially upgraded to 0006, and backend restored with successful direct and proxied health checks.",
+  "checks": [
+    "Existing clean PR27 branch preserved at c8f1c3a147472ef299ef47ff8ca1c525bae0eae4; no merge or source changes.",
+    "Confirmed existing development SQLite; initial revision 0004_module_management, integrity ok and lock available.",
+    "SQLite backup API created secrets/local-dev/backups/TASK-0042-before-0005-20261023T093851Z.sqlite3; backup integrity ok and revision 0004 confirmed; private ignored local file retained for rollback.",
+    "Reviewed additive 0005_user_module_access and 0006_registration_policy; applied sequentially once; verified each revision and integrity ok.",
+    "Final database revision 0006_registration_policy; no account bootstrap, password changes or credential/session inspection.",
+    "Backend launcher PID 24476, listener PID 7296 on 127.0.0.1:8000; hidden persistent process. Existing frontend PID 19112 retained on 127.0.0.1:5173; no duplicate.",
+    "Backend configuration auth origin matches existing frontend proxy origin.",
+    "GET http://127.0.0.1:8000/api/health and http://127.0.0.1:5173/api/health both HTTP 200, status ok, database ready.",
+    "GET http://127.0.0.1:5173/login HTTP 200; public registration-policy HTTP 200, enabled false, approval_required true.",
+    "No real-credential login performed; no deployment."
+  ],
   "blockers": [],
   "branch": "codex/TASK-0038-auth-design",
   "pr_url": null,
   "commit_sha": "c8f1c3a147472ef299ef47ff8ca1c525bae0eae4",
-  "next_action": "Verify database integrity and consistent backup before migrations."
+  "next_action": "Local development services are available. User may validate login personally. Retain private pre-migration backup; any rollback requires stopping writers and separate explicit authorization. No subsequent task executed."
 }
