@@ -22,7 +22,7 @@ onUnmounted(() => { live = false; controller?.abort(); clearTimeout(timer) })
 <template>
   <section class="panel registration-policy" aria-labelledby="registration-policy-title">
     <div class="section-heading"><h2 id="registration-policy-title">注册策略</h2><button :disabled="busy" @click="operation()">刷新策略</button></div>
-    <p class="subtle">新账户仅为只读成员，默认没有业务工具授权。关闭审核仅影响之后的注册。</p>
+    <p class="subtle">新账户仅为普通用户，默认没有业务工具授权。关闭审核仅影响之后的注册。</p>
     <p v-if="busy" role="status">正在处理注册策略…</p>
     <form v-if="current" @submit.prevent="operation(true)"><fieldset :disabled="busy"><legend>账户申请规则</legend>
       <PolicySwitch v-model="enabled" label="开放公开注册" description="允许访客提交账户申请。关闭后不再接受新申请。" />

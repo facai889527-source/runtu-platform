@@ -20,7 +20,8 @@ const NotFoundPage = asyncView(() => import('./pages/NotFoundPage.vue'))
 const { route, navigate } = provideNavigation()
 const health = useResource(readHealth), modules = useResource(readModules)
 const identity = useResource(readIdentity, { retainData: true })
-const access = useResource(readAccess)
+// Keep same-account dialogs/drafts mounted during focus revalidation. Errors clear access.
+const access = useResource(readAccess, { retainData: true })
 const directoryModules = { ...modules, data: computed(() => modules.data.value?.filter(item =>
   item.access_mode !== 'assigned' || access.data.value?.permissions.includes('module.manage')) ?? null) }
 const identityChecked = shallowRef(false)
@@ -34,7 +35,7 @@ async function loadIdentity() {
   await identity.load(); identityChecked.value = true
   if (authenticated.value) access.load()
 }
-watch(authenticated, value => {
+watch(() => authenticated.value ? identity.data.value?.user?.id : null, value => {
   clearWorkspace()
   if (value) { health.load(); modules.load() }
 })

@@ -6,7 +6,7 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 const origin = process.env.RUNTU_UI_BASE_URL || 'http://127.0.0.1:5173'
 assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:4173'].includes(origin), 'Only explicit loopback dev/preview origins are supported')
-const output = path.resolve('.git/codex-coordination/task46-after', new URL(origin).port)
+const output = path.resolve('.git/codex-coordination/task48-after', new URL(origin).port)
 await mkdir(output, { recursive: true })
 let occupied = false
 try { occupied = (await fetch('http://127.0.0.1:9229/json')).ok } catch { /* Free port. */ }
@@ -53,11 +53,12 @@ try {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
     // Only safe UI state; never dump DOM inputs, network headers or credentials.
-    console.log(await evaluate(`({path:location.pathname, heading:document.querySelector('h1')?.textContent, status:document.querySelector('.my-modules')?.textContent, alert:document.querySelector('[role=alert]')?.textContent})`))
+    console.log(await evaluate(`({path:location.pathname, heading:document.querySelector('h1')?.textContent, status:document.querySelector('.my-modules')?.textContent, alert:document.querySelector('[role=alert]')?.textContent,policy:document.querySelector('.registration-policy')?.textContent})`))
     throw new Error('Auth smoke condition timed out')
   }
   async function screenshot(name) {
     await until(`!document.querySelector('.auth-toast-enter-active, .auth-toast-leave-active')`)
+    await evaluate(`Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))).then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))`)
     // Guard every capture: never record a filled password field.
     assert.equal(await evaluate(`!document.querySelector('input[type=password]')?.value`), true)
     const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
@@ -242,14 +243,100 @@ try {
   }
   async function click(selector) { await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`) }
   async function noOverflow() { assert.equal(await evaluate(`document.documentElement.scrollWidth <= innerWidth`), true) }
-  if (process.env.RUNTU_HOME_ONLY === '1') {
+  async function userDirectoryChecks(capture=true) {
+    async function click(selector){await evaluate(`document.querySelector(${JSON.stringify(selector)}).focus();document.querySelector(${JSON.stringify(selector)}).click()`)}
+    authenticated=true;viewer=false;admin=false;usersStatus=200;usersWriteStatus=200;grantStatus=200;emptyGrantCandidates=false
+    await visit('/users');await until(`document.querySelectorAll('.managed-user').length===20`)
+    assert.equal(await evaluate(`!document.querySelector('.user-create-form,.user-update-form,.user-module-access')`),true)
+    assert.equal(await evaluate(`document.querySelector('.directory-role').textContent`),'所有者')
+    await evaluate(`document.querySelector('.directory-search input').value='no-match';document.querySelector('.directory-search input').dispatchEvent(new Event('input',{bubbles:true}))`)
+    await until(`document.querySelectorAll('.managed-user').length===0`)
+    await click('.directory-state button');await until(`document.querySelectorAll('.managed-user').length===20`)
+    await evaluate(`(()=>{const select=document.querySelector('[aria-label="筛选本页角色"]');select.value='owner';select.dispatchEvent(new Event('change',{bubbles:true}))})()`)
+    await until(`document.querySelectorAll('.managed-user').length===1`)
+    await evaluate(`(()=>{const select=document.querySelector('[aria-label="筛选本页角色"]');select.value='';select.dispatchEvent(new Event('change',{bubbles:true}))})()`)
+    await click('.user-pagination button:last-child');await until(`document.querySelectorAll('.managed-user').length===2`)
+    await click('.user-pagination button:first-child');await until(`document.querySelectorAll('.managed-user').length===20`)
+    await click('.directory-create');await until(`document.querySelector('dialog')?.open`)
+    assert.equal(await evaluate(`document.activeElement===document.querySelector('.user-create-form input')&&document.body.style.overflow==='hidden'`),true)
+    await evaluate(`window.dispatchEvent(new Event('focus'))`)
+    await until(`document.querySelector('.user-create-form') && !document.querySelector('.account-status')`)
+    // Same-account revalidation must preserve the draft and modal.
+    assert.equal(await evaluate(`document.querySelector('dialog').open`),true)
+    // Native modal must keep sequential focus within the dialog.
+    await evaluate(`document.querySelector('.user-create-form button[type=submit]').focus()`)
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
+    await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
+    assert.equal(await evaluate(`document.activeElement===document.body||document.querySelector('dialog').contains(document.activeElement)`),true)
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27})
+    await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27})
+    await until(`!document.querySelector('dialog')`)
+    await until(`document.activeElement===document.querySelector('.directory-create')&&document.body.style.overflow!=='hidden'`)
+    await click('.managed-user:first-child .directory-manage');await until(`document.querySelector('.user-update-form')`)
+    assert.equal(await evaluate(`document.querySelector('.user-update-form fieldset').disabled`),true)
+    assert.equal(await evaluate(`document.querySelector('.user-advanced').open`),false)
+    await click('.dialog-close');await until(`!document.querySelector('dialog')`)
+    await click('.managed-user:nth-child(2) .directory-manage');await click('#tools-tab')
+    await until(`document.querySelector('.grant-items button')`)
+    await click('.grant-items button');await until(`document.querySelector('.user-confirm')`)
+    await click('.user-confirm button:last-child');await until(`document.querySelector('.user-module-access [role=status]')`)
+    assert.equal(grantSets.get('user-fixture-0')?.has('alpha'),true)
+    await click('.grant-items button');await click('.user-confirm button:last-child');await until(`document.querySelector('.grant-items small')?.textContent==='尚未授权'`)
+    assert.equal(grantSets.get('user-fixture-0')?.has('alpha'),false)
+    grantStatus=409;await click('.grant-items button');await click('.user-confirm button:last-child');await until(`document.querySelector('.user-module-access [role=alert]')`)
+    grantStatus=503;await click('.grant-toolbar button');await until(`document.querySelector('.user-module-access [role=alert]')`)
+    grantStatus=200;await click('.user-module-access [role=alert] button');await until(`document.querySelector('.grant-items button')`)
+    emptyGrantCandidates=true;await click('.grant-toolbar button');await until(`document.querySelector('.grant-empty')`)
+    emptyGrantCandidates=false
+    await click('#account-tab');await evaluate(`document.querySelector('.user-toggle input').click();document.querySelector('.user-update-form').requestSubmit()`)
+    await until(`document.querySelector('.user-confirm')`);await click('.user-confirm button:last-child');await until(`document.querySelector('.user-update-form [role=status]')`)
+    assert.equal(managedUsers.find(row=>row.id==='user-fixture-0').active,false)
+    // A stale/denied account update must stay an error, never success.
+    usersWriteStatus=409;await evaluate(`document.querySelector('.user-toggle input').click();document.querySelector('.user-update-form').requestSubmit()`)
+    await click('.user-confirm button:last-child');await until(`document.querySelector('.user-update-form [role=alert]')`)
+    assert.equal(managedUsers.find(row=>row.id==='user-fixture-0').active,false)
+    usersWriteStatus=403;await evaluate(`document.querySelector('.user-update-form').requestSubmit()`);await click('.user-confirm button:last-child');await until(`document.querySelector('.user-update-form [role=alert]')`)
+    usersWriteStatus=200;await click('.dialog-close');await until(`!document.querySelector('dialog')`)
+    await click('.directory-create');usersWriteStatus=409
+    await evaluate(`(()=>{const f=document.querySelector('.user-create-form');f.querySelector('input:not([type=password])').value='fixture-new';f.querySelector('input:not([type=password])').dispatchEvent(new Event('input',{bubbles:true}));f.querySelector('input[type=password]').value=crypto.randomUUID();f.requestSubmit()})()`)
+    await until(`document.querySelector('.user-create-form [role=alert]')`)
+    assert.equal(await evaluate(`document.querySelector('input[type=password]').value`),'')
+    usersWriteStatus=200
+    await evaluate(`document.querySelector('input[type=password]').value=crypto.randomUUID();document.querySelector('.user-create-form').requestSubmit()`)
+    await until(`!document.querySelector('dialog')&&document.querySelector('.directory-toast')`)
+    assert.ok(managedUsers.some(row=>row.username==='fixture-new'))
+    usersStatus=503;await click('.directory-refresh');await until(`document.querySelector('.user-directory [role=alert]')`)
+    usersStatus=200;await click('.user-directory [role=alert] button');await until(`document.querySelectorAll('.managed-user').length===20`)
+    for(const [width,height] of [[1440,900],[390,844],[360,800]]){
+      await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<761})
+      await visit('/users');await until(`document.querySelectorAll('.managed-user').length===20`)
+      await noOverflow();if(capture)await screenshot(`users-directory-${width}`)
+      await click('.directory-create');await until(`document.querySelector('dialog')?.open`)
+      await noOverflow();assert.equal(await evaluate(`document.querySelector('dialog').scrollWidth<=document.querySelector('dialog').clientWidth`),true)
+      if(capture)await screenshot(`users-create-${width}`)
+      await click('.dialog-close');await until(`!document.querySelector('dialog')`)
+      await click('.managed-user:first-child .directory-manage');await until(`document.querySelector('.user-update-form')`)
+      if(capture)await screenshot(`users-manage-${width}`)
+      await click('#tools-tab');await until(`document.querySelector('.grant-items button')`)
+      if(capture)await screenshot(`users-grants-${width}`)
+      await click('.dialog-close');await until(`!document.querySelector('dialog')`)
+    }
+    await click('.directory-create');viewer=true;await evaluate(`window.dispatchEvent(new Event('focus'))`);await until(`!document.querySelector('dialog')&&document.querySelector('main')?.textContent.includes('没有用户管理权限')`);viewer=false;await visit('/users');await until(`document.querySelectorAll('.managed-user').length===20`)
+    const reads=userRequests
+    for(const role of ['viewer','admin']){viewer=role==='viewer';admin=role==='admin';await visit('/users');await until(`document.querySelector('main')?.textContent.includes('没有用户管理权限')`);assert.equal(await evaluate(`!document.querySelector('.directory-create,dialog')`),true)}
+    assert.equal(userRequests,reads);viewer=false;admin=false
+    assert.deepEqual(errors,[])
+    console.log('PASS user directory: modal keyboard/focus/scroll, roles, self protection, API denied/stale, create/password clearing, grant/revoke/errors/empty, pagination/search and 1440/390/360; all APIs intercepted.')
+  }
+  if(process.env.RUNTU_USERS_ONLY==='1'){await userDirectoryChecks()}
+  else if (process.env.RUNTU_HOME_ONLY === '1') {
     for (const [width,height] of [[1440,900],[390,844],[360,800]]) {
       await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<761})
       authenticated=true;activityStatus=200;user.username='layout-fixture'
       for (const role of ['owner','admin','viewer']) {
         viewer=role==='viewer';admin=role==='admin';activityHistory=null;ownExtraRows=[];grantSets.clear()
         await visit('/')
-        await until(`document.querySelector('.account-facts')?.textContent.includes(${JSON.stringify(role==='owner'?'所有者':role==='admin'?'管理员':'只读成员')}) && document.querySelector('.authorized-total strong')?.textContent==='0'`)
+        await until(`document.querySelector('.account-facts')?.textContent.includes(${JSON.stringify(role==='owner'?'所有者':role==='admin'?'管理员':'普通用户')}) && document.querySelector('.authorized-total strong')?.textContent==='0'`)
         assert.equal(await evaluate(`Boolean(document.querySelector('.system-status'))`),role==='owner')
         assert.equal(await evaluate(`!document.querySelector('main h1') && document.querySelector('.toolbar h1').textContent==='首页'`),true)
         await noOverflow();await screenshot(`home-${role}-empty-${width}`)
@@ -275,6 +362,7 @@ try {
     assert.deepEqual(errors,[])
     console.log('PASS personalized home: owner/admin/viewer/anonymous, no history/UTC history/no IP, 0/26 tools, long username, 1440/390/360; no live account used.')
   } else {
+  if(!process.env.RUNTU_REGISTRATION_ONLY) {
   for (const [width, height] of [[1440, 900], [390, 844], [360, 800]]) {
     auditEntries = []
     grantSets.clear()
@@ -308,6 +396,7 @@ try {
     }
     await evaluate(`document.querySelector('#login-username').focus()`)
     await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
+    await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
     await until(`document.activeElement.id === 'login-password'`)
     const beforePolicyReads = policyReads
     delayPolicy=true
@@ -383,7 +472,7 @@ try {
     await evaluate(`(() => { for (const [id, value] of [['login-username','layout-fixture'], ['login-password','fixture-only-not-a-real-password']]) { const el = document.getElementById(id); el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); } document.querySelector('.login-form').requestSubmit(); })()`)
     await until(`location.pathname === '/' && document.querySelector('.user-menu')`)
     await click('.user-trigger')
-    await until(`document.querySelector('.account-role')?.textContent.includes('owner')`)
+    await until(`document.querySelector('.account-role')?.textContent==='所有者'`)
     assert.equal(await evaluate(`document.querySelectorAll('.sign-out').length === 1 && !document.querySelector('main .sign-out, main .identity-bar, main .access-summary')`), true)
     await noOverflow(); await screenshot(`dashboard-account-${width}`)
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
@@ -466,18 +555,13 @@ try {
     }
     await visit('/users')
     await until(`document.querySelectorAll('.managed-user').length === 20`)
-    assert.equal(await evaluate(`document.querySelector('.managed-user fieldset').disabled`), true)
-    emptyGrantCandidates=true
-    await click('.managed-user:first-child .user-module-access > button')
-    await until(`document.querySelector('.grant-content')?.textContent.includes('当前没有可授权的受保护业务工具')`)
-    emptyGrantCandidates=false
-    await click('.grant-content > button')
-    await until(`document.querySelector('.grant-items input')`)
-    await evaluate(`window.confirm=()=>true; document.querySelector('.grant-items input').click()`)
-    await until(`document.querySelector('.grant-content [role=status]')?.textContent.includes('工具授权已保存')`)
-    assert.equal(grantSets.get(user.id)?.has('alpha'),true)
-    await evaluate(`document.querySelector('.grant-content').scrollIntoView({block:'center'})`)
-    await noOverflow(); await screenshot(`grant-editor-${width}`)
+    await click('.managed-user:first-child .directory-manage')
+    await until(`document.querySelector('.user-update-form')`)
+    assert.equal(await evaluate(`document.querySelector('.user-update-form fieldset').disabled`),true)
+    await click('#tools-tab');await until(`document.querySelector('.grant-items button')`)
+    if(!grantSets.get(user.id)?.has('alpha')){await click('.grant-items button');await click('.user-confirm button:last-child');await until(`document.querySelector('.user-module-access [role=status]')`)}
+    await noOverflow();await screenshot(`grant-editor-${width}`)
+    await click('.dialog-close');await until(`!document.querySelector('dialog')`)
     await visit('/')
     await until(`document.querySelector('.my-modules a')?.textContent === '受保护业务示例'`)
     assert.equal(await evaluate(`document.querySelector('.my-modules').textContent.includes('停用业务示例')`),false)
@@ -615,35 +699,7 @@ try {
   assert.equal(userRequests, previousUserRequests)
   authenticated = true
   await visit('/users')
-  await until(`document.querySelector('.user-create-form') && document.querySelectorAll('.managed-user').length === 20`)
-  await click('.create-disclosure > summary')
-  assert.equal(await evaluate(`document.querySelector('.create-disclosure').open`), true)
-  await evaluate(`(() => { window.confirm=()=>true; const name=document.querySelector('.user-create-form input:not([type=password])'); name.value='fixture-new'; name.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('.user-create-form input[type=password]').value=crypto.randomUUID(); document.querySelector('.user-create-form').requestSubmit(); })()`)
-  await until(`document.querySelector('.user-create [role=status]') && document.querySelector('.managed-user h3')?.textContent === 'fixture-new'`)
-  assert.equal(await evaluate(`document.querySelector('.user-create-form input[type=password]').value`),'')
-  await evaluate(`(() => { const row=document.querySelector('.managed-user'); row.querySelector('.user-active input').click(); row.querySelector('form').requestSubmit(); })()`)
-  await until(`document.querySelector('.managed-user-heading')?.textContent.includes('已禁用')`)
-  await screenshot('users-created-disabled')
-  usersWriteStatus = 409
-  await evaluate(`(() => { const name=document.querySelector('.user-create-form input:not([type=password])'); name.value='fixture-new'; name.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('.user-create-form input[type=password]').value=crypto.randomUUID(); document.querySelector('.user-create-form').requestSubmit(); })()`)
-  await until(`document.querySelector('.user-create [role=alert]')`)
-  assert.equal(await evaluate(`document.querySelector('.user-create-form input[type=password]').value`),'')
-  usersWriteStatus = 200; usersStatus = 503
-  await click('.users-list .section-heading button')
-  await until(`document.querySelector('.users-list [role=alert]')`)
-  assert.equal(await evaluate(`document.querySelectorAll('.managed-user').length`),0)
-  usersStatus = 200
-  await click('.users-list [role=alert] button')
-  await until(`document.querySelectorAll('.managed-user').length === 20`)
-  await click('.managed-user:nth-child(2) .user-module-access > button')
-  await until(`document.querySelector('.grant-items input')`)
-  grantStatus=503
-  await click('.grant-content > button')
-  await until(`document.querySelector('.grant-content [role=alert]')`)
-  assert.equal(await evaluate(`document.querySelectorAll('.grant-items input').length`),0)
-  grantStatus=200
-  await click('.grant-content [role=alert] button')
-  await until(`document.querySelector('.grant-items input')`)
+  await userDirectoryChecks(false)
   authenticated=true; viewer=false; admin=false
   await visit('/modules/demo')
   await until(`document.querySelector('.module-editor-form')`)
@@ -679,6 +735,7 @@ try {
   assert.equal(module.revision,protectedRevision)
   module.required=false
   console.log('CHECK required tool protected')
+  }
   for (const width of [1440,390,360]) {
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<761})
     authenticated=false; registrationPolicy={enabled:false,approval_required:true,revision:0}
@@ -712,6 +769,7 @@ try {
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 })
     await until(`!document.querySelector('.registration-policy input[role=switch]').checked`)
     assert.equal(registrationPolicy.enabled,true, 'Switch must not save before explicit submission')
+    await until(`!document.querySelector('.registration-policy button[type=submit]').disabled`)
     await evaluate(`document.querySelector('.registration-policy form').requestSubmit()`)
     await until(`document.querySelector('.registration-policy [role=status]')?.textContent.includes('已保存')`)
     assert.equal(registrationPolicy.enabled,false)

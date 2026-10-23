@@ -7,8 +7,8 @@ const props = defineProps({ identity: Object, access: Object, pending: Boolean, 
 const emit = defineEmits(['signed-out', 'refresh-identity'])
 const busy = ref(false), error = ref('')
 const disclosure = useTemplateRef('disclosure')
-const names = { owner: '所有者', admin: '管理员', viewer: '只读成员' }
-const role = computed(() => props.access.data.value ? `${names[props.access.data.value.role]} · ${props.access.data.value.role}` : '')
+const names = { owner: '所有者', admin: '管理员', viewer: '普通用户' }
+const role = computed(() => props.access.data.value ? names[props.access.data.value.role] : '')
 const avatar = computed(() => props.identity?.user?.username?.slice(0, 1).toUpperCase() || '')
 let controller, timer
 function close(event) {

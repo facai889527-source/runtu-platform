@@ -15,7 +15,7 @@ function first() { after.value = null; previous.value = []; load() }
 function next() { previous.value.push(after.value); after.value = page.value.next_after_username; load() }
 function back() { after.value = previous.value.pop(); load() }
 async function accept(item) {
-  if (busy.value || !window.confirm(`确认已独立核实 ${item.username} 的身份，并批准为只读成员？`)) return
+  if (busy.value || !window.confirm(`确认已独立核实 ${item.username} 的身份，并批准为普通用户？`)) return
   busy.value = true; error.value = ''; controller = new AbortController(); timer = setTimeout(() => controller.abort(), 10000)
   let saved = false
   try { await approve(item.id, controller.signal); saved = true }
@@ -30,7 +30,7 @@ onUnmounted(() => { live = false; controller?.abort(); clearTimeout(timer) })
   <section class="panel approvals" aria-labelledby="approvals-title"><div class="section-heading"><h2 id="approvals-title">待审核注册</h2><button :disabled="busy" @click="first">刷新申请</button></div>
     <p class="subtle">批准前请通过独立渠道核实身份。批准后仍需另行授予业务工具。</p>
     <p v-if="busy" role="status">正在处理申请…</p><p v-if="error" role="alert">{{ error }}</p>
-    <template v-if="page && !busy"><p v-if="!page.items.length">此页没有待审核申请。</p><ul v-else><li v-for="item in page.items" :key="item.id"><span>{{ item.username }} <small>待审核 · 无法登录</small></span><button @click="accept(item)">批准为只读成员</button></li></ul></template>
+    <template v-if="page && !busy"><p v-if="!page.items.length">此页没有待审核申请。</p><ul v-else><li v-for="item in page.items" :key="item.id"><span>{{ item.username }} <small>待审核 · 无法登录</small></span><button @click="accept(item)">批准为普通用户</button></li></ul></template>
     <nav aria-label="注册申请分页"><button :disabled="busy || !previous.length" @click="back">上一页</button><button :disabled="busy || !page?.next_after_username" @click="next">下一页</button></nav>
   </section>
 </template>

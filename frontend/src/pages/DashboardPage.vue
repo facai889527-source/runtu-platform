@@ -9,7 +9,7 @@ import { databaseLabels, moduleCounts } from '../utils/modules.js'
 import { modulePath } from '../navigation/history.js'
 const props = defineProps({ health: Object, modules: Object, userId: String, showDiagnostics: Boolean, user: Object, access: Object })
 const authorizedCount = shallowRef(null)
-const role = computed(() => ({ owner: '所有者', admin: '管理员', viewer: '只读成员' }[props.access?.data.value?.role] || '待确认'))
+const role = computed(() => ({ owner: '所有者', admin: '管理员', viewer: '普通用户' }[props.access?.data.value?.role] || '待确认'))
 const counts = computed(() => props.modules.data.value ? moduleCounts(props.modules.data.value) : null)
 const publicTools = computed(() => props.modules.data.value?.filter(item => item.access_mode !== 'assigned' && item.status === 'enabled') || [])
 </script>
