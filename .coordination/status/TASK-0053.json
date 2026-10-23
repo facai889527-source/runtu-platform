@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0053",
+  "signal_version": 53,
+  "state": "running",
+  "updated_at": "2026-10-23T16:35:56.056Z",
+  "summary": "Claimed follow-up on clean PR28 branch; implementing explicit public-bot lifecycle and owner-managed private binding as a coherent first milestone, with full remaining acceptance tracked.",
+  "checks": [
+    "Remote ready version 53 verified; local state has no TASK-0053 key, no same-task PR, no remote status; outbox empty; clean branch at 403ee62."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
+  "commit_sha": "403ee62dfbe2dade8781ef0d49b126048bce06c7",
+  "next_action": "Implement explicit bot selection, pristine disconnect, private target opt-in, and owner-only management with migration and mocked regression; track personal-bot and group/multi-target work explicitly."
+}
