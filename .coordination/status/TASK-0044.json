@@ -1,17 +1,21 @@
 {
   "task_id": "TASK-0044",
   "signal_version": 44,
-  "state": "running",
-  "updated_at": "2026-10-23T10:30:52.618Z",
-  "summary": "Navigation and brand follow-up pushed to existing PR28; screenshots and local regression passed; awaiting current-head CI.",
+  "state": "completed",
+  "updated_at": "2026-10-23T10:32:06.609Z",
+  "summary": "Simplified navigation and brand hierarchy delivered as authorized follow-up on PR28; screenshots, browser regression and current-head CI verified.",
   "checks": [
-    "Owner navigation exactly Home/Tools/Users/Global settings; admin module-only settings and viewer/anonymous boundaries verified.",
-    "Node 28 passed; production build passed; isolated browser at 1440/390/360 passed including modules, grants, registration and keyboard.",
-    "Eight exact desktop/mobile screenshots reviewed and committed under docs/ui/TASK-0044."
+    "Sidebar owner order exactly Home/Tools/Users/Global settings; Runtu subtitle updated; redundant topbar text, management divider and home introduction removed.",
+    "Module management discoverable under global settings; existing module routes/deep links and server RBAC preserved. Admin sees module subfeatures only; owner-only users/registration controls and viewer/anonymous boundaries verified.",
+    "Node 28 passed; Vite production build passed (70 modules).",
+    "Isolated Chrome fixture regression passed at 1440/390/360: navigation, settings/module entry and active state, grants, user controls, registration approval/explicit save, audit, keyboard, account focus, responsive drawer/collapse.",
+    "Eight exact 1440x900 and 390x844 screenshots reviewed and committed at docs/ui/TASK-0044/README.md; previous iteration retained under TASK-0043.",
+    "CI Read-only validation 39939571541 and Linux/PostgreSQL validation 39939571574 succeeded at 48da7135368194b4897af08258bfe3a08e461842; all six jobs successful, PostgreSQL online 11 required and 0 skipped.",
+    "Existing PR28 updated on same branch/base; no competing PR. Clean local worktree; original frontend/backend listener processes preserved; no API/schema change, real database operation or service restart."
   ],
   "blockers": [],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
   "commit_sha": "48da7135368194b4897af08258bfe3a08e461842",
-  "next_action": "Verify current-head CI and report completion; PR28 remains stacked on PR27, no merge or deployment."
+  "next_action": "Review updated PR28 and TASK-0044 screenshots. Integrate PR27 first, then retarget PR28 to main and verify diff; no automatic merge, deployment or next task."
 }
