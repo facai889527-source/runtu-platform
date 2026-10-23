@@ -8,10 +8,10 @@ export function modulePath(id) {
 export function parseRoute(pathname) {
   const path = pathname.length > 1 ? pathname.replace(/\/$/, '') : pathname
   const pages = {
-    '/': { page: 'dashboard', title: '工作台' },
+    '/': { page: 'dashboard', title: '首页' },
     '/tools': { page: 'tools', title: '我的工具' },
     '/modules': { page: 'modules', title: '模块管理' },
-    '/settings': { page: 'settings', title: '设置' },
+    '/settings': { page: 'settings', title: '全局设置' },
     '/users': { page: 'users', title: '用户管理' },
     '/login': { page: 'login', title: '管理员登录' },
     '/register': { page: 'register', title: '申请账户' },

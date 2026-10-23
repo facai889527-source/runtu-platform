@@ -6,7 +6,7 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 const origin = process.env.RUNTU_UI_BASE_URL || 'http://127.0.0.1:5173'
 assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:4173'].includes(origin), 'Only explicit loopback dev/preview origins are supported')
-const output = path.resolve('.git/codex-coordination/task43-after', new URL(origin).port)
+const output = path.resolve('.git/codex-coordination/task44-after', new URL(origin).port)
 await mkdir(output, { recursive: true })
 let occupied = false
 try { occupied = (await fetch('http://127.0.0.1:9229/json')).ok } catch { /* Free port. */ }
@@ -347,7 +347,9 @@ try {
     assert.equal(await evaluate(`document.activeElement.matches('.user-trigger')`), true)
     await loadPage('Page.reload')
     await until(`document.querySelector('.user-menu') && document.querySelector('.my-modules') && document.querySelector('.overview-name')`)
-    assert.equal(await evaluate(`document.querySelector('h1').textContent === '工作台' && document.querySelectorAll('.sidebar nav a').length === 5 && !document.querySelector('.system-status').open`), true)
+    assert.equal(await evaluate(`document.querySelector('h1').textContent === '首页' && document.querySelectorAll('.sidebar nav a').length === 4 && !document.querySelector('.system-status').open`), true)
+    assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.sidebar nav a')).map(el=>el.textContent.trim())`), ['首页','我的工具','用户管理','全局设置'])
+    assert.equal(await evaluate(`!document.querySelector('.platform-context, .nav-caption') && !document.querySelector('.toolbar-title').textContent.trim() && document.querySelector('.brand-sub').textContent === '多功能工具平台'`), true)
     await screenshot(`dashboard-${width}`)
     await visit('/tools')
     await until(`document.querySelector('h1')?.textContent === '我的工具' && document.querySelector('.my-modules')`)
@@ -358,6 +360,15 @@ try {
     for (const pathname of ['/modules', '/modules/demo', '/settings']) {
       await visit(pathname)
       await until(`document.querySelector('main')?.textContent.includes(${JSON.stringify(pathname === '/modules' ? '模块目录' : pathname === '/settings' ? '注册策略' : '公开配置')})`)
+      assert.equal(await evaluate(`document.querySelector('.sidebar [aria-current=page]')?.textContent.trim()`),'全局设置')
+      if (pathname === '/settings') {
+        assert.equal(await evaluate(`document.querySelector('h1').textContent`),'全局设置')
+        await click('.settings-module-link')
+        await until(`location.pathname === '/modules' && document.querySelector('.module-list')`)
+        assert.equal(await evaluate(`document.querySelector('.sidebar [aria-current=page]')?.textContent.trim()`),'全局设置')
+        await visit('/settings')
+        await until(`document.querySelector('.registration-policy fieldset')`)
+      }
       if (pathname === '/modules/demo') {
         await until(`document.querySelector('.module-audit')?.textContent.includes('此模块暂无操作记录')`)
         auditEntries = Array.from({ length: 12 }, (_, index) => ({ module_id: 'demo', actor_id: 'fixture-actor-identifier-123456789', action: 'updated', revision: 12-index, created_at: '2026-10-21T08:00:00Z' }))
@@ -494,7 +505,13 @@ try {
   await loadPage('Page.reload')
   await until(`document.querySelector('main')?.textContent.includes('没有用户管理权限')`)
   assert.equal(userRequests, previousUserRequests)
-  assert.equal(await evaluate(`document.querySelectorAll('.sidebar nav a').length === 3 && Boolean(document.querySelector('.sidebar a[href="/modules"]')) && !document.querySelector('.sidebar a[href="/settings"]')`), true)
+  assert.equal(await evaluate(`document.querySelectorAll('.sidebar nav a').length === 3 && !document.querySelector('.sidebar a[href="/modules"]') && Boolean(document.querySelector('.sidebar a[href="/settings"]'))`), true)
+  await visit('/settings')
+  await until(`document.querySelector('.settings-module-link')`)
+  assert.equal(await evaluate(`!document.querySelector('.registration-policy, .approvals')`),true)
+  await click('.settings-module-link')
+  await until(`location.pathname === '/modules' && document.querySelector('.module-list')`)
+  assert.equal(userRequests,previousUserRequests)
   admin = false; authenticated = false
   await loadPage('Page.reload')
   await until(`location.pathname === '/login' && document.querySelector('#login-password')`)

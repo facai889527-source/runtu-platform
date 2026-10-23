@@ -1,5 +1,7 @@
 # TASK-0043 internal UI review
 
+For the current navigation/brand follow-up, see [TASK-0044](../TASK-0044/README.md). The captures below preserve the first internal UI iteration.
+
 The internal UI now uses neutral slate surfaces, a white role-aware sidebar and restrained teal actions. The workbench prioritizes granted tools and an honest empty state, with public demo shortcuts and collapsed administrator diagnostics. Users start with the account list; creation and identifiers are disclosed on request. Registration switches remain explicit-save controls with unsaved/saved feedback.
 
 This branch is stacked on PR #27 (`codex/TASK-0038-auth-design`, c8f1c3a). Its PR targets that branch so the review contains only TASK-0043. Review/integrate #27 first, then retarget this PR onto main after verifying the resulting diff. No automatic integration or deployment is configured.

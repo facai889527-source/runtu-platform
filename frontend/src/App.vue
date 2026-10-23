@@ -62,7 +62,7 @@ onUnmounted(() => { clearWorkspace(); identity.cancel(); window.removeEventListe
     <RegisterPage v-else-if="route.page === 'register'" />
     <LoginPage v-else-if="!authenticated" @authenticated="loadIdentity" />
   </AuthLayout>
-  <AppLayout v-else :page="route.page" :title="route.title" :path="route.path" :can-manage-users="Boolean(canManageUsers)" :can-manage-settings="Boolean(canManageUsers)" :can-manage-modules="Boolean(access.data.value?.permissions.includes('module.manage'))" :platform="health.data.value?.platform || 'Runtu Platform'" @refresh="refresh">
+  <AppLayout v-else :page="route.page" :title="route.title" :path="route.path" :can-manage-users="Boolean(canManageUsers)" :can-manage-settings="Boolean(canManageUsers || access.data.value?.permissions.includes('module.manage'))" :platform="health.data.value?.platform || 'Runtu Platform'" @refresh="refresh">
     <template #account><UserMenu :identity="identity.data.value" :access="access" :pending="identity.pending.value" :unavailable="Boolean(identity.error.value)" @signed-out="signedOut" @refresh-identity="loadIdentity" /></template>
     <DashboardPage v-if="route.page === 'dashboard'" :health="health" :modules="directoryModules" :user-id="identity.data.value?.user?.id" :show-diagnostics="Boolean(access.data.value?.permissions.includes('module.manage'))" />
     <MyModules v-else-if="route.page === 'tools'" :user-id="identity.data.value?.user?.id" />

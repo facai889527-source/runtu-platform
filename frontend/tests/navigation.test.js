@@ -4,6 +4,8 @@ import { parseRoute, modulePath, createNavigation, returnTarget, loginPath } fro
 
 test('known pages, encoded detail, trailing slash and route 404', () => {
   assert.equal(parseRoute('/').page, 'dashboard')
+  assert.equal(parseRoute('/').title, '首页')
+  assert.equal(parseRoute('/settings').title, '全局设置')
   assert.equal(parseRoute('/modules/').title, '模块管理')
   assert.equal(parseRoute('/settings').page, 'settings')
   assert.equal(parseRoute('/users/').page, 'users')
