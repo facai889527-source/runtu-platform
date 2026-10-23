@@ -1,15 +1,23 @@
 {
   "task_id": "TASK-0048",
   "signal_version": 48,
-  "state": "running",
-  "updated_at": "2026-10-23T12:56:12.091Z",
-  "summary": "Claimed user directory and accessible modal redesign on existing PR28 branch.",
+  "state": "completed",
+  "updated_at": "2026-10-23T13:22:36.094Z",
+  "summary": "User directory and accessible create/manage modal redesign completed on existing PR28; full browser regression, reviewed screenshots and both CI workflows passed.",
   "checks": [
-    "New ready version; no same-task PR/status or local execution; previous local activation task completed."
+    "Compact responsive real user directory with current-page search/role/status filters, exact page counts and conditional cursor pagination; no fake users, total counts or global-search claim.",
+    "Custom native modal dialog workflows include focus isolation/restoration, scroll lock, Escape/backdrop/close controls, 180ms reduced-motion-aware styling, mobile scrolling, safe errors, pending guards, immediate password clearing and success feedback.",
+    "Account details and tool authorization use separate keyboard-accessible tabs within one dialog. Account/grant confirmations remain inline. Self-role/disable editing is protected; existing server owner/last-owner, RBAC, session revocation and optimistic-concurrency contracts are unchanged.",
+    "Public roles consistently read 所有者, 管理员, 普通用户; backend owner/admin/viewer identifiers and semantics unchanged. Raw account ID is advanced-only.",
+    "Same-account focus revalidation preserves user/dialog and settings drafts. Access failure/revocation still clears protected UI; identity changes clear old workspace permissions. Browser regression covers revalidation and revoked access.",
+    "Node 31 tests passed; Vite production build passed with 80 modules. Python user management, module grants and login-history security tests 40 passed on disposable databases, one existing dependency deprecation warning.",
+    "Full isolated Chrome regression passed including modal keyboard/focus/scroll, create/password clearing, self safeguards, denied/conflict/error, grant/revoke/empty, filter/pagination, registration approval/policy keyboard save, tools and navigation. Final focused user and home regression passed at 1440/390/360; twelve reviewed fixture screenshots at docs/ui/TASK-0048/README.md.",
+    "Current-head CI 39960371788 Read-only validation and 39960371956 Linux/PostgreSQL validation succeeded at f6f925056a438ca7cba876880f09de891122287a; all six jobs passed including PostgreSQL online 11 required and 0 skipped.",
+    "PR28 updated and attached on original branch/base; clean worktree. Existing loopback backend PID 26904 and Vite PID 19112 preserved. No real account/session/password/grant operation, database change, migration, service restart, PR merge or deployment."
   ],
   "blockers": [],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
-  "commit_sha": "b7f73b9938451317a39ebd506e6ac6eb24f4f9ac",
-  "next_action": "Implement user directory, create/manage dialogs and regression coverage; preserve backend security and real development services."
+  "commit_sha": "f6f925056a438ca7cba876880f09de891122287a",
+  "next_action": "Review PR28 user directory/dialog screenshots, modal lifecycle, permission-refresh draft retention and unchanged server safeguards. PR28 remains stacked on PR27; no automatic integration or subsequent task."
 }
