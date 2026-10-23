@@ -102,6 +102,18 @@ def test_shared_verified_binding_contract(auth):
     exercise_verified_binding_contract(client)
 
 
+def test_nested_clients_preserve_single_worker_and_outer_delivery(auth):
+    client,_,_=auth
+    assert login(client).status_code==200
+    notifications=client.app.state.notifications
+    worker=notifications.worker
+    with applicant(client.app) as guest:
+        assert guest.get('/api/auth/registration-policy').status_code==200
+        assert notifications.worker is worker and notifications.lifetimes==2
+    assert notifications.lifetimes==1 and not notifications.stopped.is_set() and worker.is_alive()
+    exercise_verified_binding_contract(client)
+
+
 def other(client, service, actor, name, role='viewer'):
     user=client.app.state.user_management.create(actor,CreateUser(username=name,password=PASSWORD,role=role))
     guest=TestClient(client.app,base_url=ORIGIN)

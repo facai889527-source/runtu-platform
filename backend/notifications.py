@@ -7,7 +7,7 @@ import json
 from queue import Empty, Full, Queue
 import re
 import secrets
-from threading import Event, Thread
+from threading import Event, Lock, Thread
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import delete, select, update
@@ -72,6 +72,7 @@ class NotificationService:
     def __init__(self, auth, transport=None):
         self.auth, self.transport = auth, transport or TelegramTransport()
         self.queue, self.stopped, self.worker = Queue(maxsize=16), Event(), None
+        self.lifecycle_lock, self.lifetimes = Lock(), 0
 
     @property
     def configured(self):
@@ -209,17 +210,29 @@ class NotificationService:
             return self.public(session, user, row)
 
     def start(self):
-        self.worker = Thread(target=self._run, daemon=True, name='telegram-delivery'); self.worker.start()
+        with self.lifecycle_lock:
+            self.lifetimes += 1
+            if self.lifetimes > 1: return
+            self.stopped = Event()
+            self.worker = Thread(target=self._run, args=(self.stopped,), daemon=True, name='telegram-delivery')
+            self.worker.start()
 
     def close(self):
-        self.stopped.set()
-        if self.worker: self.worker.join(timeout=3)
-        while True:
-            try:
-                item = self.queue.get_nowait()
-                if item[0] == 'test' and not item[-1].done(): item[-1].set_result(False)
-                self.queue.task_done()
-            except Empty: break
+        with self.lifecycle_lock:
+            if self.lifetimes == 0: return
+            self.lifetimes -= 1
+            if self.lifetimes: return
+            self.stopped.set()
+            worker = self.worker
+        if worker: worker.join(timeout=3)
+        with self.lifecycle_lock:
+            if self.lifetimes or self.worker is not worker: return
+            while True:
+                try:
+                    item = self.queue.get_nowait()
+                    if item[0] == 'test' and not item[-1].done(): item[-1].set_result(False)
+                    self.queue.task_done()
+                except Empty: break
 
     def _offer(self, item):
         if self.stopped.is_set() or not self.worker or not self.worker.is_alive(): return False
@@ -272,11 +285,12 @@ class NotificationService:
                     row.enabled, row.paused = False, True; self.change(row)
         return success
 
-    def _registration(self, event_id):
+    def _registration(self, event_id, stopped=None):
         # Bounded pages of eligible recipients; expiry and global send quota bound
         # work. Each recipient is rechecked and durably deduplicated before sending.
         after = ''
-        while not self.stopped.is_set():
+        stopped = stopped if stopped is not None else self.stopped
+        while not stopped.is_set():
             with self.auth.transaction() as session:
                 event = session.get(AuthEvent, event_id)
                 if not event or aware(event.created_at)+timedelta(minutes=5) <= self.auth.clock(): return
@@ -291,8 +305,8 @@ class NotificationService:
                 except Exception: pass
             after = rows[-1].user_id
 
-    def _run(self):
-        while not self.stopped.is_set():
+    def _run(self, stopped):
+        while not stopped.is_set():
             try: item = self.queue.get(timeout=.1)
             except Empty: continue
             success = False
@@ -300,7 +314,7 @@ class NotificationService:
                 if item[0] == 'test':
                     _, actor, key, revision, queued_at, _ = item
                     success = self._deliver(actor, revision, 'Runtu：Telegram 个人消息设置测试。', key=key, queued_at=queued_at)
-                else: self._registration(item[1])
+                else: self._registration(item[1], stopped)
             except Exception: pass  # Never log credentials, callback payloads or transport errors.
             finally:
                 if item[0] == 'test' and not item[-1].done(): item[-1].set_result(success)
