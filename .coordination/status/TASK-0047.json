@@ -1,15 +1,21 @@
 {
   "task_id": "TASK-0047",
   "signal_version": 47,
-  "state": "running",
-  "updated_at": "2026-10-23T12:13:04.989Z",
-  "summary": "Claimed authorized local backup, migration 0007 and matching loopback backend activation; preflight in progress.",
+  "state": "completed",
+  "updated_at": "2026-10-23T12:16:12.950Z",
+  "summary": "Authorized local development SQLite backup and migration 0007 completed; matching PR28 backend activated on loopback and validated. No real credentials or sessions used.",
   "checks": [
-    "Confirmed new signal, no same-task PR or remote status, and clean product branch at PR28 head."
+    "Clean existing PR28 branch at b7f73b9938451317a39ebd506e6ac6eb24f4f9ac already contained the required PR27 baseline; no checkout, PR merge or product change needed.",
+    "Verified confirmed local SQLite integrity and revision 0006_registration_policy. Journal mode delete and no WAL present; consistent timestamped backup created using SQLite backup API in private ignored storage with restricted user/system access, integrity and all original table fields verified.",
+    "Applied only 0007_login_activity. Final revision 0007_login_activity and integrity ok. Every original column value in every existing application table compared equal before/after; users, password hashes, sessions, grants, policy and existing audit data preserved without publishing their values.",
+    "Stopped only original backend listener/launcher; matching backend launcher PID 5740, listener PID 26904 now serves 127.0.0.1:8000. Existing Vite PID 19112 remains on 127.0.0.1:5173. No LAN listener or frontend restart.",
+    "Direct and Vite-proxied health HTTP 200, status ok and database ready. Activity endpoint with configured same-origin Host denies anonymous access HTTP 401 through both paths; default direct foreign Host correctly denied HTTP 403.",
+    "Isolated disposable-database login activity tests 9 passed, one existing dependency deprecation warning. Browser fixtures on current Vite passed owner/admin/viewer/anonymous, greeting, 0/26 authorized tools, no-history/history/no-IP, owner-only diagnostics and 1440/390/360 layouts; desktop/mobile screenshots reviewed.",
+    "No real account login or real prior-login record was inspected or claimed. First applicable login may show no history; legacy unknown IP remains unknown. No bootstrap, password rotation, downgrade, deployment or PR merge."
   ],
   "blockers": [],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": null,
   "commit_sha": "b7f73b9938451317a39ebd506e6ac6eb24f4f9ac",
-  "next_action": "Verify runtime and database preconditions, create consistent private backup, then apply only authorized migration and activate backend."
+  "next_action": "User may refresh the local site and log in personally to review personalized home. Actual account history remains unverified by the agent; no subsequent task or automatic PR integration."
 }
