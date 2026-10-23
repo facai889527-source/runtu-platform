@@ -1,13 +1,24 @@
 {
   "task_id": "TASK-0041",
   "signal_version": 41,
-  "state": "running",
-  "updated_at": "2026-10-23T09:31:39.328494+00:00",
-  "summary": "Inspecting local development service and schema compatibility after reboot.",
-  "checks": [],
-  "blockers": [],
-  "branch": null,
+  "state": "blocked_user_action",
+  "updated_at": "2026-10-23T09:33:31.671366+00:00",
+  "summary": "Frontend restored on loopback; backend intentionally not started because existing SQLite schema is incompatible with current code.",
+  "checks": [
+    "Working tree clean; existing PR27 branch preserved at c8f1c3a147472ef299ef47ff8ca1c525bae0eae4.",
+    "Before start, neither 5173 nor 8000 had a listener; process inspection completed.",
+    "Virtualenv backend packages and installed Vite dependencies available; no dependencies installed.",
+    "Read-only SQLite alembic_version: 0004_module_management; code migration head: 0006_registration_policy. No credential, user or session rows read.",
+    "Frontend node PID 19112 remains listening only on 127.0.0.1:5173; hidden detached process.",
+    "http://127.0.0.1:5173/login HTTP 200; frontend source HTTP 200. Actual login and authenticated readiness not tested.",
+    "http://127.0.0.1:8000/api/health connection refused; backend unavailable and not started.",
+    "No migrations, database changes, user initialization, source changes, PR merge or deployment performed."
+  ],
+  "blockers": [
+    "Existing database requires separately reviewed and authorized sequential migrations 0005_user_module_access and 0006_registration_policy before current backend can be started."
+  ],
+  "branch": "codex/TASK-0038-auth-design",
   "pr_url": null,
-  "commit_sha": null,
-  "next_action": "Inspect ports and schema read-only before starting compatible services."
+  "commit_sha": "c8f1c3a147472ef299ef47ff8ca1c525bae0eae4",
+  "next_action": "Obtain explicit authorization for the required database migrations in a separate formal task; then restore backend and validate health. Frontend login page is available, but the app is not operational without backend."
 }
