@@ -1,15 +1,21 @@
 {
   "task_id": "TASK-0051",
   "signal_version": 51,
-  "state": "running",
-  "updated_at": "2026-10-23T15:05:30.678Z",
-  "summary": "Claimed per-account verified Telegram binding and private notification routing on existing PR28.",
+  "state": "completed",
+  "updated_at": "2026-10-23T15:34:05.816Z",
+  "summary": "Per-account verified private Telegram binding and recipient-isolated routing delivered on existing PR28; shared settings superseded.",
   "checks": [
-    "Remote ready version checked; no same-task PR/status/local execution; existing PR branch clean."
+    "Current commit CI: both workflows and all six jobs passed. Linux full Python: 189 passed, 11 optional online tests skipped; PostgreSQL: 11 required passed, zero skipped.",
+    "Local Python full baseline: 187 passed; final notification/lifecycle suite: 31 passed; legacy migration conversion additionally passed. One existing dependency warning.",
+    "Node 36 passed; Vite build 89 modules passed; full intercepted Chrome regression and final personal-pairing checks passed at 1440/390/360; 12 fixture screenshots archived.",
+    "Self-scoped API tested for account isolation, ordinary-user access, private-chat proof, one-time replay/expiry, initiating-session verification, browser confirmation, uniqueness conflicts and unlink/rebind.",
+    "Per-recipient registration routing and durable concurrent dedupe tested; current role, active account, verified binding, preferences and stale revisions are rechecked. Unsupported event sources remain disabled.",
+    "Worker lifecycle fix verified locally and by PostgreSQL CI; rate limits, queue pressure, deadline, safe failures, per-account pause and audit rollback covered.",
+    "0009 disables legacy shared subscriptions without copying destinations into accounts. No real credentials, Telegram sends, database migration, service restart, merge or deployment performed."
   ],
   "blockers": [],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
-  "commit_sha": "449082b1b6331c41219ba77fc473033042e26e3a",
-  "next_action": "Replace singleton semantics with self-scoped settings, verified one-time private-chat pairing, secure callback and recipient-specific delivery."
+  "commit_sha": "3f781cb59c89a317b0282c7198f0bed809d05117",
+  "next_action": "Review PR28 after PR27. Separately authorize real 0008/0009 migration and backend activation; operator must configure the shared bot, matching username, independent webhook credential, HTTPS callback and feature flag. Feature defaults disabled; no live Telegram validation claimed. No next task started."
 }
