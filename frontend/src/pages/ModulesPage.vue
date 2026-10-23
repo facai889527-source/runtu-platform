@@ -18,7 +18,7 @@ function clear() { query.value = ''; status.value = 'all' }
   <ModuleDetail v-if="moduleId" :module-id="moduleId" :access="access" @changed="$emit('changed')" />
   <template v-else>
     <section class="panel directory-panel" aria-labelledby="directory-title">
-      <div class="section-heading"><div><h2 id="directory-title">模块目录</h2><p class="section-description">查看运行状态，在详情中管理启用状态与公开配置。</p></div></div>
+      <div class="section-heading"><div><h2 id="directory-title">模块目录</h2><p class="section-description">按名称、能力或状态查找模块，选择卡片查看详情。</p></div></div>
       <div class="filters">
         <label class="search-label">搜索模块<span class="search-field"><AppIcon name="search" :size="18" /><input v-model="query" type="search" placeholder="名称、标识或能力" aria-describedby="directory-hint" /></span></label>
         <label>模块状态<select v-model="status"><option value="all">全部状态</option><option value="enabled">已启用</option><option value="disabled">已禁用</option></select></label>
@@ -28,7 +28,7 @@ function clear() { query.value = ''; status.value = 'all' }
       <ResourceState :pending="modules.pending.value" :error="modules.error.value" :empty="modules.data.value?.length === 0" empty-text="暂无已注册模块。" @retry="modules.load()">
         <div class="directory-summary"><p class="result-count" role="status" aria-live="polite">找到 <strong>{{ filtered.length }}</strong> 个模块<span v-if="query.trim() || status !== 'all'" class="filter-applied"> · 已应用筛选</span></p><span class="subtle">选择模块查看详情</span></div>
         <div v-if="!filtered.length" class="state"><AppIcon name="search" :size="28" /><p>没有匹配的模块，请调整搜索条件。</p><button @click="clear">清除筛选</button></div>
-        <ul v-else class="module-list" :class="{ 'single-module': filtered.length === 1 }">
+        <ul v-else class="module-list" >
           <li v-for="item in filtered" :key="item.id" :class="{ 'module-disabled': item.status === 'disabled' }">
             <div class="module-card-top"><span class="module-avatar"><AppIcon name="module" :size="24" /></span><ModuleStatus :status="item.status" /></div>
             <div class="module-header"><h3><RouteLink class="module-link" :to="modulePath(item.id)" :title="item.name || item.id">{{ item.name || item.id }}</RouteLink></h3><span class="module-id">{{ item.id }}<span class="version" :title="item.version">v{{ item.version || '未提供' }}</span></span></div>

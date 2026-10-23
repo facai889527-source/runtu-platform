@@ -8,7 +8,8 @@ export function modulePath(id) {
 export function parseRoute(pathname) {
   const path = pathname.length > 1 ? pathname.replace(/\/$/, '') : pathname
   const pages = {
-    '/': { page: 'dashboard', title: '仪表盘' },
+    '/': { page: 'dashboard', title: '工作台' },
+    '/tools': { page: 'tools', title: '我的工具' },
     '/modules': { page: 'modules', title: '模块管理' },
     '/settings': { page: 'settings', title: '设置' },
     '/users': { page: 'users', title: '用户管理' },
@@ -54,6 +55,6 @@ export function returnTarget(search) {
   const value = new URLSearchParams(search).get('returnTo')
   if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\') || value.includes('?') || value.includes('#')) return '/'
   const route = parseRoute(value)
-  return ['dashboard', 'modules', 'settings', 'users'].includes(route.page) ? route.path : '/'
+  return ['dashboard', 'tools', 'modules', 'settings', 'users'].includes(route.page) ? route.path : '/'
 }
 export const loginPath = path => '/login?returnTo=' + encodeURIComponent(path)

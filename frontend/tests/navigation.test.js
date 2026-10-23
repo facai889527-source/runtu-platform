@@ -52,6 +52,6 @@ test('navigation never accepts an external origin or backslash path', () => {
 })
 
 test('login return targets survive URL encoding and reject external/auth/unknown paths', () => {
-  for (const path of ['/', '/modules', '/modules/demo', '/users', '/settings']) assert.equal(returnTarget(loginPath(path).split('?')[1]), path)
+  for (const path of ['/', '/tools', '/modules', '/modules/demo', '/users', '/settings']) assert.equal(returnTarget(loginPath(path).split('?')[1]), path)
   for (const path of ['//evil.test', '/\\evil.test', 'https://evil.test', '/login', '/register', '/absent', '/modules/demo?secret=x', '/modules/demo#x']) assert.equal(returnTarget('?returnTo=' + encodeURIComponent(path)), '/')
 })

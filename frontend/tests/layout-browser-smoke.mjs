@@ -6,7 +6,7 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 const origin = process.env.RUNTU_UI_BASE_URL || 'http://127.0.0.1:5173'
 assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:4173'].includes(origin), 'Only explicit loopback dev/preview origins are supported')
-const output = path.resolve('.git/codex-coordination/layout23', new URL(origin).port)
+const output = path.resolve('.git/codex-coordination/task43-after', new URL(origin).port)
 await mkdir(output, { recursive: true })
 let occupied = false
 try { occupied = (await fetch('http://127.0.0.1:9229/json')).ok } catch { /* Free port. */ }
@@ -57,7 +57,7 @@ try {
     await until(`!document.querySelector('.auth-toast-enter-active, .auth-toast-leave-active')`)
     // Guard every capture: never record a filled password field.
     assert.equal(await evaluate(`!document.querySelector('input[type=password]')?.value`), true)
-    const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: !/^(users-|grant-|my-modules)/.test(name) })
+    const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
     await writeFile(path.join(output, name + '.png'), Buffer.from(shot.data, 'base64'))
   }
   let authenticated = false, failLogout = false, failIdentity = false, invalidRole = false
@@ -346,8 +346,12 @@ try {
     await until(`document.querySelector('.user-menu') && !document.querySelector('.user-menu').open`)
     assert.equal(await evaluate(`document.activeElement.matches('.user-trigger')`), true)
     await loadPage('Page.reload')
-    await until(`document.querySelector('.user-menu') && document.querySelector('.overview-name')`)
+    await until(`document.querySelector('.user-menu') && document.querySelector('.my-modules') && document.querySelector('.overview-name')`)
+    assert.equal(await evaluate(`document.querySelector('h1').textContent === '工作台' && document.querySelectorAll('.sidebar nav a').length === 5 && !document.querySelector('.system-status').open`), true)
     await screenshot(`dashboard-${width}`)
+    await visit('/tools')
+    await until(`document.querySelector('h1')?.textContent === '我的工具' && document.querySelector('.my-modules')`)
+    assert.equal(await evaluate(`document.querySelector('[aria-current=page]').getAttribute('href')`), '/tools')
     // An authenticated visit to /login must leave the authentication layout.
     await visit('/login')
     await until(`location.pathname === '/' && document.querySelector('.user-menu')`)
@@ -478,6 +482,7 @@ try {
   assert.equal(await evaluate(`!document.querySelector('.module-editor-form')`), true)
   await until(`document.querySelector('.module-audit')?.textContent.includes('没有查看操作记录的权限')`)
   assert.equal(auditRequests, allowedAuditRequests)
+  assert.equal(await evaluate(`document.querySelectorAll('.sidebar nav a').length === 2 && !document.querySelector('.system-status')`), true)
   const previousUserRequests = userRequests
   await visit('/modules')
   await until(`document.querySelector('.module-list')`)
@@ -489,6 +494,7 @@ try {
   await loadPage('Page.reload')
   await until(`document.querySelector('main')?.textContent.includes('没有用户管理权限')`)
   assert.equal(userRequests, previousUserRequests)
+  assert.equal(await evaluate(`document.querySelectorAll('.sidebar nav a').length === 3 && Boolean(document.querySelector('.sidebar a[href="/modules"]')) && !document.querySelector('.sidebar a[href="/settings"]')`), true)
   admin = false; authenticated = false
   await loadPage('Page.reload')
   await until(`location.pathname === '/login' && document.querySelector('#login-password')`)
@@ -496,6 +502,8 @@ try {
   authenticated = true
   await visit('/users')
   await until(`document.querySelector('.user-create-form') && document.querySelectorAll('.managed-user').length === 20`)
+  await click('.create-disclosure > summary')
+  assert.equal(await evaluate(`document.querySelector('.create-disclosure').open`), true)
   await evaluate(`(() => { window.confirm=()=>true; const name=document.querySelector('.user-create-form input:not([type=password])'); name.value='fixture-new'; name.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('.user-create-form input[type=password]').value=crypto.randomUUID(); document.querySelector('.user-create-form').requestSubmit(); })()`)
   await until(`document.querySelector('.user-create [role=status]') && document.querySelector('.managed-user h3')?.textContent === 'fixture-new'`)
   assert.equal(await evaluate(`document.querySelector('.user-create-form input[type=password]').value`),'')
@@ -562,7 +570,13 @@ try {
     await evaluate(`window.confirm=()=>true`)
     await click('.approvals li button')
     await until(`document.querySelector('.approvals')?.textContent.includes('此页没有待审核')`)
-    await evaluate(`document.querySelector('.registration-policy input[type=checkbox]').click(); document.querySelector('.registration-policy form').requestSubmit()`)
+    assert.equal(await evaluate(`document.querySelector('.registration-policy button[type=submit]').disabled`), true)
+    await evaluate(`document.querySelector('.registration-policy input[role=switch]').focus()` )
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 })
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 })
+    await until(`!document.querySelector('.registration-policy input[role=switch]').checked`)
+    assert.equal(registrationPolicy.enabled,true, 'Switch must not save before explicit submission')
+    await evaluate(`document.querySelector('.registration-policy form').requestSubmit()`)
     await until(`document.querySelector('.registration-policy [role=status]')?.textContent.includes('已保存')`)
     assert.equal(registrationPolicy.enabled,false)
     registrationStatus=503

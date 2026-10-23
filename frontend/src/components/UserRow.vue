@@ -23,7 +23,7 @@ onUnmounted(() => { controller?.abort(); clearTimeout(timer) })
 <template>
   <li class="managed-user">
     <div class="managed-user-heading"><h3>{{ user.username }}</h3><span v-if="user.id === selfId" class="subtle">当前账户 · 受保护</span><span>{{ user.active ? '已启用' : '已禁用' }}</span></div>
-    <p class="subtle user-id">{{ user.id }}</p><p class="subtle">创建于 <time :datetime="user.created_at">{{ new Date(user.created_at).toLocaleString('zh-CN', { hour12: false }) }}</time></p>
+    <details class="account-details"><summary>账户详情</summary><p class="subtle user-id">{{ user.id }}</p><p class="subtle">创建于 <time :datetime="user.created_at">{{ new Date(user.created_at).toLocaleString('zh-CN', { hour12: false }) }}</time></p></details>
     <form class="user-update-form" @submit.prevent="submit" :aria-busy="busy"><fieldset :disabled="busy || user.id === selfId"><legend class="sr-only">管理 {{ user.username }}</legend>
       <label>角色<select v-model="role"><option value="viewer">只读成员 · viewer</option><option value="admin">管理员 · admin</option><option value="owner">所有者 · owner</option></select></label>
       <label class="user-active"><input v-model="active" type="checkbox" />启用账户</label>
@@ -33,11 +33,11 @@ onUnmounted(() => { controller?.abort(); clearTimeout(timer) })
   </li>
 </template>
 <style scoped>
-.managed-user { border-top: 1px solid var(--line); padding: 20px 0; }
+.managed-user { border-top: 1px solid var(--line); padding: 18px 0; }
 .managed-user-heading { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; } h3 { margin: 0; }
-.user-id { overflow-wrap: anywhere; font-size: 12px; }
+.account-details { margin: 12px 0; color: var(--muted); font-size: 12px; } .account-details summary { cursor: pointer; min-height: 44px; padding: 12px 0; } .user-id { overflow-wrap: anywhere; font-size: 12px; }
 fieldset { border: 0; padding: 0; display: flex; gap: 16px; align-items: end; flex-wrap: wrap; } label { display: grid; gap: 8px; } select, button { min-height: 44px; }
 .user-active { display: flex; align-items: center; min-height: 44px; gap: 8px; } .user-active input { width: 18px; min-height: 18px; accent-color: var(--accent); }
 [role=alert] { color: var(--danger); } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-@media(max-width:760px) { fieldset { align-items: stretch; flex-direction: column; } }
+@media(max-width:760px) { fieldset { display:grid; grid-template-columns: 1fr 1fr; gap:12px; align-items:center; } fieldset>label:first-of-type { grid-column:1/-1; } .user-active { font-size:13px; } }
 </style>
