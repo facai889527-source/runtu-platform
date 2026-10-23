@@ -31,7 +31,7 @@ try {
     const message = JSON.parse(event.data)
     if (message.id) {
       const pending = waiting.get(message.id); waiting.delete(message.id)
-      message.error ? pending.reject(new Error('Browser command failed')) : pending.resolve(message.result)
+      message.error ? pending.reject(new Error(message.error.message || 'Browser command failed')) : pending.resolve(message.result)
     }
     if (message.method === 'Page.loadEventFired') loads++
     if (message.method === 'Runtime.exceptionThrown') errors.push('Browser runtime exception')
@@ -54,12 +54,14 @@ try {
     throw new Error('Auth smoke condition timed out')
   }
   async function screenshot(name) {
+    await until(`!document.querySelector('.auth-toast-enter-active, .auth-toast-leave-active')`)
     // Guard every capture: never record a filled password field.
     assert.equal(await evaluate(`!document.querySelector('input[type=password]')?.value`), true)
     const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: !/^(users-|grant-|my-modules)/.test(name) })
     await writeFile(path.join(output, name + '.png'), Buffer.from(shot.data, 'base64'))
   }
   let authenticated = false, failLogout = false, failIdentity = false, invalidRole = false
+  let loginStatus = 200, delayLogin = false
   let failSettings = false, delaySettings = false
   const scriptRequests = new Set()
   socket.addEventListener('message', event => {
@@ -81,6 +83,7 @@ try {
   let apiRequests = 0, sessionWrites = 0
   let registrationPolicy = { enabled:false, approval_required:true, revision:0 }, registrationStatus = 200
   let applications = []
+  let policyReads = 0, failPolicyNetwork = false, delayPolicy = false
   socket.addEventListener('message', async event => {
     const message = JSON.parse(event.data)
     if (message.method !== 'Fetch.requestPaused') return
@@ -98,7 +101,12 @@ try {
       apiRequests++
       let code = 200, body
       if (pathname === '/api/health') body = { status: 'ok', platform: 'Runtu Platform', database: 'ready' }
-      else if (pathname === '/api/auth/registration-policy') { code=registrationStatus; body={enabled:registrationPolicy.enabled,approval_required:registrationPolicy.approval_required} }
+      else if (pathname === '/api/auth/registration-policy') {
+        policyReads++
+        if (delayPolicy) await new Promise(resolve=>setTimeout(resolve,500))
+        if (failPolicyNetwork) { await send('Fetch.failRequest',{requestId,errorReason:'ConnectionFailed'}); return }
+        code=registrationStatus; body={enabled:registrationPolicy.enabled,approval_required:registrationPolicy.approval_required}
+      }
       else if (pathname === '/api/auth/register') {
         assert.ok(Object.keys(request.headers).some(k=>k.toLowerCase()==='x-csrf-token'))
         const value=JSON.parse(request.postData); assert.equal(value.role,undefined)
@@ -190,14 +198,18 @@ try {
         assert.equal(request.method, 'POST')
         assert.ok(Object.keys(request.headers).some(key => key.toLowerCase() === 'x-csrf-token'))
         sessionWrites++
-        if (pathname.endsWith('logout') && failLogout) code = 503
+        if (pathname.endsWith('login') && delayLogin) await new Promise(resolve=>setTimeout(resolve,600))
+        if (pathname.endsWith('login') && loginStatus !== 200) code = loginStatus
+        else if (pathname.endsWith('logout') && failLogout) code = 503
         else authenticated = pathname.endsWith('login')
         body = { authenticated, user: authenticated ? user : null }
       } else throw new Error('Unexpected API path in isolated fixture')
       await send('Fetch.fulfillRequest', { requestId, responseCode: code, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from(JSON.stringify(body)).toString('base64') })
-    } catch {
+    } catch (failure) {
+      // Explicit abort/unmount tests can remove an interception before its delayed reply.
+      if (/Invalid InterceptionId|Invalid interceptionId|Invalid RequestId|Invalid requestId/i.test(failure.message)) return
       errors.push('Fixture request failed')
-      await send('Fetch.failRequest', { requestId, errorReason: 'Failed' })
+      try { await send('Fetch.failRequest', { requestId, errorReason: 'Failed' }) } catch { /* interception already removed */ }
     }
   })
   await send('Runtime.enable'); await send('Page.enable')
@@ -236,7 +248,8 @@ try {
     await until(`document.querySelector('#login-password') && !document.querySelector('#login-password').disabled`)
     assert.equal(await evaluate(`!document.querySelector('.sidebar, .toolbar, .breadcrumb-current, .refresh-button')`), true)
     assert.equal(await evaluate(`document.querySelectorAll('h1').length`), 1)
-    assert.equal(await evaluate(`document.querySelector('.login-form a')?.textContent`),'申请注册账号')
+    assert.equal(await evaluate(`document.querySelector('.login-help').textContent.replace(/\s+/g,' ').trim()`),'没有账户？ 申请注册账号')
+    assert.equal(await evaluate(`document.querySelectorAll('.login-help a').length`),1)
     await evaluate(`(() => { const el = document.querySelector('#login-username'); el.value = 'layout-fixture'; el.dispatchEvent(new Event('input', { bubbles: true })); window.dispatchEvent(new Event('focus')); })()`)
     await new Promise(resolve => setTimeout(resolve, 100))
     assert.equal(await evaluate(`document.querySelector('#login-username').value`), 'layout-fixture')
@@ -249,6 +262,79 @@ try {
       await writeFile(path.join(output, 'login-script-requests.json'), JSON.stringify({ origin, scripts, excludedWorkspaceChunks: true }, null, 2))
       console.log(`PASS cold login resource boundary: ${scripts.length} script requests; no workspace/page chunks (${new URL(origin).port})`)
     }
+    await evaluate(`document.querySelector('#login-username').focus()`)
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
+    await until(`document.activeElement.id === 'login-password'`)
+    const beforePolicyReads = policyReads
+    delayPolicy=true
+    await evaluate(`document.querySelector('.login-help a').click();document.querySelector('.login-help a').click()`)
+    await until(`document.querySelector('.signup-pending')?.textContent.includes('正在确认')`)
+    await until(`document.querySelector('.auth-toast span')?.textContent === '管理员未开启注册'`)
+    assert.equal(await evaluate(`location.pathname`),'/login')
+    assert.equal(policyReads,beforePolicyReads+1)
+    await click('.login-help a')
+    assert.equal(policyReads,beforePolicyReads+1)
+    assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel, .registration-closed'))`),false)
+    assert.equal(await evaluate(`document.querySelector('#login-title').textContent`),'欢迎回来')
+    assert.equal(await evaluate(`document.querySelector('.login-context p').textContent`),'登录润土平台，开启高效工作')
+    assert.equal(await evaluate(`document.querySelector('.auth-toast-region').getAttribute('aria-live')`),'polite')
+    assert.equal(await evaluate(`Boolean(document.querySelector('.signup-notice'))`),false)
+    await noOverflow(); await screenshot(`signup-closed-${width}`)
+    await click('.auth-toast button')
+    await until(`!document.querySelector('.auth-toast')`)
+    await click('.login-help a')
+    await until(`document.querySelector('.auth-toast span')?.textContent === '管理员未开启注册'`)
+    assert.equal(policyReads,beforePolicyReads+1)
+    await until(`!document.querySelector('.auth-toast')`)
+    assert.equal(await evaluate(`location.pathname`),'/login')
+    delayPolicy=false
+    // A direct URL remains public, but closed policy has no form or retry control.
+    await visit('/register')
+    await until(`document.querySelector('.registration-closed')?.textContent.includes('暂未开放注册')`)
+    assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel form, .register-panel input, .register-panel button'))`),false)
+    await screenshot(`registration-closed-${width}`)
+    for (const failure of [404,503,'network']) {
+      registrationStatus=failure === 'network'?200:failure;failPolicyNetwork=failure === 'network'
+      await visit('/login')
+      await click('.login-help a')
+      await until(`document.querySelector('.auth-toast span')?.textContent === '注册服务暂不可用，请稍后再试'`)
+      assert.equal(await evaluate(`location.pathname`),'/login')
+      assert.equal(await evaluate(`document.querySelector('.auth-toast span').textContent.includes('暂未开放')`),false)
+      if(failure===503) { await screenshot(`signup-unavailable-${width}`); await until(`!document.querySelector('.auth-toast')`) }
+    }
+    registrationStatus=200;failPolicyNetwork=false
+    registrationPolicy.enabled=true
+    await visit('/login')
+    await click('.login-help a')
+    await until(`location.pathname === '/register' && document.querySelector('.register-panel form')`)
+    // Unmount an in-flight check: its late response must not navigate away.
+    await click('.login-link')
+    delayPolicy=true
+    await click('.login-help a')
+    await until(`document.querySelector('.signup-pending')?.textContent.includes('正在确认')`)
+    await evaluate(`history.pushState(null,'','/register');window.dispatchEvent(new PopStateEvent('popstate'))`)
+    await until(`location.pathname === '/register' && document.querySelector('.register-panel form')`)
+    delayPolicy=false;registrationPolicy.enabled=false
+    await visit('/login')
+    await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('#login-username')).transitionDuration`),'0s')
+    await click('.login-help a')
+    await until(`document.querySelector('.auth-toast')`)
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.auth-toast')).transitionDuration`),'0s')
+    await click('.auth-toast button')
+    await until(`!document.querySelector('.auth-toast')`)
+    await send('Emulation.setEmulatedMedia',{features:[]})
+    delayLogin=true
+    for (loginStatus of [401,403,503]) {
+      await evaluate(`(() => { for (const [id,value] of [['login-username','layout-fixture'],['login-password','fixture-only-not-a-real-password']]) { const el=document.getElementById(id);el.value=value;el.dispatchEvent(new Event('input',{bubbles:true})); } document.querySelector('.login-form').requestSubmit() })()`)
+      await until(`document.querySelector('.login-submit').disabled && document.querySelector('#login-password').value === ''`)
+      await until(`document.querySelector('.auth-error') && !document.querySelector('.login-submit').disabled`)
+      assert.equal(authenticated,false)
+      assert.equal(await evaluate(`!document.querySelector('.sidebar, .user-menu')`),true)
+      await noOverflow()
+    }
+    await screenshot(`login-unavailable-${width}`)
+    loginStatus=200;delayLogin=false
     // Deliberately fake inputs; all APIs above are intercepted, no live account or DB used.
     await evaluate(`(() => { for (const [id, value] of [['login-username','layout-fixture'], ['login-password','fixture-only-not-a-real-password']]) { const el = document.getElementById(id); el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); } document.querySelector('.login-form').requestSubmit(); })()`)
     await until(`location.pathname === '/' && document.querySelector('.user-menu')`)
@@ -453,17 +539,17 @@ try {
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<761})
     authenticated=false; registrationPolicy={enabled:false,approval_required:true,revision:0}
     await visit('/register')
-    await until(`document.querySelector('.register-panel')?.textContent.includes('当前未开放')`)
+    await until(`document.querySelector('.register-panel')?.textContent.includes('暂未开放注册')`)
     assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel input[type=password]'))`),false)
     for (registrationStatus of [404,503]) {
-      await click('.register-panel > button')
+      await loadPage('Page.reload')
       await until(`document.querySelector('.register-panel [role=alert]')?.textContent.includes('注册服务暂不可用')`)
       assert.equal(await evaluate(`document.querySelector('.register-panel').textContent.includes('申请不存在')`),false)
       assert.equal(await evaluate(`Boolean(document.querySelector('.register-panel input[type=password]'))`),false)
     }
     registrationStatus=200
     registrationPolicy.enabled=true
-    await click('.register-panel > button')
+    await loadPage('Page.reload')
     await until(`document.querySelector('.register-panel input[type=password]')`)
     await evaluate(`(() => { const input=document.querySelector('.register-panel input:not([type=password])');input.value='registration-candidate';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.register-panel input[type=password]').value=crypto.randomUUID();document.querySelector('.register-panel form').requestSubmit() })()`)
     await until(`document.querySelector('.register-panel')?.textContent.includes('申请已提交')`)

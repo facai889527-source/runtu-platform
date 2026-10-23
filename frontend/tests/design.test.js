@@ -20,3 +20,8 @@ test('core text and semantic state token pairs meet 4.5:1 contrast', () => {
     console.log(`${foreground}/${background}: ${ratio.toFixed(2)}:1`)
   }
 })
+
+test('authentication text, field boundaries and primary actions meet contrast targets', () => {
+  for (const [foreground,background] of [['#56676d','#ffffff'],['#526873','#eef5f3'],['#ffffff','#176d58'],['#ffffff','#125844'],['#c5dfdc','#274b46'],['#9d3434','#fff3f1'],['#223b35','#fffffc']]) assert.ok(contrast(foreground,background)>=4.5,foreground+'/'+background)
+  assert.ok(contrast('#7b929d','#fcfcf9')>=3,'input boundary')
+})

@@ -1,12 +1,37 @@
 <script setup>
 import { ref, onUnmounted } from 'vue'
-import RouteLink from '../components/RouteLink.vue'
+import { useNavigation } from '../navigation/context.js'
+import { readPublicPolicy } from '../api/registration.js'
 import { login } from '../api/auth.js'
+import AuthToast from '../components/AuthToast.vue'
 const emit = defineEmits(['authenticated'])
 const username = ref(''), password = ref(''), pending = ref(false), error = ref('')
+const { navigate } = useNavigation()
+const signupPending = ref(false), signupNotice = ref(null)
+function notify(message) { signupNotice.value = { message } }
+let signupController, signupTimer, live = true, cachedPolicy, checkedAt = 0
 let controller, timer
+async function signup() {
+  if (pending.value || signupPending.value) return
+  signupNotice.value = null
+  if (cachedPolicy && Date.now() - checkedAt < 10000) {
+    if (cachedPolicy.enabled) navigate('/register')
+    else notify('管理员未开启注册')
+    return
+  }
+  signupPending.value = true; signupController = new AbortController()
+  signupTimer = setTimeout(() => signupController.abort(), 8000)
+  try {
+    const policy = await readPublicPolicy(signupController.signal)
+    if (!live) return
+    cachedPolicy = policy; checkedAt = Date.now()
+    if (policy.enabled) navigate('/register')
+    else notify('管理员未开启注册')
+  } catch { if (live) notify('注册服务暂不可用，请稍后再试') }
+  finally { clearTimeout(signupTimer); if (live) signupPending.value = false }
+}
 async function submit() {
-  if (pending.value) return
+  if (pending.value || signupPending.value) return
   pending.value = true; error.value = ''
   controller = new AbortController()
   timer = setTimeout(() => controller.abort(), 10000)
@@ -21,33 +46,35 @@ async function submit() {
     error.value = failure.name === 'AbortError' ? '请求超时，请重新确认登录状态后重试。' : failure.message || '网络连接失败，请稍后重试。'
   } finally { clearTimeout(timer); pending.value = false }
 }
-onUnmounted(() => { clearTimeout(timer); controller?.abort(); password.value = '' })
+onUnmounted(() => { live = false; clearTimeout(timer); controller?.abort(); clearTimeout(signupTimer); signupController?.abort(); password.value = '' })
 </script>
 <template>
   <section class="login-panel" aria-labelledby="login-title">
-    <div class="login-context"><h1 id="login-title">登录管理后台</h1><p>使用你的平台账户继续。</p></div>
-    <form class="login-form" @submit.prevent="submit" :aria-busy="pending">
+    <div class="login-context"><h1 id="login-title">欢迎回来</h1><p>登录润土平台，开启高效工作</p></div>
+    <form class="login-form" @submit.prevent="submit" :aria-busy="pending || signupPending">
       <label for="login-username">用户名</label>
       <input id="login-username" v-model="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" :disabled="pending" />
       <label for="login-password">密码</label>
       <input id="login-password" v-model="password" name="password" type="password" autocomplete="current-password" required maxlength="128" :disabled="pending" />
       <p v-if="error" class="auth-error" role="alert">{{ error }}</p>
-      <button type="submit" class="login-submit" :disabled="pending">{{ pending ? '正在验证…' : '登录' }}</button>
-      <p class="login-help">没有账户？请联系平台管理员。</p>
-      <RouteLink to="/register">申请注册账号</RouteLink>
+      <button type="submit" class="login-submit" :disabled="pending || signupPending">{{ pending ? '正在验证…' : '登录' }}</button>
+      <p class="login-help">没有账户？ <a href="/register" :aria-disabled="pending || signupPending" @click.prevent="signup">申请注册账号</a></p>
+      <span v-if="signupPending" class="signup-pending" role="status">正在确认注册状态…</span>
     </form>
+    <AuthToast :notice="signupNotice" />
   </section>
 </template>
 <style scoped>
 .login-panel { width: 100%; }
-.login-context { margin-bottom: 28px; }
-.login-context h1 { font-size: 28px; margin-bottom: 10px; }
-.login-context p { color: var(--muted); margin: 0; }
+.login-context { margin-bottom: 32px; }
+.login-context p { color: var(--auth-muted); margin: 0; font-size: 14px; line-height: 1.8; }
 .login-form { display: flex; flex-direction: column; gap: 10px; }
-.login-form label { font-weight: 600; }
-.login-form input { width: 100%; min-height: 46px; border: 1px solid var(--line-strong); border-radius: 8px; background: white; padding: 10px 12px; margin-bottom: 12px; color: var(--ink); }
-.login-submit { background: var(--accent); color: white; border-color: var(--accent); margin-top: 6px; }
-.login-submit:hover { background: var(--accent-hover); color: white; }
-.login-help { color: #526873; font-size: 12px; margin: 10px 0 0; }
-.auth-error { color: var(--danger); margin: 0; }
+.login-form label { font-size: 13px; font-weight: 600; }
+.login-form input { margin-bottom: 14px; }
+.login-submit { margin-top: 6px; }
+.login-help { margin: 14px 0 0; color: var(--auth-muted); text-align: center; font-size: 13px; line-height: 2; }
+.login-help a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+.auth-error { margin: 0; }
+.signup-pending { color: var(--auth-muted); text-align: center; font-size: 12px; line-height: 1.8; }
+.login-help a[aria-disabled=true] { opacity: .65; cursor: wait; }
 </style>
