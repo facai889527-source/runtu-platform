@@ -2,14 +2,16 @@
   "task_id": "TASK-0044",
   "signal_version": 44,
   "state": "running",
-  "updated_at": "2026-10-23T10:27:01.481Z",
-  "summary": "Applying formal navigation and brand follow-up on existing PR28 branch.",
+  "updated_at": "2026-10-23T10:30:52.618Z",
+  "summary": "Navigation and brand follow-up pushed to existing PR28; screenshots and local regression passed; awaiting current-head CI.",
   "checks": [
-    "No TASK-0044 PR or local execution record; remote status confirmed absent; prior TASK-0043 completed."
+    "Owner navigation exactly Home/Tools/Users/Global settings; admin module-only settings and viewer/anonymous boundaries verified.",
+    "Node 28 passed; production build passed; isolated browser at 1440/390/360 passed including modules, grants, registration and keyboard.",
+    "Eight exact desktop/mobile screenshots reviewed and committed under docs/ui/TASK-0044."
   ],
   "blockers": [],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
-  "commit_sha": null,
-  "next_action": "Verify PR28 branch head; simplify navigation and expose permitted module administration under global settings."
+  "commit_sha": "48da7135368194b4897af08258bfe3a08e461842",
+  "next_action": "Verify current-head CI and report completion; PR28 remains stacked on PR27, no merge or deployment."
 }
