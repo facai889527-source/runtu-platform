@@ -2,6 +2,8 @@
 import { shallowRef,computed,onUnmounted } from 'vue'
 import { updateUser } from '../api/users.js'
 import UserDialog from './UserDialog.vue'
+import AccountSelect from './AccountSelect.vue'
+import { roleOptions } from '../utils/userDirectory.js'
 import UserModuleAccess from './UserModuleAccess.vue'
 import { roleLabel } from '../utils/userDirectory.js'
 const props=defineProps({user:{type:Object,required:true},selfId:String})
@@ -31,11 +33,7 @@ onUnmounted(()=>{controller?.abort();clearTimeout(timer)})
 <p v-if="self" class="user-guidance">这是您当前使用的账户，不能更改自身角色或停用自身。所有者保护由服务端校验。</p>
 <fieldset :disabled="busy||self||confirm">
 <legend class="sr-only">管理 {{current.username}}</legend>
-<label>角色<select v-model="role" class="user-select">
-<option value="viewer">普通用户</option>
-<option value="admin">管理员</option>
-<option value="owner">所有者</option>
-</select>
+<label>角色<AccountSelect v-model="role" label="角色" :options="roleOptions" />
 <small>不会允许停用或降级最后一位已启用的所有者。</small>
 </label>
 <label class="user-toggle">

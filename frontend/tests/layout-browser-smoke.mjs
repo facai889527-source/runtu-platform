@@ -6,7 +6,7 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 const origin = process.env.RUNTU_UI_BASE_URL || 'http://127.0.0.1:5173'
 assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:4173'].includes(origin), 'Only explicit loopback dev/preview origins are supported')
-const output = path.resolve('.git/codex-coordination/task48-after', new URL(origin).port)
+const output = path.resolve('.git/codex-coordination/task49-after', new URL(origin).port)
 await mkdir(output, { recursive: true })
 let occupied = false
 try { occupied = (await fetch('http://127.0.0.1:9229/json')).ok } catch { /* Free port. */ }
@@ -88,7 +88,7 @@ try {
   let auditEntries = [], auditStatus = 200, auditRequests = 0, delayAudit = false
   let apiRequests = 0, sessionWrites = 0
   let registrationPolicy = { enabled:false, approval_required:true, revision:0 }, registrationStatus = 200
-  let applications = []
+  let applications = [], reviewStatus=200, reviewDetailStatus=200, reviewRequests=0
   let policyReads = 0, failPolicyNetwork = false, delayPolicy = false
   socket.addEventListener('message', async event => {
     const message = JSON.parse(event.data)
@@ -130,9 +130,23 @@ try {
         body=registrationPolicy
       }
       else if (pathname === '/api/admin/registrations' || pathname.startsWith('/api/admin/registrations/')) {
+        reviewRequests++
+        const parts=pathname.split('/'),id=parts[4],action=parts[5],application=applications.find(row=>row.id===id)
         code=!authenticated?401:viewer||admin?403:registrationStatus
-        if(request.method==='POST') { assert.ok(Object.keys(request.headers).some(k=>k.toLowerCase()==='x-csrf-token')); applications=[]; body={state:'approved'} }
-        else body={items:applications,next_after_username:null}
+        if(id&&code===200){
+          if(!application)code=404
+          else if(request.method==='POST'){
+            assert.ok(Object.keys(request.headers).some(k=>k.toLowerCase()==='x-csrf-token'))
+            code=reviewStatus
+            if(code===200&&application.state!=='pending')code=409
+            if(code===200){application.state=action==='approve'?'approved':'rejected';body={state:application.state};if(action==='approve')managedUsers.push({id:application.id,username:application.username,role:'viewer',active:true,created_at:'2026-10-21T08:00:00Z'})}
+          }else{code=reviewDetailStatus;body={id:application.id,username:application.username,state:application.state,created_at:'2026-10-21T08:00:00Z'}}
+        }else if(code===200){
+          const params=new URL(request.url).searchParams,state=params.get('state')||'pending',after=params.get('after_username')
+          const rows=applications.filter(row=>row.state===state&&(after==null||row.username>after)).sort((a,b)=>a.username<b.username?-1:1)
+          body={items:rows.slice(0,20).map(row=>({id:row.id,username:row.username,state:row.state})),next_after_username:rows.length>20?rows[19].username:null}
+        }
+        if(code!==200)body={detail:'fixture-review-error'}
       }
       else if (pathname === '/api/me/modules') {
         if(ownDelay) await new Promise(resolve=>setTimeout(resolve,600))
@@ -252,9 +266,14 @@ try {
     await evaluate(`document.querySelector('.directory-search input').value='no-match';document.querySelector('.directory-search input').dispatchEvent(new Event('input',{bubbles:true}))`)
     await until(`document.querySelectorAll('.managed-user').length===0`)
     await click('.directory-state button');await until(`document.querySelectorAll('.managed-user').length===20`)
-    await evaluate(`(()=>{const select=document.querySelector('[aria-label="筛选本页角色"]');select.value='owner';select.dispatchEvent(new Event('change',{bubbles:true}))})()`)
+    await click('[aria-label="筛选本页角色"]')
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'End',code:'End',windowsVirtualKeyCode:35})
+    await send('Input.dispatchKeyEvent',{type:'keyUp',key:'End',code:'End',windowsVirtualKeyCode:35})
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
+    await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
     await until(`document.querySelectorAll('.managed-user').length===1`)
-    await evaluate(`(()=>{const select=document.querySelector('[aria-label="筛选本页角色"]');select.value='';select.dispatchEvent(new Event('change',{bubbles:true}))})()`)
+    await click('[aria-label="筛选本页角色"]')
+    await evaluate(`document.querySelector('.account-select-popup [role=option]').click()`)
     await click('.user-pagination button:last-child');await until(`document.querySelectorAll('.managed-user').length===2`)
     await click('.user-pagination button:first-child');await until(`document.querySelectorAll('.managed-user').length===20`)
     await click('.directory-create');await until(`document.querySelector('dialog')?.open`)
@@ -328,7 +347,91 @@ try {
     assert.deepEqual(errors,[])
     console.log('PASS user directory: modal keyboard/focus/scroll, roles, self protection, API denied/stale, create/password clearing, grant/revoke/errors/empty, pagination/search and 1440/390/360; all APIs intercepted.')
   }
-  if(process.env.RUNTU_USERS_ONLY==='1'){await userDirectoryChecks()}
+  async function reviewCenterChecks(capture=true){
+    await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false})
+    authenticated=true;viewer=false;admin=false;registrationStatus=200;reviewStatus=200;reviewDetailStatus=200
+    const key=async(key,code,virtual)=>{await send('Input.dispatchKeyEvent',{type:'keyDown',key,code,windowsVirtualKeyCode:virtual});await send('Input.dispatchKeyEvent',{type:'keyUp',key,code,windowsVirtualKeyCode:virtual})}
+    async function click(selector){await evaluate(`document.querySelector(${JSON.stringify(selector)}).focus();document.querySelector(${JSON.stringify(selector)}).click()`)}
+    const before=reviewRequests
+    await visit('/settings');await until(`document.querySelector('.registration-policy fieldset')`)
+    assert.equal(reviewRequests,before,'Settings must not request registration applications')
+    assert.equal(await evaluate(`!document.querySelector('.registration-directory,.approvals')`),true)
+    await visit('/users');await until(`document.querySelectorAll('.managed-user').length===20`)
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.user-directory')).borderTopWidth`),'0px')
+    assert.equal(await evaluate(`!document.querySelector('.users-page select')`),true)
+    await click('.directory-create');await until(`document.querySelector('dialog')?.open`)
+    await click('.user-create-form [role=combobox]');await until(`document.querySelector('[role=listbox]')`)
+    assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('[role=option]')).map(o=>o.textContent.replace('✓','').trim())`),['普通用户','管理员','所有者'])
+    await key('ArrowDown','ArrowDown',40);await key('Enter','Enter',13)
+    await until(`document.querySelector('.user-create-form [role=combobox]')?.textContent.includes('管理员')`)
+    assert.equal(await evaluate(`document.querySelector('.user-create-form .user-toggle input').checked`),false)
+    await click('.user-create-form [role=combobox]');await key('Escape','Escape',27)
+    assert.equal(await evaluate(`document.querySelector('dialog').open&&!document.querySelector('[role=listbox]')`),true)
+    await click('.dialog-close');await until(`!document.querySelector('dialog')`)
+    const approvedId='review-approved-fixture',rejectedId='review-rejected-fixture'
+    applications=[{id:approvedId,username:'apply-alpha',state:'pending'},{id:rejectedId,username:'apply-beta',state:'pending'}]
+    const actualUsers=managedUsers.length
+    await click('#users-reviews-tab');await until(`document.querySelectorAll('.application-row').length===2`)
+    assert.equal(managedUsers.length,actualUsers)
+    await click('.application-row .directory-manage');await until(`document.querySelector('.review-detail')`)
+    await evaluate(`Array.from(document.querySelectorAll('.review-detail button')).find(b=>b.textContent==='批准申请').click()`)
+    reviewStatus=409;await click('.review-detail .user-confirm button:last-child');await until(`document.querySelector('.review-detail [role=alert]')`)
+    assert.equal(managedUsers.length,actualUsers)
+    reviewStatus=200
+    await evaluate(`Array.from(document.querySelectorAll('.review-detail button')).find(b=>b.textContent==='批准申请').click()`)
+    await click('.review-detail .user-confirm button:last-child');await until(`!document.querySelector('dialog')&&document.querySelectorAll('.application-row').length===1`)
+    assert.equal(managedUsers.length,actualUsers+1)
+    await until(`document.activeElement===document.querySelector('#users-reviews-tab')`)
+    await click('.application-row .directory-manage');await until(`document.querySelector('.review-detail')`)
+    await evaluate(`Array.from(document.querySelectorAll('.review-detail button')).find(b=>b.textContent==='拒绝申请').click()`)
+    await click('.review-detail .user-confirm button:last-child');await until(`!document.querySelector('dialog')&&document.querySelector('.registration-directory')?.textContent.includes('暂无待审核')`)
+    assert.equal(managedUsers.length,actualUsers+1)
+    await click('[aria-label="筛选申请状态"]');await key('End','End',35);await key('Enter','Enter',13)
+    await until(`document.querySelectorAll('.application-row').length===1&&document.querySelector('.application-state')?.textContent==='已拒绝'`)
+    await click('.application-row .directory-manage');await until(`document.querySelector('.review-finished')`)
+    assert.equal(await evaluate(`!Array.from(document.querySelectorAll('.review-detail button')).some(b=>b.textContent==='批准申请'||b.textContent==='拒绝申请')`),true)
+    if(capture)await screenshot('users-rejected-1440')
+    await click('.dialog-close');await until(`!document.querySelector('dialog')`)
+    // Detail not found and storage errors must offer refresh, never review controls.
+    reviewDetailStatus=404;await click('.application-row .directory-manage');await until(`document.querySelector('dialog [role=alert]')`)
+    assert.equal(await evaluate(`!document.querySelector('.review-detail')`),true)
+    await click('.dialog-close');await until(`!document.querySelector('dialog')`)
+    reviewDetailStatus=200
+    registrationStatus=503;await click('.review-toolbar .directory-refresh');await until(`document.querySelector('.registration-directory [role=alert]')`)
+    registrationStatus=200;await click('.registration-directory [role=alert] button');await until(`document.querySelector('.application-row')`)
+    applications=Array.from({length:22},(_,i)=>({id:`page-review-${i}`,username:`pending-${String(i).padStart(3,'0')}`,state:'pending'}))
+    await click('[aria-label="筛选申请状态"]');await key('Home','Home',36);await key('Enter','Enter',13)
+    await until(`document.querySelectorAll('.application-row').length===20`)
+    await click('.registration-directory .user-pagination button:last-child');await until(`document.querySelectorAll('.application-row').length===2`)
+    await click('.registration-directory .user-pagination button:first-child');await until(`document.querySelectorAll('.application-row').length===20`)
+    for(const [width,height] of [[1440,900],[390,844],[360,800]]){
+      await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<761})
+      await visit('/users');await until(`document.querySelectorAll('.managed-user').length===20`)
+      await noOverflow();if(capture)await screenshot(`users-flat-${width}`)
+      await click('.directory-create');await click('.user-create-form [role=combobox]');await until(`document.querySelector('[role=listbox]')`)
+      assert.equal(await evaluate(`(()=>{const r=document.querySelector('[role=listbox]').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight})()`),true)
+      if(capture)await screenshot(`users-role-options-${width}`)
+      await evaluate(`document.querySelector('.user-dialog-heading').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))`)
+      await until(`!document.querySelector('[role=listbox]')`)
+      await click('.dialog-close');await until(`!document.querySelector('dialog')`)
+      applications=[{id:`screen-pending-${width}`,username:'new-applicant',state:'pending'}]
+      await click('#users-reviews-tab');await until(`document.querySelector('.application-row')`)
+      await noOverflow();if(capture)await screenshot(`users-pending-${width}`)
+      await click('.application-row .directory-manage');await until(`document.querySelector('.review-detail')`)
+      if(capture)await screenshot(`users-review-${width}`)
+      await click('.dialog-close');await until(`!document.querySelector('dialog')`)
+      applications=[];await click('.review-toolbar .directory-refresh');await until(`document.querySelector('.registration-directory')?.textContent.includes('暂无待审核')`)
+      if(capture)await screenshot(`users-review-empty-${width}`)
+    }
+    const reads=reviewRequests
+    for(const role of ['admin','viewer']){viewer=role==='viewer';admin=role==='admin';await visit('/users');await until(`document.querySelector('main')?.textContent.includes('没有用户管理权限')`);assert.equal(await evaluate(`!document.querySelector('#users-reviews-tab,.application-row,dialog')`),true);if(capture)await screenshot(`users-forbidden-${role}`)}
+    assert.equal(reviewRequests,reads)
+    viewer=false;admin=false;assert.deepEqual(errors,[])
+    console.log('PASS unified account/review center: owner-only approve/reject, stale/missing/service errors, separate counts and pagination, empty/rejected states, custom dropdown keyboard/Escape/outside/viewport, no Settings review fetch, 1440/390/360, admin/viewer denial.')
+  }
+
+  if(process.env.RUNTU_REVIEWS_ONLY==='1'){await reviewCenterChecks()}
+  else if(process.env.RUNTU_USERS_ONLY==='1'){await userDirectoryChecks();await reviewCenterChecks()}
   else if (process.env.RUNTU_HOME_ONLY === '1') {
     for (const [width,height] of [[1440,900],[390,844],[360,800]]) {
       await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<761})
@@ -700,6 +803,7 @@ try {
   authenticated = true
   await visit('/users')
   await userDirectoryChecks(false)
+  await reviewCenterChecks(false)
   authenticated=true; viewer=false; admin=false
   await visit('/modules/demo')
   await until(`document.querySelector('.module-editor-form')`)
@@ -758,11 +862,11 @@ try {
     await noOverflow(); await screenshot('registration-pending-'+width)
     authenticated=true
     await visit('/settings')
-    await until(`document.querySelector('.approvals li') && document.querySelector('.registration-policy fieldset')`)
+    await until(`document.querySelector('.registration-policy fieldset')`)
+    assert.equal(await evaluate(`!document.querySelector('.approvals,.registration-directory')`),true)
     await noOverflow(); await screenshot('registration-owner-'+width)
     await evaluate(`window.confirm=()=>true`)
-    await click('.approvals li button')
-    await until(`document.querySelector('.approvals')?.textContent.includes('此页没有待审核')`)
+    await visit('/users');await until(`document.querySelector('#users-reviews-tab')`);await click('#users-reviews-tab');await until(`document.querySelector('.application-row')`);await click('.application-row .directory-manage');await until(`document.querySelector('.review-detail')`);await evaluate(`Array.from(document.querySelectorAll('.review-detail button')).find(b=>b.textContent==='批准申请').click()`);await click('.review-detail .user-confirm button:last-child');await until(`!document.querySelector('dialog')&&document.querySelector('.registration-directory')?.textContent.includes('暂无待审核')`);await visit('/settings');await until(`document.querySelector('.registration-policy fieldset')`)
     assert.equal(await evaluate(`document.querySelector('.registration-policy button[type=submit]').disabled`), true)
     await evaluate(`document.querySelector('.registration-policy input[role=switch]').focus()` )
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 })

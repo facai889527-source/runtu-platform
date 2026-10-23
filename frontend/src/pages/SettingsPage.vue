@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import RegistrationPolicy from '../components/RegistrationPolicy.vue'
-import RegistrationApprovals from '../components/RegistrationApprovals.vue'
+import RouteLink from '../components/RouteLink.vue'
 import ModulesPage from './ModulesPage.vue'
 const props = defineProps({ access: Object, modules: Object })
 defineEmits(['changed'])
@@ -14,7 +14,7 @@ const canManageModules = computed(() => Boolean(props.access?.data.value?.permis
     <p v-else-if="access?.error.value" role="alert">设置权限暂无法确认。<button @click="access.load()">重试权限查询</button></p>
     <template v-else>
       <ModulesPage v-if="canManageModules" :modules="modules" :access="access" @changed="$emit('changed')" />
-      <template v-if="canManageAccounts"><RegistrationPolicy /><RegistrationApprovals /></template>
+      <template v-if="canManageAccounts"><RegistrationPolicy /><p class="registration-review-link">注册申请的审核与记录已统一移至 <RouteLink to="/users">用户管理</RouteLink>。</p></template>
       <section v-if="!canManageModules && !canManageAccounts" class="panel settings"><p>当前身份没有全局设置权限。注册策略和账户审核仅向所有者开放。</p></section>
     </template>
   </div>

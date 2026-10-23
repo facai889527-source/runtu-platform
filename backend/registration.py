@@ -1,4 +1,4 @@
-"""Registration policy, anonymous submissions and owner approval."""
+"""Registration policy, anonymous submissions and owner reviews."""
 from contextlib import contextmanager
 from uuid import uuid4
 
@@ -6,8 +6,8 @@ from argon2.exceptions import HashingError
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 from sqlalchemy import delete, select, update
 
-from backend.auth.service import AuthDenied, AuthUnavailable, HASHER, RateLimited, USERNAME, utcnow
-from backend.models import AuthBootstrap, AuthSession, AuthUser, RegistrationApplication, RegistrationPolicy
+from backend.auth.service import AuthDenied, AuthUnavailable, HASHER, RateLimited, USERNAME, aware, utcnow
+from backend.models import AuthBootstrap, AuthEvent, AuthSession, AuthUser, RegistrationApplication, RegistrationPolicy
 from backend.user_management import UserConflict, UserDenied, UserManagementService, UserMissing
 
 
@@ -102,19 +102,36 @@ class RegistrationService:
             session.flush()
         return {'state': 'submitted'}
 
-    def pending(self, actor, key, limit=20, after=None):
+    def pending(self, actor, key, limit=20, after=None, state='pending'):
+        if state not in ('pending', 'rejected'): raise ValueError('Invalid review state')
         with self.owner(actor, key) as session:
             name = AuthUser.username.collate('C' if session.bind.dialect.name == 'postgresql' else 'BINARY')
-            query = select(AuthUser.id, AuthUser.username).join(RegistrationApplication).where(RegistrationApplication.pending.is_(True))
+            rejected = select(AuthEvent.id).where(AuthEvent.user_id == AuthUser.id,
+                AuthEvent.event == 'registration_rejected').exists()
+            query = select(AuthUser.id, AuthUser.username).join(RegistrationApplication).where(
+                RegistrationApplication.pending.is_(True), rejected if state == 'rejected' else ~rejected)
             if after is not None: query = query.where(name > after)
             rows = session.execute(query.order_by(name).limit(limit+1)).all()
-            items = [dict(id=r.id, username=r.username, state='pending') for r in rows[:limit]]
+            items = [dict(id=r.id, username=r.username, state=state) for r in rows[:limit]]
             return dict(items=items, next_after_username=items[-1]['username'] if len(rows)>limit else None)
+
+    def rejected(self, session, target):
+        return session.scalar(select(AuthEvent.id).where(AuthEvent.user_id == target,
+            AuthEvent.event == 'registration_rejected').limit(1)) is not None
+
+    def detail(self, actor, key, target):
+        with self.owner(actor, key) as session:
+            application = session.get(RegistrationApplication, target)
+            row = session.get(AuthUser, target)
+            if application is None or row is None: raise UserMissing()
+            state = 'rejected' if self.rejected(session, target) else 'pending' if application.pending else 'approved'
+            return dict(id=row.id, username=row.username, state=state, created_at=aware(application.created_at).isoformat())
 
     def approve(self, actor, key, target):
         with self.owner(actor, key) as session:
             application = session.get(RegistrationApplication, target)
             if application is None: raise UserMissing()
+            if self.rejected(session, target): raise UserConflict()
             if not application.pending: return {'state': 'approved'}
             row = session.get(AuthUser, target)
             if row is None or row.active or row.role != 'viewer' or row.is_admin: raise UserDenied()
@@ -124,3 +141,19 @@ class RegistrationService:
             self.users.event(session, actor, target, 'registration_approved')
             session.flush()
             return {'state': 'approved'}
+
+    def reject(self, actor, key, target):
+        # The existing pending flag remains true for every unapproved application.
+        # Its durable audit decision distinguishes rejection without a schema change;
+        # existing edit/grant/downgrade guards therefore continue to fail closed.
+        with self.owner(actor, key) as session:
+            application = session.get(RegistrationApplication, target)
+            if application is None: raise UserMissing()
+            if self.rejected(session, target): return {'state': 'rejected'}
+            if not application.pending: raise UserConflict()
+            row = session.get(AuthUser, target)
+            if row is None or row.active or row.role != 'viewer' or row.is_admin: raise UserDenied()
+            session.execute(delete(AuthSession).where(AuthSession.user_id == target))
+            self.users.event(session, actor, target, 'registration_rejected')
+            session.flush()
+            return {'state': 'rejected'}

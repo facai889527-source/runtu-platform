@@ -33,7 +33,7 @@ def signup(client, name='candidate', **extra):
     return result,password
 
 
-def exercise_registration_contract(owner, app):
+def exercise_registration_contract(owner, app, *, include_rejection=True):
     assert owner.get('/api/auth/registration-policy').json()==dict(enabled=False,approval_required=True)
     with applicant(app) as guest:
         assert signup(guest)[0].status_code==403
@@ -55,8 +55,22 @@ def exercise_registration_contract(owner, app):
         assert access['role']=='viewer' and 'users.manage' not in access['permissions']
         assert guest.get('/api/me/modules').json()['items']==[]
         assert owner.get(PENDING).json()['items']==[]
+    if include_rejection: exercise_rejection_contract(owner, app)
     return row['id']
 
+
+def exercise_rejection_contract(owner, app):
+    with applicant(app) as denied:
+        result, password = signup(denied, 'denied-candidate')
+        assert result.status_code == 202
+        review = owner.get(PENDING).json()['items'][0]
+        path = PENDING+'/'+review['id']
+        assert owner.get(path).json()['state'] == 'pending'
+        assert owner.post(path+'/reject',headers=headers(owner)).json() == {'state':'rejected'}
+        assert owner.get(PENDING+'?state=rejected').json()['items'][0]['id'] == review['id']
+        assert owner.post(path+'/approve',headers=headers(owner)).status_code == 409
+        assert login(denied,password,'denied-candidate').status_code == 401
+        assert review['id'] not in {item['id'] for item in owner.get('/api/admin/users').json()['items']}
 
 def test_default_registration_approval_and_no_privilege(auth,caplog):
     client,service,_=auth

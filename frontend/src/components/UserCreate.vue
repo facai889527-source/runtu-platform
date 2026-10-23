@@ -1,9 +1,12 @@
 <script setup>
-import { shallowRef,useTemplateRef,onUnmounted } from 'vue'
+import { shallowRef,useTemplateRef,onUnmounted,watch } from 'vue'
 import { createUser } from '../api/users.js'
 import UserDialog from './UserDialog.vue'
+import AccountSelect from './AccountSelect.vue'
+import { roleOptions } from '../utils/userDirectory.js'
 const emit=defineEmits(['created','close'])
 const username=shallowRef(''),role=shallowRef('viewer'),busy=shallowRef(false),error=shallowRef(''),elevated=shallowRef(false),passwordInput=useTemplateRef('passwordInput')
+watch(role,()=>{elevated.value=false})
 let controller,timer
 async function submit(){
  if(busy.value)return
@@ -27,11 +30,7 @@ onUnmounted(()=>{controller?.abort();clearTimeout(timer);if(passwordInput.value)
 <label>初始密码<input ref="passwordInput" type="password" required minlength="14" maxlength="128" autocomplete="new-password" />
 <small>14–128 位，提交后立即清空，不会再次显示。</small>
 </label>
-<label>角色<select v-model="role" class="user-select" @change="elevated=false">
-<option value="viewer">普通用户</option>
-<option value="admin">管理员</option>
-<option value="owner">所有者</option>
-</select>
+<label>角色<AccountSelect v-model="role" label="角色" :options="roleOptions" />
 <small>普通用户仅能访问获授权工具；管理角色拥有额外权限。</small>
 </label>
 <label v-if="role!=='viewer'" class="user-toggle">

@@ -24,7 +24,7 @@ from scripts.pg_guard import GuardRefused, guarded_test_url
 
 
 def test_registration_policy_approval_and_migration_guard(pg_auth):
-    from tests.test_registration import exercise_registration_contract
+    from tests.test_registration import exercise_registration_contract, exercise_rejection_contract
     from tests.test_module_management import headers
     from backend.registration import PolicyInput
     from backend.models import RegistrationPolicy
@@ -35,7 +35,7 @@ def test_registration_policy_approval_and_migration_guard(pg_auth):
     with TestClient(app,base_url='https://runtu.test') as client:
         proof=client.get('/api/auth/csrf').json()['csrf_token']
         assert client.post('/api/auth/login',json={'username':'operator','password':password},headers={'Origin':'https://runtu.test','X-CSRF-Token':proof}).status_code==200
-        exercise_registration_contract(client,app)
+        exercise_registration_contract(client,app,include_rejection=False)
         key=digest(client.cookies.get('__Host-runtu_session'))
         def save(_):
             try:
@@ -58,6 +58,9 @@ def test_registration_policy_approval_and_migration_guard(pg_auth):
             command.downgrade(config,'0005_user_module_access')
         migrate_database(db)
         assert client.get('/api/auth/registration-policy').json()==dict(enabled=False,approval_required=True)
+        from tests.test_registration import set_policy
+        assert set_policy(client).status_code == 200
+        exercise_rejection_contract(client, app)
 
 
 def test_assigned_module_grants_public_contract_and_atomicity(pg_auth):

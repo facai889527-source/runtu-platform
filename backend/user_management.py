@@ -92,7 +92,11 @@ class UserManagementService:
             # Canonical usernames are ASCII. Keep cursor order identical across
             # SQLite, PostgreSQL locales and the browser's code-point comparison.
             name = AuthUser.username.collate('C' if session.bind.dialect.name == 'postgresql' else 'BINARY')
-            query = select(*PUBLIC_COLUMNS)
+            # Unapproved applications (including rejected ones) are not accounts
+            # in the directory and must not be presented as merely disabled users.
+            unapproved = select(RegistrationApplication.user_id).where(
+                RegistrationApplication.user_id == AuthUser.id, RegistrationApplication.pending.is_(True)).exists()
+            query = select(*PUBLIC_COLUMNS).where(~unapproved)
             if after_username is not None: query = query.where(name > after_username)
             rows = session.execute(query.order_by(name).limit(limit+1)).all()
             items = [public(row) for row in rows[:limit]]
