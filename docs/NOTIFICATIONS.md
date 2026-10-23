@@ -1,42 +1,63 @@
-# Telegram 平台消息设置（TASK-0050）
+# 个人 Telegram 通知（TASK-0051）
 
-独立入口 `/notifications`，侧栏名称“消息设置”。`notifications.manage` 仅授予 active owner/admin；viewer 和匿名身份不可读取偏好、测试发送或保存。服务端在每次读写、测试队列执行前重新核实会话、当前角色及启用状态；写操作继续要求同源 Origin 与 CSRF。全局设置中的注册审核迁移提示及相关元素已移除。
+本版取代 TASK-0050 的平台共享设置。所有已登录且启用的账户均可访问侧栏“消息设置”与 `/notifications`；owner/admin 只能设置自己的 Telegram，不能读写或代发给其他账户。Telegram 是唯一渠道。旧 `/api/admin/notifications/telegram` 已移除，`notifications.manage` 管理权限已废弃；旧服务滚动切换期间，前端仅识别该旧权限名，不赋予它任何功能。
 
-## 配置与密钥
+## 身份验证与自助绑定
 
-目前没有可复用的密钥加密设施，因此 **不提供网页 Token 输入或保存接口**。Bot Token 由维护人员通过服务端 `RUNTU_TELEGRAM_BOT_TOKEN` 环境配置注入，以 `SecretStr` 持有；不读取或修改真实环境文件，不要求开发阶段提供真实密钥。API/UI 只显示 `token_configured` 与 `token_source=environment`，不返回 Token、前后缀或原始上游响应。无效或缺失 Token 显示未配置，无法启用或测试。
+1. 平台维护人员配置统一机器人；用户无需创建自己的 Bot，页面不接收 Token 或任意 Chat ID。
+2. 当前登录用户通过 Origin/CSRF 保护的 `POST /api/me/notifications/connect` 创建 256-bit 随机一次性配对链接。数据库仅保存 SHA-256 摘要、发起会话摘要、账户和五分钟到期时间；新链接覆盖旧链接。重新连接立即关闭并撤销原绑定，防止排队消息流向旧地址。
+3. 浏览器暂存链接，用户在自己的 Telegram **私聊**点击 Start。固定回调路径接收 Telegram 消息，验证平台 webhook 密钥、HTTPS 与配置的 Host。只接受非 Bot 的真实 private chat，且 chat ID 与 sender ID 相同、为正整数且小于 2^52。群组、超级群、频道、转接账户和任意 URL 均不作为绑定目的地。
+4. 回调在共享数据库互斥事务内核实一次性摘要、TTL、原登录会话仍有效及账户仍启用，消费摘要并暂存候选身份；此时**没有完成绑定，也不发送通知**。重复或无效回调统一返回 `ok=true`，不透露账户、令牌或地址是否存在。
+5. 用户返回网页检查连接状态，并确认刚才由自己的 Telegram 完成操作。网页显示候选身份尾号，需当前发起会话再次通过 Origin/CSRF 确认。过期、已注销或更换登录会话无法确认。成功后保持通知关闭，用户选择偏好并保存启用。
+6. Telegram 私聊 ID 全库唯一：一个 Telegram 身份只能绑定一个平台账户。冲突返回泛化 409，不透露占用者。断开连接删除挑战、清空私聊身份并更新版本；重新配对和断开均使旧排队版本失效。
 
-迁移 `0008_notifications` 仅创建一行非敏感偏好：总开关、数字 Chat ID、注册事件偏好和乐观并发版本。默认全部关闭、Chat ID 为空。Chat ID 限制为正/负的非零数字 ID，绝对值小于 2^52；不接收用户名、URL、代理地址或自定义请求内容。Chat ID 对管理员可见，应选择经组织授权的目标会话；它不是机器人密钥。
+链接是短时 bearer 凭证，不能分享、由他人代点或放进截图/日志/客服消息。不要仅凭看到候选状态就确认，必须是本人刚才操作。网页链接采用 `noopener noreferrer`、no-referrer，无自动复制、localStorage 或历史重放；原始配对链接仅在创建时返回，刷新后可重新生成。服务端响应均 no-store。界面和 API 仅显示身份末四位，不暴露完整 Telegram ID、会话摘要、挑战摘要或平台密钥。
 
-修改 Chat ID/偏好后先保存，再测试已保存配置；并发版本不一致返回 409。配置保存和安全审计同事务，失败回滚；审计不包含 Chat ID 或 Token。downgrade 前必须关闭并清空连接配置，跨注册版本降级仍先执行待审核保护检查。迁移不由应用启动自动执行；本任务仅在一次性测试库升级/降级，真实库仍需另行审查和授权。
+## 配置、webhook 与部署前置条件
 
-## 真实支持范围
+功能默认关闭，缺任一条件时 UI 显示平台未就绪、Connect/测试不可用：
 
-| 类别 | 当前支持 | 来源与行为 |
-| --- | --- | --- |
-| 注册申请 | 支持，默认关闭 | 新建且需要审核的申请成功提交事务，生成 `registration_submitted` 后才入队；重复用户名、直接登录型注册、失败/回滚不入队。摘要仅提示前往用户管理，无用户名、IP、密码或申请内容。 |
-| 账户安全／重要变更 | 暂不可用，固定关闭 | 现有认证审计尚未定义专用通知、脱敏与合并策略，不直接转发原始认证事件。 |
-| 工具任务结果 | 暂不可用，固定关闭 | 没有统一任务执行结果事件源，不把配置编辑或静态模块状态伪装成任务完成。 |
-| 系统错误 | 暂不可用，固定关闭 | 没有安全的聚合错误事件源，不把异常、日志或请求正文转发到外部。 |
+- `RUNTU_TELEGRAM_BINDING_ENABLED=true`：维护人员确认下面条件后显式打开。
+- `RUNTU_TELEGRAM_BOT_TOKEN`：统一 Bot 的服务端环境密钥，SecretStr 持有，不写入数据库/API/UI/日志。
+- `RUNTU_TELEGRAM_BOT_USERNAME`：与该 Token 对应的真实 Bot 用户名，不含 @，仅用于生成固定 `https://t.me/<bot>?start=...` 链接。维护人员须通过官方 Bot 管理核对，错误配置只会导致配对无法完成，不可绕过回调证明。
+- `RUNTU_TELEGRAM_WEBHOOK_SECRET`：独立高熵随机 32–256 位 URL-safe secret，不能复用 Bot Token，不能放进 URL；服务端恒定时间校验 `X-Telegram-Bot-Api-Secret-Token`。
+- 已审查并另行授权的 `0008_notifications` 和 `0009_account_notifications` 升级，及运行新代码的后端。
+- 配置的 HTTPS `auth_origin` 可接收 Telegram 回调，公开证书有效。代理须明确限制信任来源，并保留真实 HTTPS scheme 和配置 Host；不能信任任意转发头伪造 scheme/host。
 
-API 拒绝打开不支持的类别。Telegram 是唯一提供方；无邮件、短信、其他即时通信或任意 webhook。
+**本任务没有执行这些部署动作。** 维护人员另行授权后，用保密的服务端程序向固定 `api.telegram.org` 的 `setWebhook` 注册 `https://<配置的认证主机>/api/telegram/webhook`，设置上述 `secret_token`、`allowed_updates=["message"]`，切换时明确决定丢弃旧 update（推荐 `drop_pending_updates=true`）。不得把含 Bot Token 的请求 URL 贴入 shell 历史、访问日志或报告。确认 Telegram 已接受 webhook 后再开放 feature flag。
 
-## 发送边界与反馈
+本版使用 webhook，不启动 `getUpdates` polling；同一个 Bot 不应同时交给其他轮询器、webhook 或多个平台消费。回调密钥、请求体和响应体禁止日志采集，错误回执只给固定摘要。未提供可从浏览器设置 webhook 的入口。轮换密钥须协调 Telegram 和平台，旧密钥不再接受；已有一次性挑战应断开/重新配对。关闭 feature flag 可停止新绑定和队列发送，用户仍可撤销本人的连接。
 
-- HTTPS 目的地固定为 `api.telegram.org`，使用证书验证；只调用 Telegram `sendMessage`，不跟随重定向、不读取环境代理、不支持自定义地址。Chat ID 与固定摘要通过 JSON 正文发送，无 parse mode。协议需要 Token 出现在 HTTPS 请求路径，因此使用不记录 URL 的标准库传输并显式关闭 wire debugging；禁止为该连接增加含请求路径的访问日志。
-- 每进程只有一个守护发送线程和最多 16 项内存队列。注册回调只做非阻塞入队，网络和限流在队列执行，不阻塞注册提交。套接字超时 2 秒；测试 API 总等待上限 3 秒，超时返回 504“未确认”，不会虚构成功或自动重发。
-- 测试发送按数据库共享的全局桶每五分钟最多尝试一次，跨管理员、会话及应用进程。注册发送全局每五分钟最多 5 条；超限直接丢弃，不堆积或补发。测试发送独立于注册偏好，但要求总开关、有效 Token 和已保存 Chat ID 完整。
-- 仅 HTTP 200、`ok=true` 且具有有效 message ID 才返回 `state=sent`。Telegram 拒绝、重定向、畸形/过大响应、网络错误均不返回其错误文本；响应读取上限 8192 字节。前端仅在后端确认时显示成功，其他情况展示固定安全错误与五分钟等待。
-- **尽力发送，无持久投递或送达保证**：队列满、配置缺失/已关闭、限流、服务退出、网络失败可能丢弃。进程退出不重放，历史审计不扫描，不自动重试。极慢 DNS/网络可能占据唯一线程；队列仍有界，业务继续运行，测试请求仍按总截止时间结束。发送中关闭配置无法撤回已发出的请求。
+## 数据迁移与隐私
 
-## API 与验证
+0009 新增三张表：每账户偏好与已验证私聊、短时挑战、按事件/收件人联合主键记录的投递占位。默认没有账户绑定，也不会从共享 Chat ID 推断身份。旧 0008 singleton 保留隔离，但迁移关闭其 enabled/registration 并推进版本；旧地址不进入新个人 API，也不会被路由使用。回退旧代码不会自动恢复旧共享订阅。保留的旧地址需由维护人员在授权流程中明确清除或归档，不能默默赋给任何账户。
 
-`GET/PUT /api/admin/notifications/telegram` 读写偏好；PUT 只接受 `enabled/chat_id/events/expected_revision`。`POST .../test` 只接受 `expected_revision`，消息正文由服务端固定。全部响应 `Cache-Control: no-store`，错误不回显请求输入或 Token。
+绑定、解绑、偏好保存与审计同事务，审计只记录动作和本人账户，不包含 Telegram ID、挑战或密钥。发送前的投递占位单独提交，网络失败不回滚注册或账户操作。解绑/取消所有挑战后才能 downgrade 至 0008；进一步 downgrade 仍要求先清理旧全局配置，并保留注册待审核保护。迁移仅在一次性 SQLite/PostgreSQL 测试库运行，本地真实库未变。
 
-验证涵盖角色矩阵、Origin/CSRF、已撤销会话、过期版本、审计回滚、并发保存、无密钥存储、缺失迁移、固定 TLS 主机与路径、关闭 wire debugging、响应大小/错误/重定向、限流、API 截止时间、有界队列以及真实注册提交后的钩子。测试均使用模拟传输，不访问 Telegram；PostgreSQL 复用相同偏好契约并保留 11 项必需在线门槛。
+挑战到期后不可再使用，即使记录尚未清理；用户断开或新建配对会删除/替换旧记录。投递占位可在事件五分钟时效之后由另行授权的保留策略清理，但不能重放历史事件。删除账户前须清理相关外键记录；若账户已不存在、停用、会话撤销或角色改变，发送和绑定均关闭保护。没有新增账户删除功能。
 
-前端为 Vue 3 Composition API 与 JavaScript。路由页面负责构成，NotificationSettings 负责偏好草稿及保存/测试生命周期，复用 PolicySwitch，不增加依赖。权限撤销卸载界面，未保存更改禁止测试，异步操作和冷却计时在卸载时清理。
+## 事件路由
 
-[隔离 UI 截图与检查](ui/TASK-0050/README.md)。本任务未重启后端，运行中的后端不会自动加载新增路由，真实库也未升级 0008；代码交付不代表 Telegram 已配置或已启用。真实迁移、服务启用、合并和部署均需独立授权。
+| 事件 | 当前来源与收件人 |
+| --- | --- |
+| 注册申请 | 仅新建、提交事务成功且需要审核的 `registration_submitted`。只向当前启用、已验证、主动开启个人通知与注册订阅、当前仍为 owner/admin 的账户发送。绑定/偏好在事件之后改变时不补发。无用户名、密码、IP 或申请详情。重复用户名、直接登录型注册和回滚不触发。 |
+| 我的工具任务结果 | 暂不可用，固定关闭。没有真实统一任务结果事件源，不能把模块配置操作伪装成任务完成。未来接入必须使用执行人的账户并重新检查工具授权，禁止广播给其他用户；本版无此路由。 |
+| 账户安全、系统错误 | 暂不可用，固定关闭。没有专用脱敏、聚合来源，不转发原始审计或异常。 |
 
-协议依据：[Telegram 官方请求规范](https://core.telegram.org/bots/api#making-requests)、[sendMessage](https://core.telegram.org/bots/api#sendmessage)。
+每个收件人发送前重新核实当前账户、角色、已验证绑定、偏好和版本；事件/收件人占位在数据库互斥事务中去重，跨进程、重放和并发最多尝试一次。旧绑定版本、过期事件（五分钟）及已处理的申请不发送。网络发送不持有业务互斥锁；已在途请求不能撤回，解绑阻止后续排队消息。
+
+## 队列、测试与失败策略
+
+- 一个守护线程、最多 16 项内存队列，注册只做非阻塞入队。收件人按 20 条一页读取；每个收件人仍单独核实和去重。队列满、限流、退出、缺少配置或存储/网络失败会丢弃，不扫描历史、不自动重试，不承诺送达。
+- 测试只发送给请求人的已验证私聊：每人每五分钟一次，平台每五分钟最多 20 次。全部发送另有限制：每人五分钟 5 条、平台 100 条。换会话不能绕过账户限流，换账户也受平台上限约束。
+- 固定证书验证的 HTTPS Telegram API，2 秒 socket timeout，不跟随重定向或环境代理，不接收自定义目的 URL。标准库连接显式关闭 wire debugging，避免 Token 路径日志。响应最多 8192 字节，仅 `200 + ok=true + message_id` 才算成功，原始异常和上游描述不回显。
+- 测试 API 最多等待 3 秒，超时返回未确认，不能当作成功或立即重试。极慢 DNS/网络仍可能占据唯一线程，但线程与队列有界，业务提交不等待 Telegram。
+- 被屏蔽、权限错误或其他传输失败统一安全反馈，并暂停对应账户通知；用户检查机器人后可重新保存启用。失败不影响其他账户配置，迟到的旧绑定失败不能暂停新版本。测试成功只证明 Telegram 接受该次消息，不证明用户已阅读。
+
+## 自助 API 与验证
+
+`GET/PUT /api/me/notifications`；`POST .../connect|confirm|disconnect|test`。账户始终从已认证会话推导，不接收 target user、Chat ID 或 Bot Token；GET 拒绝额外 query，写入拒绝额外字段。POST 仅接收 `expected_revision`；PUT 接收 enabled、受支持事件和 expected_revision。匿名拒绝，普通用户与 owner/admin 一样只能管理本人。
+
+测试覆盖 A/B 隔离、普通用户、特权订阅路由、候选不发送、一次性重放/过期、撤销会话、群组/频道/伪造 sender、确认并发、共享 Chat ID 冲突、角色改变、停用、解绑旧队列、每收件人并发去重、回滚、限流、暂停、截止时间、迁移转换及真实 TLS 主机边界模拟。PostgreSQL 的原 11 项必需用例复用同一已验证绑定→测试→解绑契约。全部发送是模拟传输；没有真实 Token、Telegram 请求、数据库升级或服务重启。
+
+[个人消息 UI 截图](ui/TASK-0051/README.md)。旧 TASK-0050 截图是历史迭代，不能作为当前共享配置语义。官方依据：[Deep linking](https://core.telegram.org/bots/features#deep-linking)、[setWebhook](https://core.telegram.org/bots/api#setwebhook)、[sendMessage](https://core.telegram.org/bots/api#sendmessage)。

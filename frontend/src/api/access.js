@@ -2,6 +2,7 @@ import { sessionFetch } from './session.js'
 import { ApiError } from './client.js'
 
 const roles = new Set(['owner', 'admin', 'viewer'])
+// Accept the known legacy notification grant during rollout; it authorizes no UI or self API.
 const permissions = new Set(['platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read', 'notifications.manage'])
 export async function readAccess(signal) {
   const response = await sessionFetch('/api/admin/me', { signal, credentials: 'same-origin', headers: { Accept: 'application/json' } })

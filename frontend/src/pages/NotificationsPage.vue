@@ -4,7 +4,7 @@ import NotificationSettings from '../components/NotificationSettings.vue'
 
 <template>
   <section class="notifications-page" aria-labelledby="notifications-title">
-    <div class="notification-heading"><h2 id="notifications-title">平台消息</h2><p>通过 Telegram 接收平台通知，所有管理员共用一套设置。</p></div>
+    <div class="notification-heading"><h2 id="notifications-title">我的消息</h2><p>连接自己的 Telegram，独立选择接收的通知。</p></div>
     <NotificationSettings />
   </section>
 </template>

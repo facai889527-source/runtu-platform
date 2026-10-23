@@ -199,4 +199,4 @@ def test_documented_alembic_cli_uses_environment_url(tmp_path):
         )
         assert result.returncode == 0, result.stderr
         if arguments == ("current",):
-            assert "0008_notifications" in result.stdout
+            assert "0009_account_notifications" in result.stdout

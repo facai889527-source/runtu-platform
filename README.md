@@ -71,4 +71,4 @@ TASK-0038 的登录/注册视觉更新与隔离截图见 [认证页面设计](do
 
 TASK-0046 个性化首页与本人上次成功登录信息需审查 `0007_login_activity`；真实开发库尚未升级，本任务仅在隔离数据库验证迁移。接口、代理来源限制和隐私边界见 [认证安全说明](docs/AUTH_SECURITY.md#task-0046当前账户的上次成功登录)。
 
-TASK-0050 新增 Telegram-only 平台消息设置，默认关闭；仅 owner/admin 可配置非敏感偏好，Token 由服务端环境管理。需另行审查并授权 `0008_notifications` 迁移与后端启用；真实库未升级、服务未重启。支持的注册事件、不可用类别、尽力投递和限流约束见 [消息设置说明](docs/NOTIFICATIONS.md)。
+TASK-0051 将 TASK-0050 的共享配置替换为每账户独立 Telegram 绑定与偏好，普通用户也可使用。平台统一 Bot 密钥仅由服务端管理，私聊需短时一次性配对、网页确认后才能启用；注册提醒仅发给当前合格且主动订阅的 owner/admin。`0008_notifications` 与 `0009_account_notifications` 仅在隔离库验证，真实库未升级、服务未重启。迁移转换、webhook 安全部署与投递限制见 [个人消息设置说明](docs/NOTIFICATIONS.md)。

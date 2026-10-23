@@ -122,6 +122,7 @@ class RegistrationApplication(Base):
 
 
 class NotificationPreferences(Base):
+    # Legacy 0008 singleton retained only for explicit rollback review; never used for routing.
     __tablename__ = 'notification_preferences'
     __table_args__ = (CheckConstraint('id = 1', name='ck_notification_singleton'),
                       CheckConstraint('revision >= 0', name='ck_notification_revision'))
@@ -130,3 +131,33 @@ class NotificationPreferences(Base):
     chat_id: Mapped[str] = mapped_column(String(21), nullable=False)
     registration: Mapped[bool] = mapped_column(Boolean, nullable=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class AccountNotification(Base):
+    __tablename__ = 'account_notifications'
+    __table_args__ = (CheckConstraint('revision >= 0', name='ck_account_notification_revision'),)
+    user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
+    chat_id: Mapped[str | None] = mapped_column(String(16), unique=True, nullable=True)
+    bound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    registration: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    paused: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class TelegramChallenge(Base):
+    __tablename__ = 'telegram_challenges'
+    user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
+    token_hash: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    session_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    chat_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class NotificationDelivery(Base):
+    __tablename__ = 'notification_deliveries'
+    event_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
+    binding_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

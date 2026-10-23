@@ -90,7 +90,7 @@ def create_app(
 
     @app.exception_handler(RequestValidationError)
     async def invalid_module_write(request, error):
-        if request.url.path.startswith(('/api/admin/modules/', '/api/admin/users', '/api/me/modules', '/api/admin/registration', '/api/admin/notifications', '/api/auth/register')):
+        if request.url.path.startswith(('/api/admin/modules/', '/api/admin/users', '/api/me/modules', '/api/admin/registration', '/api/admin/notifications', '/api/me/notifications', '/api/telegram/webhook', '/api/auth/register')):
             return JSONResponse({'detail': 'Invalid module request'}, status_code=422,
                                 headers={'Cache-Control': 'no-store'})
         return await request_validation_exception_handler(request, error)

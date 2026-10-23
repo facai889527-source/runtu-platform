@@ -1,207 +1,364 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 import json
 from threading import Event
 from unittest.mock import Mock
+from urllib.parse import parse_qs, urlsplit
 
 from alembic import command
+from fastapi.testclient import TestClient
 from pydantic import SecretStr
 import pytest
 from sqlalchemy import delete, event, inspect, select
 from sqlalchemy.exc import OperationalError
 
 from backend.auth.service import AuthDenied, digest
-from backend.migrations import migration_config
-from backend.models import AuthEvent, AuthRateLimit, AuthSession, AuthUser, NotificationPreferences
-from backend.notifications import CAPABILITIES, NotificationInput, TelegramTransport
-from tests.test_auth import auth, login, ORIGIN
+from backend.models import AccountNotification, TelegramChallenge, NotificationDelivery, NotificationPreferences, AuthEvent, AuthRateLimit, AuthSession, AuthUser
+from backend.migrations import migration_config, migrate_database
+from backend.notifications import NotificationInput, TelegramTransport
+from backend.user_management import CreateUser, UserConflict
+from tests.test_auth import auth, login, ORIGIN, PASSWORD
 from tests.test_module_management import headers
 from tests.test_registration import applicant, set_policy, signup
 
-PATH = '/api/admin/notifications/telegram'
-# Deliberately synthetic, nonfunctional credential; never use external networking.
-TOKEN = '123456789:' + 'fixture_' * 5
+PATH='/api/me/notifications'
+TOKEN='123456789:'+'fixture_'*5
+WEBHOOK='fixture_webhook_'*4
 
 
-def payload(revision=0, **changes):
-    return dict(enabled=False, chat_id='', events=dict(registration=False, account_security=False,
-        tool_outcomes=False, system_errors=False), expected_revision=revision, **changes)
+def payload(revision=0, enabled=False, registration=False):
+    return dict(enabled=enabled,events=dict(registration=registration,account_security=False,tool_outcomes=False,system_errors=False),expected_revision=revision)
 
 
 def exercise_notification_preferences(client):
-    current = client.get(PATH)
-    assert current.status_code == 200 and current.headers['cache-control'] == 'no-store'
-    assert set(current.json()) == {'enabled','chat_id','events','supported','token_configured','token_source','revision'}
-    assert current.json()['supported'] == CAPABILITIES and current.json()['token_source'] == 'environment'
-    value = payload(); value['chat_id'] = '-1001234567890'; value['events']['registration'] = True
-    saved = client.put(PATH, json=value, headers=headers(client))
-    assert saved.status_code == 200 and saved.json()['revision'] == 1
-    assert client.put(PATH, json=value, headers=headers(client)).status_code == 409
-    assert client.put(PATH, json=payload(1), headers=headers(client)).json()['revision'] == 2
+    current=client.get(PATH)
+    assert current.status_code==200 and current.headers['cache-control']=='no-store'
+    assert set(current.json())=={'enabled','revision','available','bound','destination','paused','pairing','events','supported'}
+    assert current.json()['bound'] is False and current.json()['destination'] is None
+    saved=client.put(PATH,json=payload(),headers=headers(client))
+    assert saved.status_code==200 and saved.json()['revision']==0
+    assert client.put(PATH,json=payload(1),headers=headers(client)).status_code==409
+    assert client.get('/api/admin/notifications/telegram').status_code==404
 
 
-def test_preferences_secret_contract_and_optimistic_updates(auth):
-    client, service, _ = auth
-    assert login(client).status_code == 200
-    exercise_notification_preferences(client)
-    assert client.post(PATH+'/test',json={'expected_revision':2},headers=headers(client)).status_code == 422
+@pytest.fixture
+def ready(auth):
+    client,service,actor=auth
+    assert login(client).status_code==200
+    config=service.settings;config.telegram_bot_token=SecretStr(TOKEN);config.telegram_bot_username='RuntuFixtureBot'
+    config.telegram_webhook_secret=SecretStr(WEBHOOK);config.telegram_binding_enabled=True
+    notifications=client.app.state.notifications;notifications.transport=Mock();notifications.transport.send.return_value=True
+    return client,service,actor,notifications
+
+
+def callback(client, token, chat=123456789, **changes):
+    message=dict(text='/start '+token,chat={'id':chat,'type':'private'},**{'from':{'id':chat,'is_bot':False}})
+    message.update(changes)
+    return client.post('/api/telegram/webhook',json={'update_id':1,'message':message},headers={'X-Telegram-Bot-Api-Secret-Token':WEBHOOK})
+
+
+def begin(client):
+    revision=client.get(PATH).json()['revision']
+    result=client.post(PATH+'/connect',json={'expected_revision':revision},headers=headers(client))
+    assert result.status_code==200
+    assert result.headers['cache-control']=='no-store'
+    return parse_qs(urlsplit(result.json()['url']).query)['start'][0],result.json()['revision']
+
+
+def bind(client, chat=123456789, registration=False):
+    token,revision=begin(client)
+    assert callback(client,token,chat).json()=={'ok':True}
+    assert client.get(PATH).json()['bound'] is False
+    result=client.post(PATH+'/confirm',json={'expected_revision':revision},headers=headers(client))
+    assert result.status_code==200
+    row=result.json()
+    assert row['bound'] and not row['enabled']
+    saved=client.put(PATH,json=payload(row['revision'],True,registration),headers=headers(client))
+    assert saved.status_code==200
+    return saved.json()
+
+
+def exercise_verified_binding_contract(client):
+    """Shared SQLite/PostgreSQL contract; fixture secrets and transport only."""
+    notifications=client.app.state.notifications
+    config=notifications.auth.settings
+    previous=(config.telegram_bot_token,config.telegram_bot_username,config.telegram_webhook_secret,config.telegram_binding_enabled,notifications.transport)
+    try:
+        config.telegram_bot_token=SecretStr(TOKEN);config.telegram_bot_username='RuntuFixtureBot'
+        config.telegram_webhook_secret=SecretStr(WEBHOOK);config.telegram_binding_enabled=True
+        notifications.transport=Mock();notifications.transport.send.return_value=True
+        row=bind(client,55556789,True)
+        assert client.post(PATH+'/test',json={'expected_revision':row['revision']},headers=headers(client)).json()=={'state':'sent'}
+        notifications.transport.send.assert_called_once_with(TOKEN,'55556789','Runtu：Telegram 个人消息设置测试。')
+        assert client.post(PATH+'/disconnect',json={'expected_revision':row['revision']},headers=headers(client)).status_code==200
+        assert client.get(PATH).json()['destination'] is None
+    finally:
+        config.telegram_bot_token,config.telegram_bot_username,config.telegram_webhook_secret,config.telegram_binding_enabled,notifications.transport=previous
+
+
+def test_shared_verified_binding_contract(auth):
+    client,_,_=auth
+    assert login(client).status_code==200
+    exercise_verified_binding_contract(client)
+
+
+def other(client, service, actor, name, role='viewer'):
+    user=client.app.state.user_management.create(actor,CreateUser(username=name,password=PASSWORD,role=role))
+    guest=TestClient(client.app,base_url=ORIGIN)
+    assert login(guest,PASSWORD,name).status_code==200
+    return guest,user.id
+
+
+def test_default_private_preferences_legacy_quarantine_and_unverified_denial(auth):
+    client,service,actor=auth
+    assert client.get(PATH).status_code==401
+    assert login(client).status_code==200
     with service.transaction() as session:
-        assert {col['name'] for col in inspect(session.bind).get_columns('notification_preferences')} == {
-            'id','enabled','chat_id','registration','revision'}
-        assert session.get(NotificationPreferences,1).chat_id == ''
+        old=session.get(NotificationPreferences,1);old.chat_id='-1001234567890';old.enabled=True;old.registration=True
+    exercise_notification_preferences(client)
+    assert client.get(PATH).json()['available'] is False
+    assert client.post(PATH+'/connect',json={'expected_revision':0},headers=headers(client)).status_code==422
+    assert client.put(PATH,json=payload(enabled=True),headers=headers(client)).status_code==422
+    assert client.post(PATH+'/test',json={'expected_revision':0},headers=headers(client)).status_code==422
+    with service.transaction() as session:
+        assert session.get(AccountNotification,actor).chat_id is None
+        assert session.get(NotificationPreferences,1).chat_id=='-1001234567890'
 
 
-@pytest.mark.parametrize('role,status', [('owner',200),('admin',200),('viewer',403)])
-def test_notification_role_origin_csrf_and_revoked_session(auth, role, status):
-    client, service, actor = auth
-    assert client.get(PATH).status_code == 401
-    assert login(client).status_code == 200
-    with service.transaction() as session: session.get(AuthUser,actor).role = role
-    assert client.get(PATH).status_code == status
-    assert client.put(PATH,json=payload(),headers=headers(client)).status_code == status
-    assert client.put(PATH,json=payload(),headers={'Origin':ORIGIN}).status_code == 403
-    assert client.put(PATH,json=payload(),headers={**headers(client),'Origin':'https://foreign.test'}).status_code == 403
-    key = digest(client.cookies.get('__Host-runtu_session'))
-    with service.transaction() as session: session.execute(delete(AuthSession).where(AuthSession.token_hash==key))
-    with pytest.raises(AuthDenied): client.app.state.notifications.read(actor,key)
-
-
-def test_validation_no_secret_echo_and_unavailable_schema(auth, caplog):
-    client, service, _ = auth
-    assert login(client).status_code == 200
-    for change in [dict(chat_id='https://evil.test'),dict(chat_id='@channel'),dict(chat_id='1\n'),dict(chat_id='0'),
-                   dict(chat_id=str(2**52)),dict(bot_token=TOKEN),dict(url='https://evil.test'),dict(enabled='true')]:
-        value=payload();value.update(change)
-        response=client.put(PATH,json=value,headers=headers(client))
-        assert response.status_code==422 and TOKEN not in response.text and response.headers['cache-control']=='no-store'
-    value=payload();value['events']['system_errors']=True
-    assert client.put(PATH,json=value,headers=headers(client)).status_code==422
-    value=payload();value.update(enabled=True,chat_id='12345')
-    assert client.put(PATH,json=value,headers=headers(client)).status_code==422
+def test_upgrade_quarantines_and_disables_legacy_without_copying_accounts(auth):
+    client,service,actor=auth
     with service.database.engine.begin() as connection:
         config=migration_config();config.attributes['connection']=connection
-        command.downgrade(config,'0007_login_activity')
-    assert client.get(PATH).status_code==503
-    assert TOKEN not in caplog.text
-
-
-def configure(client):
-    service=client.app.state.notifications
-    service.auth.settings.telegram_bot_token=SecretStr(TOKEN)
-    service.transport=Mock()
-    service.transport.send.return_value=True
-    value=payload();value.update(enabled=True,chat_id='-10012345');value['events']['registration']=True
-    assert client.put(PATH,json=value,headers=headers(client)).status_code==200
-    return service
-
-
-def test_real_feedback_rate_limit_safe_failure_and_masked_token(auth, caplog):
-    client, auth_service, actor=auth
+        command.downgrade(config,'0008_notifications')
+    with service.transaction() as session:
+        old=session.get(NotificationPreferences,1);old.enabled=True;old.registration=True;old.chat_id='-1001234567890'
+    migrate_database(service.database)
+    with service.transaction() as session:
+        old=session.get(NotificationPreferences,1)
+        assert old.chat_id=='-1001234567890' and not old.enabled and not old.registration
+        assert session.get(AccountNotification,actor) is None
     assert login(client).status_code==200
-    service=configure(client)
-    response=client.get(PATH)
-    assert response.json()['token_configured'] is True and TOKEN not in response.text
-    result=client.post(PATH+'/test',json={'expected_revision':1},headers=headers(client))
-    assert result.status_code==200 and result.json()=={'state':'sent'}
-    assert client.post(PATH+'/test',json={'expected_revision':1},headers=headers(client)).status_code==429
-    service.transport.send.assert_called_once_with(TOKEN,'-10012345','Runtu：Telegram 消息设置测试。')
-    with auth_service.transaction() as session:
-        session.execute(delete(AuthRateLimit))
-        session.get(AuthUser,actor).role='admin'
-    service.transport.send.side_effect=RuntimeError('transport secret '+TOKEN)
-    result=client.post(PATH+'/test',json={'expected_revision':1},headers=headers(client))
+    assert client.get(PATH).json()['destination'] is None
+
+
+@pytest.mark.parametrize('role', ['owner','admin','viewer'])
+def test_every_active_account_self_service_and_csrf(auth,role):
+    client,service,actor=auth
+    with service.transaction() as session: session.get(AuthUser,actor).role=role
+    assert login(client).status_code==200
+    assert client.get(PATH).status_code==200
+    assert client.get(PATH).json()['supported']['registration'] is (role!='viewer')
+    assert client.put(PATH,json=payload(),headers=headers(client)).status_code==200
+    assert client.put(PATH,json=payload(),headers={'Origin':ORIGIN}).status_code==403
+    assert client.put(PATH,json=payload(),headers={**headers(client),'Origin':'https://foreign.test'}).status_code==403
+    if role=='viewer': assert client.put(PATH,json=payload(registration=True),headers=headers(client)).status_code==403
+
+
+def test_complete_pair_confirm_single_use_masked_and_no_secret_echo(ready,caplog):
+    client,service,actor,notifications=ready
+    token,revision=begin(client)
+    with service.transaction() as session:
+        challenge=session.get(TelegramChallenge,actor)
+        assert challenge.token_hash==digest(token) and token not in str(challenge.__dict__)
+    assert client.post(PATH+'/confirm',json={'expected_revision':revision},headers=headers(client)).status_code==409
+    assert callback(client,token).json()=={'ok':True}
+    assert callback(client,token,987654321).json()=={'ok':True}
+    row=client.get(PATH).json();assert row['pairing']['candidate']=='••••6789' and not row['bound']
+    result=client.post(PATH+'/confirm',json={'expected_revision':revision},headers=headers(client))
+    assert result.status_code==200 and result.json()['bound']
+    assert client.post(PATH+'/confirm',json={'expected_revision':revision},headers=headers(client)).status_code==409
+    assert callback(client,token).json()=={'ok':True}
+    assert notifications.transport.send.call_count==0
+    for secret in (TOKEN,WEBHOOK,token,'123456789'):
+        assert secret not in client.get(PATH).text and secret not in caplog.text
+
+
+def test_account_a_cannot_target_read_change_or_send_to_b(ready):
+    client,service,actor,notifications=ready
+    bind(client,123456789,True)
+    b,bid=other(client,service,actor,'other-notices')
+    try:
+        own=bind(b,987654321)
+        assert own['destination']=='••••4321' and not own['supported']['registration']
+        assert b.get(PATH+'?user_id='+actor).status_code==422
+        assert b.get(PATH+'/'+actor).status_code in (404,405)
+        for extra in ({'user_id':actor},{'chat_id':'123456789'},{'bot_token':TOKEN}):
+            assert b.put(PATH,json={**payload(own['revision']),**extra},headers=headers(b)).status_code==422
+            assert b.post(PATH+'/test',json={'expected_revision':own['revision'],**extra},headers=headers(b)).status_code==422
+        assert b.post(PATH+'/test',json={'expected_revision':own['revision']},headers=headers(b)).json()=={'state':'sent'}
+        assert notifications.transport.send.call_args.args[1]=='987654321'
+        assert client.get(PATH).json()['destination']=='••••6789'
+        assert b.post(PATH+'/disconnect',json={'expected_revision':own['revision']},headers=headers(b)).status_code==200
+        assert client.get(PATH).json()['bound'] is True
+    finally: b.close()
+
+
+@pytest.mark.parametrize('change', ['expired','revoked','disabled','group','channel','sender','bot','wrong-secret'])
+def test_binding_proof_rejects_expired_replay_and_non_private_sources(ready,change):
+    client,service,actor,_=ready
+    token,revision=begin(client)
+    options={}
+    with service.transaction() as session:
+        if change=='expired': session.get(TelegramChallenge,actor).expires_at=service.clock()-timedelta(seconds=1)
+        if change=='revoked': session.execute(delete(AuthSession).where(AuthSession.token_hash==digest(client.cookies.get('__Host-runtu_session'))))
+        if change=='disabled': session.get(AuthUser,actor).active=False
+    if change in ('group','channel'): options={'chat':{'id':123456789,'type':change}}
+    if change=='sender': options={'from':{'id':111,'is_bot':False}}
+    if change=='bot': options={'from':{'id':123456789,'is_bot':True}}
+    if change=='wrong-secret':
+        response=client.post('/api/telegram/webhook',json={},headers={'X-Telegram-Bot-Api-Secret-Token':'wrong'})
+        assert response.status_code==403
+    else: assert callback(client,token,**options).status_code==200
+    with service.transaction() as session:
+        row=session.get(AccountNotification,actor);challenge=session.get(TelegramChallenge,actor)
+        assert row.chat_id is None and challenge.chat_id is None
+
+
+def test_unlink_rebind_invalidates_old_challenge_and_destination_conflict(ready):
+    client,service,actor,_=ready
+    row=bind(client)
+    token,revision=begin(client)
+    assert client.get(PATH).json()['bound'] is False
+    result=client.post(PATH+'/disconnect',json={'expected_revision':revision},headers=headers(client))
+    assert result.status_code==200
+    assert callback(client,token).status_code==200
+    assert client.get(PATH).json()['pairing']['state']=='none'
+    bind(client)
+    b,_=other(client,service,actor,'same-chat')
+    try:
+        token,revision=begin(b);assert callback(b,token).status_code==200
+        conflict=b.post(PATH+'/confirm',json={'expected_revision':revision},headers=headers(b))
+        assert conflict.status_code==409 and '123456789' not in conflict.text and actor not in conflict.text
+        assert not b.get(PATH).json()['bound']
+    finally:b.close()
+
+
+def test_pairing_race_only_one_confirmation_and_settings_audit_rollback(ready):
+    client,service,actor,notifications=ready
+    token,revision=begin(client);callback(client,token)
+    key=digest(client.cookies.get('__Host-runtu_session'))
+    def confirm(_):
+        try:notifications.confirm(actor,key,revision);return 'bound'
+        except UserConflict:return 'conflict'
+    with ThreadPoolExecutor(max_workers=2) as pool:assert sorted(pool.map(confirm,range(2)))==['bound','conflict']
+    revision=client.get(PATH).json()['revision']
+    def fail(*_):raise OperationalError('fixture',{},Exception('fixture'))
+    event.listen(AuthEvent,'before_insert',fail)
+    try:assert client.put(PATH,json=payload(revision,True,True),headers=headers(client)).status_code==503
+    finally:event.remove(AuthEvent,'before_insert',fail)
+    assert client.get(PATH).json()['enabled'] is False
+
+
+def test_registration_routes_only_opted_privileged_verified_and_dedupes(ready):
+    client,service,actor,notifications=ready
+    bind(client,11111111,True)
+    admin,admin_id=other(client,service,actor,'notice-admin','admin')
+    viewer,viewer_id=other(client,service,actor,'notice-viewer')
+    opted_out,out_id=other(client,service,actor,'notice-optout','owner')
+    try:
+        bind(admin,22222222,True);bind(viewer,33333333);bind(opted_out,44444444)
+        assert set_policy(client).status_code==200
+        with applicant(client.app) as guest:assert signup(guest,'notice-applicant')[0].status_code==202
+        notifications.queue.join()
+        assert sorted(call.args[1] for call in notifications.transport.send.call_args_list)==['11111111','22222222']
+        assert all('notice-applicant' not in call.args[2] for call in notifications.transport.send.call_args_list)
+        with service.transaction() as session:
+            eid=session.scalar(select(AuthEvent.id).where(AuthEvent.event=='registration_submitted'))
+            assert len(session.scalars(select(NotificationDelivery)).all())==2
+        notifications.registration_committed(eid);notifications.queue.join()
+        assert notifications.transport.send.call_count==2
+        with applicant(client.app) as duplicate:assert signup(duplicate,'notice-applicant')[0].status_code==202
+        notifications.queue.join();assert notifications.transport.send.call_count==2
+        with service.transaction() as session:session.get(AuthUser,admin_id).role='viewer'
+        assert admin.get(PATH).json()['events']['registration'] is False
+    finally:admin.close();viewer.close();opted_out.close()
+
+
+def test_test_send_rate_limit_failure_pause_stale_and_revoked_delivery(ready,caplog):
+    client,service,actor,notifications=ready
+    row=bind(client);revision=row['revision'];key=digest(client.cookies.get('__Host-runtu_session'))
+    assert client.post(PATH+'/test',json={'expected_revision':revision},headers=headers(client)).json()=={'state':'sent'}
+    assert client.post(PATH+'/test',json={'expected_revision':revision},headers=headers(client)).status_code==429
+    assert notifications._deliver(actor,revision-1,'fixture',key=key) is False
+    with service.transaction() as session:session.execute(delete(AuthRateLimit))
+    notifications.transport.send.side_effect=RuntimeError(TOKEN)
+    result=client.post(PATH+'/test',json={'expected_revision':revision},headers=headers(client))
     assert result.status_code==502 and TOKEN not in result.text and TOKEN not in caplog.text
-    assert 'sent' not in result.text
+    assert client.get(PATH).json()['paused'] and not client.get(PATH).json()['enabled']
+    with service.transaction() as session:session.execute(delete(AuthSession).where(AuthSession.token_hash==key))
+    with pytest.raises(AuthDenied):notifications._deliver(actor,revision,'fixture',key=key)
 
 
-def test_registration_emits_only_committed_pending_once_and_never_blocks(auth):
-    client, auth_service, _=auth
-    assert login(client).status_code==200
-    service=configure(client)
+def test_recipient_claim_concurrency_and_current_role_active_binding_guards(ready):
+    client,service,actor,notifications=ready
+    row=bind(client,123456789,True)
+    committed=[];client.app.state.registration.notification=committed.append
     assert set_policy(client).status_code==200
-    sent=Event()
-    service.transport.send.side_effect=lambda *_: sent.set() or False
-    with applicant(client.app) as guest:
-        assert signup(guest,'notice-candidate')[0].status_code==202
-    assert sent.wait(2)
-    service.queue.join()
-    service.transport.send.assert_called_once()
-    assert 'notice-candidate' not in service.transport.send.call_args.args[-1]
-    with applicant(client.app) as duplicate:
-        assert signup(duplicate,'notice-candidate')[0].status_code==202
-    service.queue.join();assert service.transport.send.call_count==1
-    assert set_policy(client,approval=False).status_code==200
-    with applicant(client.app) as direct:
-        assert signup(direct,'direct-notice')[0].status_code==202
-    service.queue.join();assert service.transport.send.call_count==1
+    with applicant(client.app) as guest:assert signup(guest,'concurrent-notice')[0].status_code==202
+    event_id=committed[0]
+    def deliver(_):return notifications._deliver(actor,row['revision'],'fixture',event_id=event_id)
+    with ThreadPoolExecutor(max_workers=2) as pool:assert sorted(pool.map(deliver,range(2)))==[False,True]
+    assert notifications.transport.send.call_count==1
+    # A second authoritative event cannot bypass a subsequent demotion/disable.
+    with applicant(client.app) as guest:assert signup(guest,'demotion-notice')[0].status_code==202
+    second=committed[-1]
+    with service.transaction() as session:session.get(AuthUser,actor).role='viewer'
+    assert notifications._deliver(actor,row['revision'],'fixture',event_id=second) is False
+    with service.transaction() as session:
+        session.get(AuthUser,actor).role='owner';session.get(AuthUser,actor).active=False
+    assert notifications._deliver(actor,row['revision'],'fixture',event_id=second) is False
+    with service.transaction() as session:session.get(AuthUser,actor).active=True
+    key=digest(client.cookies.get('__Host-runtu_session'))
+    notifications.unlink(actor,key,row['revision'])
+    assert notifications._deliver(actor,row['revision'],'fixture',event_id=second) is False
+    assert notifications.transport.send.call_count==1
+
+
+def test_pair_confirm_expiry_callback_boundary_and_no_hook_on_rollback(ready):
+    client,service,actor,notifications=ready
+    token,revision=begin(client);callback(client,token)
+    with service.transaction() as session:session.get(TelegramChallenge,actor).expires_at=service.clock()-timedelta(seconds=1)
+    assert client.post(PATH+'/confirm',json={'expected_revision':revision},headers=headers(client)).status_code==409
+    assert client.post('/api/telegram/webhook',json={},headers={'Host':'foreign.test','X-Telegram-Bot-Api-Secret-Token':WEBHOOK}).status_code==403
+    assert client.post('/api/telegram/webhook',content='bad callback',headers={'Content-Type':'application/json','X-Telegram-Bot-Api-Secret-Token':WEBHOOK}).status_code==422
     assert set_policy(client).status_code==200
     calls=[];client.app.state.registration.notification=calls.append
-    def fail(*_): raise OperationalError('disposable audit',{},Exception('fixture'))
+    def fail(*_):raise OperationalError('fixture',{},Exception('fixture'))
     event.listen(AuthEvent,'before_insert',fail)
     try:
-        with applicant(client.app) as guest: assert signup(guest,'rollback-notice')[0].status_code==503
-    finally: event.remove(AuthEvent,'before_insert',fail)
+        with applicant(client.app) as guest:assert signup(guest,'rollback-notice')[0].status_code==503
+    finally:event.remove(AuthEvent,'before_insert',fail)
     assert calls==[]
-    client.app.state.registration.notification=lambda *_: (_ for _ in ()).throw(RuntimeError('queue unavailable'))
-    with applicant(client.app) as guest: assert signup(guest,'queue-failure')[0].status_code==202
+    client.app.state.registration.notification=lambda *_:(_ for _ in ()).throw(RuntimeError('queue unavailable'))
+    with applicant(client.app) as guest:assert signup(guest,'lost-notice')[0].status_code==202
 
 
-def test_worker_rechecks_permission_revision_and_handles_bounded_queue(auth):
-    client, auth_service, actor=auth
-    assert login(client).status_code==200
-    service=configure(client);key=digest(client.cookies.get('__Host-runtu_session'))
-    with auth_service.transaction() as session: session.get(AuthUser,actor).role='viewer'
-    with pytest.raises(AuthDenied): service._test_delivery(actor,key,1)
-    with auth_service.transaction() as session: session.get(AuthUser,actor).role='owner'
-    assert service._test_delivery(actor,key,0) is False
-    service.close()
-    assert service._offer(('registration','absent')) is False
-
-
-def test_delivery_deadline_queue_pressure_and_no_business_wait(auth):
-    client, _, _ = auth
-    assert login(client).status_code == 200
-    service = configure(client)
-    entered, release = Event(), Event()
-    def slow(*_):
-        entered.set()
-        release.wait(6)
-        return False
-    service.transport.send.side_effect = slow
+def test_delivery_deadline_and_bounded_queue_do_not_block_business(ready):
+    client,_,_,notifications=ready
+    row=bind(client);entered,release=Event(),Event()
+    def slow(*_):entered.set();release.wait(6);return True
+    notifications.transport.send.side_effect=slow
     try:
-        # The API returns an unconfirmed result on deadline; no success is invented.
-        result = client.post(PATH+'/test', json={'expected_revision':1}, headers=headers(client))
-        assert entered.is_set() and result.status_code == 504
-        assert 'sent' not in result.text
-        for _ in range(16): assert service._offer(('registration','fixture')) is True
-        assert service._offer(('registration','fixture')) is False
-        service.registration_committed('dropped-fixture')  # nonblocking when full
-    finally:
-        release.set()
-        service.queue.join()
+        result=client.post(PATH+'/test',json={'expected_revision':row['revision']},headers=headers(client))
+        assert result.status_code==504 and entered.is_set()
+        for _ in range(16):assert notifications._offer(('registration','absent'))
+        assert not notifications._offer(('registration','absent'))
+        notifications.registration_committed('dropped')
+    finally:release.set();notifications.queue.join()
 
 
-def test_audit_failure_rolls_back_settings_and_concurrent_saves(auth):
-    client, auth_service, actor=auth
-    assert login(client).status_code==200
-    service=client.app.state.notifications;key=digest(client.cookies.get('__Host-runtu_session'))
-    def fail(*_): raise OperationalError('fixture',{},Exception('fixture'))
-    event.listen(AuthEvent,'before_insert',fail)
-    value=payload();value['chat_id']='12345'
-    try: assert client.put(PATH,json=value,headers=headers(client)).status_code==503
-    finally: event.remove(AuthEvent,'before_insert',fail)
-    assert client.get(PATH).json()['revision']==0
-    def save(_):
-        try: service.save(actor,key,NotificationInput.model_validate(value));return 'saved'
-        except Exception as error:
-            from backend.user_management import UserConflict
-            if isinstance(error,UserConflict): return 'conflict'
-            raise
-    with ThreadPoolExecutor(max_workers=2) as pool: assert sorted(pool.map(save,range(2)))==['conflict','saved']
-    with auth_service.database.engine.begin() as connection:
+def test_pair_callback_size_schema_and_downgrade_guards(ready):
+    client,service,actor,_=ready
+    assert client.post('/api/telegram/webhook',content='x'*8193,headers={'Content-Type':'application/json','X-Telegram-Bot-Api-Secret-Token':WEBHOOK}).status_code==413
+    row=bind(client)
+    with service.database.engine.begin() as connection:
         config=migration_config();config.attributes['connection']=connection
         command.check(config)
-        with pytest.raises(RuntimeError,match='clear notification'): command.downgrade(config,'0007_login_activity')
-    assert client.get(PATH).json()['chat_id']=='12345'
+        with pytest.raises(RuntimeError,match='Unlink'):command.downgrade(config,'0008_notifications')
+    assert client.post(PATH+'/disconnect',json={'expected_revision':row['revision']},headers=headers(client)).status_code==200
+    with service.database.engine.begin() as connection:
+        config=migration_config();config.attributes['connection']=connection;command.downgrade(config,'0008_notifications')
+    assert client.get(PATH).status_code==503
 
 
 @pytest.mark.parametrize('outcome', ['ok','refused','malformed','oversize','redirect','exception'])

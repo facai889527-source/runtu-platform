@@ -29,7 +29,7 @@ const identityChecked = shallowRef(false)
 const authenticated = computed(() => Boolean(identity.data.value?.authenticated))
 const publicPage = computed(() => ['login', 'register'].includes(route.value.page))
 const canManageUsers = computed(() => authenticated.value && access.data.value?.role === 'owner' && access.data.value.permissions.includes('users.manage'))
-const canManageNotifications = computed(() => authenticated.value && ['owner', 'admin'].includes(access.data.value?.role) && access.data.value.permissions.includes('notifications.manage'))
+const canManageNotifications = computed(() => authenticated.value)
 function clearWorkspace() {
   for (const resource of [health, modules, access]) { resource.cancel(); resource.data.value = null; resource.error.value = null }
 }

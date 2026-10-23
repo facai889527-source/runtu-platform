@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     auth_idle_seconds: int = Field(default=900, ge=30, le=3600)
     expose_api_docs: bool = False
     telegram_bot_token: SecretStr | None = None
+    telegram_bot_username: str = ""
+    telegram_webhook_secret: SecretStr | None = None
+    telegram_binding_enabled: bool = False
 
     @model_validator(mode="after")
     def validate_auth_origin(self):

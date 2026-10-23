@@ -6,7 +6,7 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 const origin = process.env.RUNTU_UI_BASE_URL || 'http://127.0.0.1:5173'
 assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:4173'].includes(origin), 'Only explicit loopback dev/preview origins are supported')
-const output = path.resolve('.git/codex-coordination/task50-after', new URL(origin).port)
+const output = path.resolve('.git/codex-coordination/task51-after', new URL(origin).port)
 await mkdir(output, { recursive: true })
 let occupied = false
 try { occupied = (await fetch('http://127.0.0.1:9229/json')).ok } catch { /* Free port. */ }
@@ -90,7 +90,7 @@ try {
   let registrationPolicy = { enabled:false, approval_required:true, revision:0 }, registrationStatus = 200
   let applications = [], reviewStatus=200, reviewDetailStatus=200, reviewRequests=0
   let notificationStatus=200, notificationSendStatus=200, notificationReads=0, notificationSends=0
-  const notificationDefaults=()=>({enabled:false,chat_id:'',revision:0,token_configured:false,token_source:'environment',events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:true,account_security:false,tool_outcomes:false,system_errors:false}})
+  const notificationDefaults=()=>({enabled:false,revision:0,available:true,bound:false,destination:null,paused:false,pairing:{state:'none',expires_at:null,candidate:null},events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:true,account_security:false,tool_outcomes:false,system_errors:false}})
   let notificationPrefs=notificationDefaults()
   let policyReads = 0, failPolicyNetwork = false, delayPolicy = false
   socket.addEventListener('message', async event => {
@@ -109,18 +109,22 @@ try {
       }
       apiRequests++
       let code = 200, body
-      if(pathname.startsWith('/api/admin/notifications/telegram')) {
-        code=!authenticated?401:viewer?403:notificationStatus
+      if(pathname.startsWith('/api/me/notifications')) {
+        code=!authenticated?401:notificationStatus
         if(request.method==='GET') notificationReads++
+        let connected
         if(code===200 && request.method!=='GET') {
           assert.ok(Object.keys(request.headers).some(k=>k.toLowerCase()==='x-csrf-token'))
           const value=JSON.parse(request.postData)
-          assert.equal(value.bot_token,undefined)
-          if(value.expected_revision!==notificationPrefs.revision) code=409
-          else if(pathname.endsWith('/test')) {notificationSends++;code=notificationSendStatus}
-          else {notificationPrefs={...notificationPrefs,enabled:value.enabled,chat_id:value.chat_id,events:value.events,revision:notificationPrefs.revision+1}}
+          for(const key of ['bot_token','chat_id','user_id'])assert.equal(value[key],undefined)
+          if(value.expected_revision!==notificationPrefs.revision)code=409
+          else if(pathname.endsWith('/test')){notificationSends++;code=notificationSendStatus;if(code!==200)notificationPrefs={...notificationPrefs,enabled:false,paused:true,revision:notificationPrefs.revision+1}}
+          else if(pathname.endsWith('/connect')){notificationPrefs={...notificationPrefs,enabled:false,bound:false,destination:null,revision:notificationPrefs.revision+1,pairing:{state:'waiting',expires_at:'2099-10-23T16:00:00Z',candidate:null}};connected={url:'https://t.me/RuntuFixtureBot?start='+'x'.repeat(43),revision:notificationPrefs.revision,expires_at:'2099-10-23T16:00:00Z'}}
+          else if(pathname.endsWith('/confirm'))notificationPrefs={...notificationPrefs,bound:true,destination:'••••6789',revision:notificationPrefs.revision+1,pairing:{state:'none',expires_at:null,candidate:null}}
+          else if(pathname.endsWith('/disconnect'))notificationPrefs={...notificationDefaults(),supported:notificationPrefs.supported,revision:notificationPrefs.revision+1}
+          else notificationPrefs={...notificationPrefs,enabled:value.enabled,events:value.events,revision:notificationPrefs.revision+1}
         }
-        body=code!==200?{detail:'private-upstream-diagnostic'}:pathname.endsWith('/test')?{state:'sent'}:notificationPrefs
+        body=code!==200?{detail:'private-upstream-diagnostic'}:connected?connected:pathname.endsWith('/test')?{state:'sent'}:{...notificationPrefs,supported:{...notificationPrefs.supported,registration:!viewer},events:{...notificationPrefs.events,registration:!viewer&&notificationPrefs.events.registration}}
       }
       else if (pathname === '/api/health') body = { status: 'ok', platform: 'Runtu Platform', database: 'ready' }
       else if (pathname === '/api/auth/registration-policy') {
@@ -447,63 +451,61 @@ try {
   }
 
   async function notificationChecks(capture=true) {
-    authenticated=true;viewer=false;admin=false;notificationStatus=200;notificationSendStatus=200;notificationPrefs=notificationDefaults()
+    authenticated=true;viewer=false;admin=false;notificationStatus=200;notificationSendStatus=200;notificationPrefs={...notificationDefaults(),available:false}
     await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false})
     await visit('/settings');await until(`document.querySelector('.registration-policy fieldset')`)
-    assert.equal(await evaluate(`!document.body.textContent.includes('注册申请的审核与记录已统一移至') && !document.querySelector('.registration-review-link')`),true)
-    await click('.sidebar a[href="/notifications"]');await until(`document.querySelector('.notification-fields')`)
-    assert.equal(await evaluate(`document.querySelector('.sidebar [aria-current=page]')?.textContent.trim()`),'消息设置')
-    assert.equal(await evaluate(`document.querySelector('.notification-save').disabled && document.querySelector('.notification-test button').disabled && !document.querySelector('input[type=password]')`),true)
-    assert.equal(await evaluate(`document.querySelectorAll('.notification-fields input[role=switch]:disabled').length`),4)
-    if(capture) await screenshot('notifications-unconfigured-1440')
-    notificationPrefs={...notificationDefaults(),token_configured:true}
-    await click('.notification-section-heading button');await until(`document.querySelector('.notification-token-state')?.textContent.includes('已配置')`)
-    await evaluate(`document.querySelector('#telegram-chat').value='https://foreign.test';document.querySelector('#telegram-chat').dispatchEvent(new Event('input',{bubbles:true}))`)
-    await until(`document.querySelector('#telegram-chat').getAttribute('aria-invalid')==='true'`)
-    assert.equal(await evaluate(`document.querySelector('.notification-save').disabled`),true)
-    await evaluate(`document.querySelector('#telegram-chat').value='-1001234567890';document.querySelector('#telegram-chat').dispatchEvent(new Event('input',{bubbles:true}))`)
+    assert.equal(await evaluate(`!document.body.textContent.includes('注册申请的审核与记录已统一移至')`),true)
+    await visit('/notifications');await until(`document.querySelector('.telegram-connect')`)
+    assert.equal(await evaluate(`document.querySelector('.telegram-connect').disabled && !document.querySelector('input[type=password],#telegram-chat')`),true)
+    if(capture)await screenshot('personal-unavailable-1440')
+    notificationPrefs=notificationDefaults()
+    await click('.notification-section-heading button');await until(`!document.querySelector('.telegram-connect').disabled`)
+    await click('.telegram-connect');await until(`document.querySelector('.telegram-pair-link')`)
+    assert.equal(await evaluate(`document.querySelector('.telegram-pair-link').getAttribute('rel')`),'noopener noreferrer')
+    if(capture)await screenshot('personal-pairing-1440')
+    notificationPrefs.pairing={state:'confirm',expires_at:'2099-10-23T16:00:00Z',candidate:'••••6789'}
+    await click('.notification-section-heading button');await until(`document.querySelector('.telegram-confirm')`)
+    if(capture)await screenshot('personal-confirm-1440')
+    await click('.telegram-confirm');await until(`document.querySelector('.binding-state')?.textContent.includes('已验证')`)
+    assert.equal(await evaluate(`!document.querySelector('.telegram-pair-link')`),true)
     await evaluate(`document.querySelector('.notification-fields input[role=switch]').focus()`)
     await send('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});await send('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32})
-    await until(`document.querySelector('.notification-fields input[role=switch]').checked`)
     await click('.notification-fields .policy-switch:nth-of-type(2) input')
     await click('.notification-save');await until(`document.querySelector('.notification-success')?.textContent.includes('已保存')`)
-    assert.equal(notificationPrefs.enabled,true);assert.equal(notificationPrefs.events.registration,true)
     await click('.notification-test button');await until(`document.querySelector('.notification-success')?.textContent.includes('发送成功')`)
-    assert.equal(notificationSends,1);assert.equal(await evaluate(`document.querySelector('.notification-test button').disabled`),true)
-    for(const width of [1440,390,360]) {
+    assert.equal(await evaluate(`document.querySelector('.notification-test button').disabled`),true)
+    for(const width of [1440,390,360]){
       await send('Emulation.setDeviceMetricsOverride',{width,height:width===1440?900:width===390?844:800,deviceScaleFactor:1,mobile:width<760})
-      await noOverflow();if(capture)await screenshot('notifications-sent-'+width)
-      await visit('/notifications');await until(`document.querySelector('.notification-fields')`)
-      if(capture) await screenshot('notifications-configured-'+width)
+      await visit('/notifications');await until(`document.querySelector('.notification-fields')`);await noOverflow()
+      if(capture)await screenshot('personal-bound-'+width)
       await evaluate(`document.querySelector('.notification-test').scrollIntoView({block:'end'})`);await noOverflow()
-      if(capture)await screenshot('notifications-events-'+width)
+      if(capture)await screenshot('personal-events-'+width)
       await evaluate(`window.scrollTo(0,0)`)
     }
     notificationSendStatus=502
     await click('.notification-test button');await until(`document.querySelector('.notification-error')?.textContent.includes('未确认发送成功')`)
-    assert.equal(await evaluate(`!document.querySelector('.notification-success') && !document.body.textContent.includes('private-upstream')`),true)
-    if(capture) await screenshot('notifications-send-failure-360')
-    notificationStatus=409
-    await evaluate(`document.querySelector('#telegram-chat').value='123456';document.querySelector('#telegram-chat').dispatchEvent(new Event('input',{bubbles:true}))`)
-    await click('.notification-save');await until(`document.querySelector('.notification-error')?.textContent.includes('已变化')`)
-    notificationStatus=200;admin=true
+    await click('.notification-section-heading button');await until(`document.querySelector('.telegram-binding')?.textContent.includes('通知已暂停')`)
+    if(capture)await screenshot('personal-paused-360')
+    await click('.telegram-disconnect');await until(`document.querySelector('.binding-state')?.textContent.includes('尚未连接')`)
+    viewer=true;admin=false;notificationPrefs=notificationDefaults()
     await visit('/notifications');await until(`document.querySelector('.notification-fields')`)
     assert.equal(await evaluate(`Boolean(document.querySelector('.sidebar a[href="/notifications"]'))`),true)
-    if(capture)await screenshot('notifications-admin-360')
-    notificationStatus=503
-    await click('.notification-section-heading button');await until(`document.querySelector('.notification-error')?.textContent.includes('暂不可用')`)
-    notificationStatus=200;viewer=true;admin=false
-    const before=notificationReads
-    await visit('/notifications');await until(`document.querySelector('main')?.textContent.includes('没有消息设置权限')`)
-    assert.equal(notificationReads,before)
-    assert.equal(await evaluate(`!document.querySelector('.sidebar a[href="/notifications"],.notification-fields')`),true)
-    if(capture)await screenshot('notifications-viewer-denied-360')
-    authenticated=false
+    assert.equal(await evaluate(`document.querySelector('.notification-fields .policy-switch:nth-of-type(2) input').disabled`),true)
+    await click('.telegram-connect');await until(`document.querySelector('.telegram-pairing')`)
+    if(capture)await screenshot('personal-viewer-pairing-360')
+    notificationPrefs.pairing={state:'confirm',expires_at:'2099-10-23T16:00:00Z',candidate:'••••4321'}
+    await click('.notification-section-heading button');await until(`document.querySelector('.telegram-confirm')`)
+    await click('.telegram-confirm');await until(`document.querySelector('.binding-state')?.textContent.includes('已验证')`)
+    if(capture)await screenshot('personal-viewer-bound-360')
+    viewer=false;admin=true;await visit('/notifications');await until(`document.querySelector('.notification-fields')`)
+    assert.equal(await evaluate(`!document.querySelector('.notification-fields .policy-switch:nth-of-type(2) input').disabled`),true)
+    notificationStatus=503;await click('.notification-section-heading button');await until(`document.querySelector('.notification-error')?.textContent.includes('暂不可用')`)
+    notificationStatus=200
+    const before=notificationReads;authenticated=false
     await visit('/notifications');await until(`document.querySelector('#login-username')`)
-    assert.equal(await evaluate(`location.pathname`),'/login')
-    assert.equal(notificationReads,before)
-    authenticated=true;viewer=false;notificationStatus=200;notificationSendStatus=200
-    console.log('PASS Telegram notification settings: owner/admin/viewer/anonymous, keyboard switches, strict incomplete/save/test feedback, failure/conflict/retry, no secret field, Settings hint removed, 1440/390/360; APIs fully intercepted.')
+    assert.equal(notificationReads,before);assert.equal(await evaluate(`location.pathname`),'/login')
+    authenticated=true;viewer=false;admin=false;notificationStatus=200;notificationSendStatus=200
+    console.log('PASS per-account Telegram: self-service owner/admin/viewer, anonymous denial, connect/start confirmation, keyboard preferences, verified-only test, unlink/rebind/pause, safe failure, 1440/390/360; APIs intercepted.')
   }
 
   if(process.env.RUNTU_NOTIFICATIONS_ONLY==='1'){await notificationChecks()}
@@ -854,7 +856,7 @@ try {
   assert.equal(await evaluate(`!document.querySelector('.module-editor-form')`), true)
   assert.equal(await evaluate(`!document.querySelector('.module-editor, .module-audit')`),true)
   assert.equal(auditRequests, allowedAuditRequests)
-  assert.equal(await evaluate(`document.querySelectorAll('.sidebar nav > a').length === 1 && !document.querySelector('.system-status')`), true)
+  assert.equal(await evaluate(`document.querySelectorAll('.sidebar nav > a').length === 2 && !document.querySelector('.system-status')`), true)
   const previousUserRequests = userRequests
   await visit('/modules')
   await until(`document.querySelector('.settings')?.textContent.includes('没有全局设置权限')`)

@@ -36,8 +36,9 @@ def test_registration_policy_approval_and_migration_guard(pg_auth):
         proof=client.get('/api/auth/csrf').json()['csrf_token']
         assert client.post('/api/auth/login',json={'username':'operator','password':password},headers={'Origin':'https://runtu.test','X-CSRF-Token':proof}).status_code==200
         exercise_registration_contract(client,app,include_rejection=False)
-        from tests.test_notifications import exercise_notification_preferences
+        from tests.test_notifications import exercise_notification_preferences, exercise_verified_binding_contract
         exercise_notification_preferences(client)
+        exercise_verified_binding_contract(client)
         key=digest(client.cookies.get('__Host-runtu_session'))
         def save(_):
             try:

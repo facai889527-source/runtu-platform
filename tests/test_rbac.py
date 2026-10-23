@@ -35,8 +35,8 @@ def protected(auth):
 
 
 @pytest.mark.parametrize('role,grants', [
-    ('owner', {'platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read', 'notifications.manage'}),
-    ('admin', {'platform.read', 'module.read', 'module.manage', 'audit.read', 'notifications.manage'}),
+    ('owner', {'platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read'}),
+    ('admin', {'platform.read', 'module.read', 'module.manage', 'audit.read'}),
     ('viewer', {'platform.read', 'module.read'}),
 ])
 def test_real_session_matrix_and_direct_api_denial(protected, role, grants):

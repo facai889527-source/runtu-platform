@@ -1,55 +1,33 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readNotifications, saveNotifications, testNotifications } from '../src/api/notifications.js'
+import { readNotifications, saveNotifications, testNotifications, connectTelegram, confirmTelegram, disconnectTelegram } from '../src/api/notifications.js'
 import { parseRoute, returnTarget } from '../src/navigation/history.js'
+const value=()=>({enabled:false,revision:0,available:true,bound:false,destination:null,paused:false,pairing:{state:'none',expires_at:null,candidate:null},events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:false,account_security:false,tool_outcomes:false,system_errors:false}})
 
-const value = () => ({ enabled: false, chat_id: '', revision: 0, token_configured: false, token_source: 'environment',
-  events: { registration: false, account_security: false, tool_outcomes: false, system_errors: false },
-  supported: { registration: true, account_security: false, tool_outcomes: false, system_errors: false } })
-
-test('notification client sends only preferences and confirms test delivery with explicit server result', async () => {
-  const previous = globalThis.fetch
-  const calls = []
-  try {
-    globalThis.fetch = async (url, options) => {
-      calls.push([url, options])
-      return { ok: true, json: async () => url === '/api/auth/csrf' ? { csrf_token: 'a'.repeat(64) }
-        : url.endsWith('/test') ? { state: 'sent' } : value() }
-    }
-    assert.equal((await readNotifications()).token_configured, false)
-    const payload = { enabled: false, chat_id: '', events: value().events, expected_revision: 0 }
-    await saveNotifications(payload)
-    assert.deepEqual(await testNotifications(0), { state: 'sent' })
-    const writes = calls.filter(([, options]) => options.method !== 'GET' && options.method)
-    assert.equal(writes.length, 2)
-    for (const [, options] of writes) { assert.equal(options.credentials, 'same-origin'); assert.equal(options.headers['X-CSRF-Token'], 'a'.repeat(64)) }
-    assert.deepEqual(JSON.parse(writes[0][1].body), payload)
-    assert.deepEqual(JSON.parse(writes[1][1].body), { expected_revision: 0 })
-    assert.equal(parseRoute('/notifications').title, '消息设置')
-    assert.equal(returnTarget('?returnTo=%2Fnotifications'), '/notifications')
-  } finally { globalThis.fetch = previous }
+test('self notification requests never carry target user or chat and use CSRF for pairing and delivery',async()=>{
+ const previous=globalThis.fetch,calls=[]
+ try{
+  globalThis.fetch=async(url,options)=>{calls.push([url,options]);return{ok:true,json:async()=>url==='/api/auth/csrf'?{csrf_token:'a'.repeat(64)}:url.endsWith('/connect')?{url:'https://t.me/RuntuFixtureBot?start='+'x'.repeat(43),expires_at:'2026-10-23T16:00:00Z',revision:1}:url.endsWith('/test')?{state:'sent'}:value()}}
+  await readNotifications();await saveNotifications({enabled:false,events:value().events,expected_revision:0});await connectTelegram(0);await confirmTelegram(1);await disconnectTelegram(2);await testNotifications(3)
+  for(const [url,options]of calls.filter(([,o])=>o.method&&o.method!=='GET')){assert.ok(url.startsWith('/api/me/notifications'));assert.equal(options.credentials,'same-origin');assert.equal(options.headers['X-CSRF-Token'],'a'.repeat(64));assert.equal(JSON.parse(options.body).user_id,undefined);assert.equal(JSON.parse(options.body).chat_id,undefined)}
+  assert.equal(parseRoute('/notifications').title,'消息设置');assert.equal(returnTarget('?returnTo=%2Fnotifications'),'/notifications')
+ }finally{globalThis.fetch=previous}
 })
-
-test('notification contract rejects secrets, unsupported events and unknown delivery acknowledgements', async () => {
-  const previous = globalThis.fetch
-  try {
-    for (const mutate of [v => ({ ...v, bot_token: 'fixture-private' }), v => ({ ...v, token_source: 'database' }),
-      v => ({ ...v, chat_id: 'https://foreign.test' }), v => ({ ...v, chat_id: '4503599627370496' }),
-      v => ({ ...v, events: { ...v.events, system_errors: true } }), v => ({ ...v, supported: { ...v.supported, tool_outcomes: true } })]) {
-      globalThis.fetch = async () => ({ ok: true, json: async () => mutate(value()) })
-      await assert.rejects(readNotifications(), /格式异常/)
-    }
-    globalThis.fetch = async url => ({ ok: true, json: async () => url === '/api/auth/csrf' ? { csrf_token: 'a'.repeat(64) } : { state: 'queued' } })
-    await assert.rejects(testNotifications(0), /未确认/)
-  } finally { globalThis.fetch = previous }
+test('notification client rejects secret fields, leaked destinations and unsafe pairing URLs',async()=>{
+ const previous=globalThis.fetch
+ try{
+  for(const mutate of [v=>({...v,bot_token:'private-fixture'}),v=>({...v,destination:'123456789'}),v=>({...v,chat_id:'1234'}),v=>({...v,events:{...v.events,system_errors:true}}),v=>({...v,pairing:{state:'confirm',expires_at:'invalid',candidate:'12345'}})]){
+   globalThis.fetch=async()=>({ok:true,json:async()=>mutate(value())});await assert.rejects(readNotifications(),/格式异常/)
+  }
+  for(const url of ['https://foreign.test/?start=x','javascript:alert(1)','https://t.me/RuntuFixtureBot?start=x&target=other']){
+   globalThis.fetch=async p=>({ok:true,json:async()=>p==='/api/auth/csrf'?{csrf_token:'a'.repeat(64)}:{url,expires_at:'2026-10-23T16:00:00Z',revision:1}});await assert.rejects(connectTelegram(0),/未确认/)
+  }
+ }finally{globalThis.fetch=previous}
 })
-
-test('notification failures use safe fixed messages without displaying upstream diagnostics', async () => {
-  const previous = globalThis.fetch
-  try {
-    for (const status of [403, 404, 409, 422, 429, 502, 503, 504]) {
-      globalThis.fetch = async () => ({ ok: false, status, json: async () => ({ detail: 'fixture-private' }) })
-      await assert.rejects(readNotifications(), error => error.status === status && !error.message.includes('fixture-private'))
-    }
-  } finally { globalThis.fetch = previous }
+test('self notification failures use safe messages and never invent delivery confirmation',async()=>{
+ const previous=globalThis.fetch
+ try{
+  for(const status of [403,404,409,422,429,502,503,504]){globalThis.fetch=async()=>({ok:false,status,json:async()=>({detail:'private-fixture'})});await assert.rejects(readNotifications(),e=>e.status===status&&!e.message.includes('private-fixture'))}
+  globalThis.fetch=async p=>({ok:true,json:async()=>p==='/api/auth/csrf'?{csrf_token:'a'.repeat(64)}:{state:'queued'}});await assert.rejects(testNotifications(0),/未确认/)
+ }finally{globalThis.fetch=previous}
 })
