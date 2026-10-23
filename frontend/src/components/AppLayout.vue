@@ -4,13 +4,14 @@ import RouteLink from './RouteLink.vue'
 import AppIcon from './AppIcon.vue'
 import ToolsNavigation from './ToolsNavigation.vue'
 import BrandMark from './BrandMark.vue'
-const props = defineProps({ page: String, title: String, path: String, platform: String, canManageUsers: Boolean, canManageSettings: Boolean, userId: String })
+const props = defineProps({ page: String, title: String, path: String, platform: String, canManageUsers: Boolean, canManageNotifications: Boolean, canManageSettings: Boolean, userId: String })
 defineEmits(['refresh'])
 const collapsed = ref(false), mobileOpen = ref(false)
 const sidebar = useTemplateRef('sidebar'), menu = useTemplateRef('menu'), content = useTemplateRef('content')
 const entries = computed(() => [
   { id: 'dashboard', path: '/', name: '首页', icon: 'dashboard' },
   ...(props.canManageUsers ? [{ id: 'users', path: '/users', name: '用户管理', icon: 'lock' }] : []),
+  ...(props.canManageNotifications ? [{ id: 'notifications', path: '/notifications', name: '消息设置', icon: 'bell' }] : []),
   ...(props.canManageSettings ? [{ id: 'settings', path: '/settings', name: '全局设置', icon: 'settings' }] : []),
 ])
 const activePage = computed(() => props.page === 'modules' && !props.path.startsWith('/modules/') ? 'settings' : props.page)

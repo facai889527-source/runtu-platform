@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="RUNTU_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        hide_input_in_errors=True, env_prefix="RUNTU_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
     platform_name: str = "Runtu Platform"
@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     auth_session_seconds: int = Field(default=3600, ge=60, le=86400)
     auth_idle_seconds: int = Field(default=900, ge=30, le=3600)
     expose_api_docs: bool = False
+    telegram_bot_token: SecretStr | None = None
 
     @model_validator(mode="after")
     def validate_auth_origin(self):

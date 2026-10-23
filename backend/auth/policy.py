@@ -1,10 +1,10 @@
 """Fixed, explicit grants. No wildcard, implicit inheritance or browser authority."""
 from types import MappingProxyType
 
-PERMISSIONS = frozenset({'platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read'})
+PERMISSIONS = frozenset({'platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read', 'notifications.manage'})
 ROLE_PERMISSIONS = MappingProxyType({
     'owner': PERMISSIONS,
-    'admin': frozenset({'platform.read', 'module.read', 'module.manage', 'audit.read'}),
+    'admin': frozenset({'platform.read', 'module.read', 'module.manage', 'audit.read', 'notifications.manage'}),
     'viewer': frozenset({'platform.read', 'module.read'}),
 })
 

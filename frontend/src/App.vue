@@ -14,6 +14,7 @@ const UserMenu = asyncView(() => import('./components/UserMenu.vue'))
 const DashboardPage = asyncView(() => import('./pages/DashboardPage.vue'))
 const ModulesPage = asyncView(() => import('./pages/ModulesPage.vue'))
 const SettingsPage = asyncView(() => import('./pages/SettingsPage.vue'))
+const NotificationsPage = asyncView(() => import('./pages/NotificationsPage.vue'))
 const UsersPage = asyncView(() => import('./pages/UsersPage.vue'))
 const RegisterPage = asyncView(() => import('./pages/RegisterPage.vue'))
 const NotFoundPage = asyncView(() => import('./pages/NotFoundPage.vue'))
@@ -28,6 +29,7 @@ const identityChecked = shallowRef(false)
 const authenticated = computed(() => Boolean(identity.data.value?.authenticated))
 const publicPage = computed(() => ['login', 'register'].includes(route.value.page))
 const canManageUsers = computed(() => authenticated.value && access.data.value?.role === 'owner' && access.data.value.permissions.includes('users.manage'))
+const canManageNotifications = computed(() => authenticated.value && ['owner', 'admin'].includes(access.data.value?.role) && access.data.value.permissions.includes('notifications.manage'))
 function clearWorkspace() {
   for (const resource of [health, modules, access]) { resource.cancel(); resource.data.value = null; resource.error.value = null }
 }
@@ -62,13 +64,15 @@ onUnmounted(() => { clearWorkspace(); identity.cancel(); window.removeEventListe
     <RegisterPage v-else-if="route.page === 'register'" />
     <LoginPage v-else-if="!authenticated" @authenticated="loadIdentity" />
   </AuthLayout>
-  <AppLayout v-else :page="route.page" :title="route.title" :path="route.path" :user-id="identity.data.value?.user?.id" :can-manage-users="Boolean(canManageUsers)" :can-manage-settings="Boolean(canManageUsers || access.data.value?.permissions.includes('module.manage'))" :platform="health.data.value?.platform || 'Runtu Platform'" @refresh="refresh">
+  <AppLayout v-else :page="route.page" :title="route.title" :path="route.path" :user-id="identity.data.value?.user?.id" :can-manage-users="Boolean(canManageUsers)" :can-manage-notifications="Boolean(canManageNotifications)" :can-manage-settings="Boolean(canManageUsers || access.data.value?.permissions.includes('module.manage'))" :platform="health.data.value?.platform || 'Runtu Platform'" @refresh="refresh">
     <template #account><UserMenu :identity="identity.data.value" :access="access" :pending="identity.pending.value" :unavailable="Boolean(identity.error.value)" @signed-out="signedOut" @refresh-identity="loadIdentity" /></template>
     <DashboardPage v-if="['dashboard', 'tools'].includes(route.page)" :health="health" :modules="directoryModules" :user-id="identity.data.value?.user?.id" :user="identity.data.value?.user" :access="access" :show-diagnostics="access.data.value?.role === 'owner'" />
     <ModulesPage v-else-if="route.page === 'modules' && route.moduleId" :modules="directoryModules" :module-id="route.moduleId" :access="access" @changed="modules.load()" />
     <SettingsPage v-else-if="route.page === 'settings' || route.page === 'modules'" :access="access" :modules="directoryModules" @changed="modules.load()" />
     <UsersPage v-else-if="route.page === 'users' && canManageUsers" :access="access" :self-id="identity.data.value?.user?.id" />
     <p v-else-if="route.page === 'users'" role="status">{{ access.pending.value ? '正在确认用户管理权限…' : '当前身份没有用户管理权限。' }}</p>
+    <NotificationsPage v-else-if="route.page === 'notifications' && canManageNotifications" :key="identity.data.value?.user?.id" />
+    <p v-else-if="route.page === 'notifications'" role="status">{{ access.pending.value ? '正在确认消息设置权限…' : '当前身份没有消息设置权限。' }}</p>
     <NotFoundPage v-else />
   </AppLayout>
 </template>

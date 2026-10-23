@@ -6,7 +6,7 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 const origin = process.env.RUNTU_UI_BASE_URL || 'http://127.0.0.1:5173'
 assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:4173'].includes(origin), 'Only explicit loopback dev/preview origins are supported')
-const output = path.resolve('.git/codex-coordination/task49-after', new URL(origin).port)
+const output = path.resolve('.git/codex-coordination/task50-after', new URL(origin).port)
 await mkdir(output, { recursive: true })
 let occupied = false
 try { occupied = (await fetch('http://127.0.0.1:9229/json')).ok } catch { /* Free port. */ }
@@ -89,6 +89,9 @@ try {
   let apiRequests = 0, sessionWrites = 0
   let registrationPolicy = { enabled:false, approval_required:true, revision:0 }, registrationStatus = 200
   let applications = [], reviewStatus=200, reviewDetailStatus=200, reviewRequests=0
+  let notificationStatus=200, notificationSendStatus=200, notificationReads=0, notificationSends=0
+  const notificationDefaults=()=>({enabled:false,chat_id:'',revision:0,token_configured:false,token_source:'environment',events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:true,account_security:false,tool_outcomes:false,system_errors:false}})
+  let notificationPrefs=notificationDefaults()
   let policyReads = 0, failPolicyNetwork = false, delayPolicy = false
   socket.addEventListener('message', async event => {
     const message = JSON.parse(event.data)
@@ -106,7 +109,20 @@ try {
       }
       apiRequests++
       let code = 200, body
-      if (pathname === '/api/health') body = { status: 'ok', platform: 'Runtu Platform', database: 'ready' }
+      if(pathname.startsWith('/api/admin/notifications/telegram')) {
+        code=!authenticated?401:viewer?403:notificationStatus
+        if(request.method==='GET') notificationReads++
+        if(code===200 && request.method!=='GET') {
+          assert.ok(Object.keys(request.headers).some(k=>k.toLowerCase()==='x-csrf-token'))
+          const value=JSON.parse(request.postData)
+          assert.equal(value.bot_token,undefined)
+          if(value.expected_revision!==notificationPrefs.revision) code=409
+          else if(pathname.endsWith('/test')) {notificationSends++;code=notificationSendStatus}
+          else {notificationPrefs={...notificationPrefs,enabled:value.enabled,chat_id:value.chat_id,events:value.events,revision:notificationPrefs.revision+1}}
+        }
+        body=code!==200?{detail:'private-upstream-diagnostic'}:pathname.endsWith('/test')?{state:'sent'}:notificationPrefs
+      }
+      else if (pathname === '/api/health') body = { status: 'ok', platform: 'Runtu Platform', database: 'ready' }
       else if (pathname === '/api/auth/registration-policy') {
         policyReads++
         if (delayPolicy) await new Promise(resolve=>setTimeout(resolve,500))
@@ -218,7 +234,7 @@ try {
         body = { authenticated, user: authenticated ? user : null }
       } else if (pathname === '/api/admin/me') {
         code = authenticated ? 200 : 401
-        body = { ...user, role: invalidRole ? 'unknown' : viewer ? 'viewer' : admin ? 'admin' : 'owner', permissions: viewer ? ['platform.read', 'module.read'] : admin ? ['platform.read','module.read','module.manage','audit.read'] : ['platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read'] }
+        body = { ...user, role: invalidRole ? 'unknown' : viewer ? 'viewer' : admin ? 'admin' : 'owner', permissions: viewer ? ['platform.read', 'module.read'] : admin ? ['platform.read','module.read','module.manage','audit.read','notifications.manage'] : ['platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read', 'notifications.manage'] }
       } else if (pathname === '/api/auth/csrf') body = { csrf_token: 'a'.repeat(64) } // Public test proof only.
       else if (pathname === '/api/auth/login' || pathname === '/api/auth/logout') {
         assert.equal(request.method, 'POST')
@@ -430,7 +446,68 @@ try {
     console.log('PASS unified account/review center: owner-only approve/reject, stale/missing/service errors, separate counts and pagination, empty/rejected states, custom dropdown keyboard/Escape/outside/viewport, no Settings review fetch, 1440/390/360, admin/viewer denial.')
   }
 
-  if(process.env.RUNTU_REVIEWS_ONLY==='1'){await reviewCenterChecks()}
+  async function notificationChecks(capture=true) {
+    authenticated=true;viewer=false;admin=false;notificationStatus=200;notificationSendStatus=200;notificationPrefs=notificationDefaults()
+    await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false})
+    await visit('/settings');await until(`document.querySelector('.registration-policy fieldset')`)
+    assert.equal(await evaluate(`!document.body.textContent.includes('注册申请的审核与记录已统一移至') && !document.querySelector('.registration-review-link')`),true)
+    await click('.sidebar a[href="/notifications"]');await until(`document.querySelector('.notification-fields')`)
+    assert.equal(await evaluate(`document.querySelector('.sidebar [aria-current=page]')?.textContent.trim()`),'消息设置')
+    assert.equal(await evaluate(`document.querySelector('.notification-save').disabled && document.querySelector('.notification-test button').disabled && !document.querySelector('input[type=password]')`),true)
+    assert.equal(await evaluate(`document.querySelectorAll('.notification-fields input[role=switch]:disabled').length`),4)
+    if(capture) await screenshot('notifications-unconfigured-1440')
+    notificationPrefs={...notificationDefaults(),token_configured:true}
+    await click('.notification-section-heading button');await until(`document.querySelector('.notification-token-state')?.textContent.includes('已配置')`)
+    await evaluate(`document.querySelector('#telegram-chat').value='https://foreign.test';document.querySelector('#telegram-chat').dispatchEvent(new Event('input',{bubbles:true}))`)
+    await until(`document.querySelector('#telegram-chat').getAttribute('aria-invalid')==='true'`)
+    assert.equal(await evaluate(`document.querySelector('.notification-save').disabled`),true)
+    await evaluate(`document.querySelector('#telegram-chat').value='-1001234567890';document.querySelector('#telegram-chat').dispatchEvent(new Event('input',{bubbles:true}))`)
+    await evaluate(`document.querySelector('.notification-fields input[role=switch]').focus()`)
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});await send('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32})
+    await until(`document.querySelector('.notification-fields input[role=switch]').checked`)
+    await click('.notification-fields .policy-switch:nth-of-type(2) input')
+    await click('.notification-save');await until(`document.querySelector('.notification-success')?.textContent.includes('已保存')`)
+    assert.equal(notificationPrefs.enabled,true);assert.equal(notificationPrefs.events.registration,true)
+    await click('.notification-test button');await until(`document.querySelector('.notification-success')?.textContent.includes('发送成功')`)
+    assert.equal(notificationSends,1);assert.equal(await evaluate(`document.querySelector('.notification-test button').disabled`),true)
+    for(const width of [1440,390,360]) {
+      await send('Emulation.setDeviceMetricsOverride',{width,height:width===1440?900:width===390?844:800,deviceScaleFactor:1,mobile:width<760})
+      await noOverflow();if(capture)await screenshot('notifications-sent-'+width)
+      await visit('/notifications');await until(`document.querySelector('.notification-fields')`)
+      if(capture) await screenshot('notifications-configured-'+width)
+      await evaluate(`document.querySelector('.notification-test').scrollIntoView({block:'end'})`);await noOverflow()
+      if(capture)await screenshot('notifications-events-'+width)
+      await evaluate(`window.scrollTo(0,0)`)
+    }
+    notificationSendStatus=502
+    await click('.notification-test button');await until(`document.querySelector('.notification-error')?.textContent.includes('未确认发送成功')`)
+    assert.equal(await evaluate(`!document.querySelector('.notification-success') && !document.body.textContent.includes('private-upstream')`),true)
+    if(capture) await screenshot('notifications-send-failure-360')
+    notificationStatus=409
+    await evaluate(`document.querySelector('#telegram-chat').value='123456';document.querySelector('#telegram-chat').dispatchEvent(new Event('input',{bubbles:true}))`)
+    await click('.notification-save');await until(`document.querySelector('.notification-error')?.textContent.includes('已变化')`)
+    notificationStatus=200;admin=true
+    await visit('/notifications');await until(`document.querySelector('.notification-fields')`)
+    assert.equal(await evaluate(`Boolean(document.querySelector('.sidebar a[href="/notifications"]'))`),true)
+    if(capture)await screenshot('notifications-admin-360')
+    notificationStatus=503
+    await click('.notification-section-heading button');await until(`document.querySelector('.notification-error')?.textContent.includes('暂不可用')`)
+    notificationStatus=200;viewer=true;admin=false
+    const before=notificationReads
+    await visit('/notifications');await until(`document.querySelector('main')?.textContent.includes('没有消息设置权限')`)
+    assert.equal(notificationReads,before)
+    assert.equal(await evaluate(`!document.querySelector('.sidebar a[href="/notifications"],.notification-fields')`),true)
+    if(capture)await screenshot('notifications-viewer-denied-360')
+    authenticated=false
+    await visit('/notifications');await until(`document.querySelector('#login-username')`)
+    assert.equal(await evaluate(`location.pathname`),'/login')
+    assert.equal(notificationReads,before)
+    authenticated=true;viewer=false;notificationStatus=200;notificationSendStatus=200
+    console.log('PASS Telegram notification settings: owner/admin/viewer/anonymous, keyboard switches, strict incomplete/save/test feedback, failure/conflict/retry, no secret field, Settings hint removed, 1440/390/360; APIs fully intercepted.')
+  }
+
+  if(process.env.RUNTU_NOTIFICATIONS_ONLY==='1'){await notificationChecks()}
+  else if(process.env.RUNTU_REVIEWS_ONLY==='1'){await reviewCenterChecks()}
   else if(process.env.RUNTU_USERS_ONLY==='1'){await userDirectoryChecks();await reviewCenterChecks()}
   else if (process.env.RUNTU_HOME_ONLY === '1') {
     for (const [width,height] of [[1440,900],[390,844],[360,800]]) {
@@ -583,8 +660,8 @@ try {
     assert.equal(await evaluate(`document.activeElement.matches('.user-trigger')`), true)
     await loadPage('Page.reload')
     await until(`document.querySelector('.user-menu') && document.querySelector('.my-modules') && document.querySelector('.overview-name')`)
-    assert.equal(await evaluate(`document.querySelector('h1').textContent === '首页' && document.querySelectorAll('.sidebar nav > a').length === 3 && !document.querySelector('.system-status').open`), true)
-    assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.sidebar nav > a, .tools-toggle')).map(el=>el.textContent.trim())`), ['首页','我的工具','用户管理','全局设置'])
+    assert.equal(await evaluate(`document.querySelector('h1').textContent === '首页' && document.querySelectorAll('.sidebar nav > a').length === 4 && !document.querySelector('.system-status').open`), true)
+    assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.sidebar nav > a, .tools-toggle')).map(el=>el.textContent.trim())`), ['首页','我的工具','用户管理','消息设置','全局设置'])
     assert.equal(await evaluate(`!document.querySelector('.platform-context, .nav-caption') && document.querySelector('.toolbar-title').textContent.trim() === '首页' && !document.querySelector('main h1, .page-intro') && document.querySelector('.brand-sub').textContent === '多功能工具平台'`), true)
     await until(`document.querySelector('.login-activity')?.textContent.includes('暂无记录') && document.querySelector('.authorized-total strong')?.textContent==='0'`)
     assert.equal(await evaluate(`document.querySelector('#welcome-title').textContent`),'layout-fixture，您好！')
@@ -789,7 +866,7 @@ try {
   await loadPage('Page.reload')
   await until(`document.querySelector('main')?.textContent.includes('没有用户管理权限')`)
   assert.equal(userRequests, previousUserRequests)
-  assert.equal(await evaluate(`document.querySelectorAll('.sidebar nav > a').length === 2 && !document.querySelector('.sidebar a[href="/modules"]') && Boolean(document.querySelector('.sidebar a[href="/settings"]'))`), true)
+  assert.equal(await evaluate(`document.querySelectorAll('.sidebar nav > a').length === 3 && !document.querySelector('.sidebar a[href="/modules"]') && Boolean(document.querySelector('.sidebar a[href="/settings"]'))`), true)
   await visit('/settings')
   await until(`document.querySelector('.directory-panel .module-list')`)
   assert.equal(await evaluate(`!document.querySelector('.registration-policy, .approvals')`),true)
@@ -803,6 +880,7 @@ try {
   authenticated = true
   await visit('/users')
   await userDirectoryChecks(false)
+  await notificationChecks(false)
   await reviewCenterChecks(false)
   authenticated=true; viewer=false; admin=false
   await visit('/modules/demo')

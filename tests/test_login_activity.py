@@ -94,7 +94,7 @@ def test_nullable_activity_migration_preserves_legacy_data_without_backfill(tmp_
             connection.execute(text("INSERT INTO auth_sessions (token_hash,user_id,created_at,expires_at,last_seen_at) VALUES ('fixture','legacy','2020-01-01 00:00:00.000000','2030-01-01','2020-01-01')"))
             connection.execute(text("INSERT INTO auth_users (id,username,password_hash,active,is_admin,role,created_at) VALUES ('other','other','fixture-hash',1,0,'viewer',CURRENT_TIMESTAMP)"))
             connection.execute(text("INSERT INTO auth_events (id,event,user_id,source_hash,created_at) VALUES ('other-event','login_success','other','fixture-source-hash','2025-01-01')"))
-        migrate_database(db)
+        migrate_database(db, '0007_login_activity')
         assert set(inspect(db.engine).get_table_names()) == tables
         with db.transaction() as session:
             assert session.get(AuthUser, 'legacy').last_login_event_id == 'current'

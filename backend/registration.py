@@ -38,6 +38,7 @@ def policy_json(row):
 class RegistrationService:
     def __init__(self, auth):
         self.auth = auth
+        self.notification = None
         self.users = UserManagementService(auth.database)
 
     def policy(self):
@@ -81,6 +82,7 @@ class RegistrationService:
             raise AuthUnavailable() from None
         finally:
             self.auth._verification_slots.release()
+        notification_event = None
         with self.auth.transaction() as session:
             locked = session.execute(update(AuthBootstrap).where(AuthBootstrap.id == 1).values(id=1))
             if locked.rowcount != 1: raise AuthUnavailable()
@@ -96,10 +98,14 @@ class RegistrationService:
                 session.flush()
                 if policy.approval_required:
                     session.add(RegistrationApplication(user_id=user_id, pending=True, created_at=utcnow()))
-                self.auth._event(session, 'registration_submitted', source, user_id)
+                event_id = self.auth._event(session, 'registration_submitted', source, user_id)
+                if policy.approval_required: notification_event = event_id
             # Same acknowledgement and consumed anonymous context for duplicates.
             session.execute(delete(AuthSession).where(AuthSession.token_hash == key))
             session.flush()
+        if notification_event and self.notification:
+            try: self.notification(notification_event)
+            except Exception: pass  # Best effort, strictly after commit; no transport diagnostics.
         return {'state': 'submitted'}
 
     def pending(self, actor, key, limit=20, after=None, state='pending'):

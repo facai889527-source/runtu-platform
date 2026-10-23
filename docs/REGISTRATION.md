@@ -34,7 +34,7 @@ password input cleared on submit/unmount. Disabled and pending states are textua
 without suggesting that an account was necessarily created for a duplicate name.
 
 This foundation does not provide email verification, CAPTCHA, password recovery,
-deletion, notifications or distributed edge abuse protection. Pending users
+deletion or distributed edge abuse protection. TASK-0050 adds an optional best-effort Telegram hook only for committed, new, approval-required applications; see [notification boundaries](NOTIFICATIONS.md). Pending users
 reserve their username; operator approval requires independent identity verification.
 The process-wide hashing limit is per worker; database buckets are shared. Rate-limit
 records use the existing cleanup lifecycle. Public enablement is an owner decision.

@@ -12,6 +12,7 @@ export function parseRoute(pathname) {
     '/tools': { page: 'tools', title: '我的工具' },
     '/modules': { page: 'modules', title: '全局设置' },
     '/settings': { page: 'settings', title: '全局设置' },
+    '/notifications': { page: 'notifications', title: '消息设置' },
     '/users': { page: 'users', title: '用户管理' },
     '/login': { page: 'login', title: '管理员登录' },
     '/register': { page: 'register', title: '申请账户' },
@@ -55,6 +56,6 @@ export function returnTarget(search) {
   const value = new URLSearchParams(search).get('returnTo')
   if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\') || value.includes('?') || value.includes('#')) return '/'
   const route = parseRoute(value)
-  return ['dashboard', 'tools', 'modules', 'settings', 'users'].includes(route.page) ? route.path : '/'
+  return ['dashboard', 'tools', 'modules', 'settings', 'users', 'notifications'].includes(route.page) ? route.path : '/'
 }
 export const loginPath = path => '/login?returnTo=' + encodeURIComponent(path)

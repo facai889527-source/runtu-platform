@@ -119,3 +119,14 @@ class RegistrationApplication(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
     pending: Mapped[bool] = mapped_column(Boolean, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class NotificationPreferences(Base):
+    __tablename__ = 'notification_preferences'
+    __table_args__ = (CheckConstraint('id = 1', name='ck_notification_singleton'),
+                      CheckConstraint('revision >= 0', name='ck_notification_revision'))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    chat_id: Mapped[str] = mapped_column(String(21), nullable=False)
+    registration: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)

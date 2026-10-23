@@ -2,7 +2,7 @@ import { sessionFetch } from './session.js'
 import { ApiError } from './client.js'
 
 const roles = new Set(['owner', 'admin', 'viewer'])
-const permissions = new Set(['platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read'])
+const permissions = new Set(['platform.read', 'module.read', 'module.manage', 'users.manage', 'audit.read', 'notifications.manage'])
 export async function readAccess(signal) {
   const response = await sessionFetch('/api/admin/me', { signal, credentials: 'same-origin', headers: { Accept: 'application/json' } })
   if (!response.ok) throw new ApiError(response.status, response.status === 401
