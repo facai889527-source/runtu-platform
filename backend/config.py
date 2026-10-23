@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     telegram_bot_username: str = ""
     telegram_webhook_secret: SecretStr | None = None
     telegram_binding_enabled: bool = False
+    notification_encryption_keys: SecretStr | None = None
 
     @model_validator(mode="after")
     def validate_auth_origin(self):
