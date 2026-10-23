@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0047",
+  "signal_version": 47,
+  "state": "running",
+  "updated_at": "2026-10-23T12:13:04.989Z",
+  "summary": "Claimed authorized local backup, migration 0007 and matching loopback backend activation; preflight in progress.",
+  "checks": [
+    "Confirmed new signal, no same-task PR or remote status, and clean product branch at PR28 head."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": null,
+  "commit_sha": "b7f73b9938451317a39ebd506e6ac6eb24f4f9ac",
+  "next_action": "Verify runtime and database preconditions, create consistent private backup, then apply only authorized migration and activate backend."
+}
