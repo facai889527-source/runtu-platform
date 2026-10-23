@@ -1,15 +1,23 @@
 {
   "task_id": "TASK-0053",
   "signal_version": 53,
-  "state": "running",
-  "updated_at": "2026-10-23T16:35:56.056Z",
-  "summary": "Claimed follow-up on clean PR28 branch; implementing explicit public-bot lifecycle and owner-managed private binding as a coherent first milestone, with full remaining acceptance tracked.",
+  "state": "failed",
+  "updated_at": "2026-10-23T16:50:20.116Z",
+  "summary": "Partial milestone published: explicit public-bot choice, verified private target opt-in, pristine disconnect and owner account management. Full TASK-0053 remains unfinished.",
   "checks": [
-    "Remote ready version 53 verified; local state has no TASK-0053 key, no same-task PR, no remote status; outbox empty; clean branch at 403ee62."
+    "Commit 2ae2f6ecf8e94bd9499b876396dbbe7526f6deaa on existing PR28; product worktree clean.",
+    "Implemented explicit public choice and private proof/target/enable lifecycle, public-token change invalidation, owner-only scoped APIs/UI, current authority checks and complete public-binding disconnect.",
+    "Eight new isolated lifecycle/owner/IDOR/CSRF/configuration/migration tests; full local and Linux Python: 217 passed, 11 optional PostgreSQL cases skipped. Separate PostgreSQL: 11 required passed, zero skipped.",
+    "Node 38 passed; Vite build 89 modules; full and focused intercepted Chrome regressions at 1440/390/360; 12 fixture-only milestone screenshots.",
+    "Current commit both CI workflows and all six jobs succeeded: runs 39989783654 and 39989783743.",
+    "0010 migration and downgrade/metadata checks used disposable databases only. No actual database migration, service restart, real Telegram credentials/sends, merge or deployment."
   ],
-  "blockers": [],
+  "blockers": [
+    "Personal Bot getMe verification, encrypted persistence/rotation and private proof/update orchestration remain unimplemented; UI explicitly does not collect personal Tokens.",
+    "Group discovery, current membership/send authorization, owner group visibility and multiple destinations/per-destination dedupe with associated UI/integration acceptance remain unimplemented."
+  ],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
-  "commit_sha": "403ee62dfbe2dade8781ef0d49b126048bce06c7",
-  "next_action": "Implement explicit bot selection, pristine disconnect, private target opt-in, and owner-only management with migration and mocked regression; track personal-bot and group/multi-target work explicitly."
+  "commit_sha": "2ae2f6ecf8e94bd9499b876396dbbe7526f6deaa",
+  "next_action": "Review the bounded milestone and exact remaining scope in docs/NOTIFICATIONS.md. Recommend a formally scoped follow-up for personal-bot lifecycle, then authorized group/multi-target routing; do not auto-create a task or replay version 53. PR28 remains stacked on PR27. 0010 deliberately clears old bindings and requires separate migration/activation review and authorization."
 }
