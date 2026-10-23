@@ -1,15 +1,25 @@
 {
   "task_id": "TASK-0054",
   "signal_version": 54,
-  "state": "running",
-  "updated_at": "2026-10-23T16:54:54.327Z",
-  "summary": "Claimed personal Telegram Bot lifecycle and usable settings redesign on clean existing PR28 branch.",
+  "state": "completed",
+  "updated_at": "2026-10-23T17:18:59.231Z",
+  "summary": "Completed TASK-0054 prioritized personal Bot and usable UI milestone in code: encrypted bind, private proof/sync, verified test, rotation, cleanup and owner management. Group/multi-target product scope remains explicitly deferred.",
   "checks": [
-    "Ready version 54 verified; local key absent, no same-task PR or remote status, outbox empty; branch clean at 2ae2f6e."
+    "Commit fd3bc935af66ea45ab8852cd07182c1eef1ff76a on existing PR28; clean product worktree; stacked base preserved.",
+    "Implemented getMe control validation, existing-webhook refusal, account-bound encrypted persistence, per-user Bot uniqueness, private one-time proof via authenticated exclusive update sync, committed offsets and unique expiring leases.",
+    "Owner scoped replace/rotate/unbind and current authority checks; admin/user self-only; disabled/role-revoked/stale/expired results suppress routing; secrets never returned in DTOs.",
+    "23 mocked personal-Bot security tests passed. Final Linux CI Python full suite 240 passed, 11 optional online cases skipped; separate PostgreSQL 11 required passed, zero skipped.",
+    "Node 39 passed; Vite 91 modules; full and focused intercepted Chrome regression at 1440/390/360, Token error-clear/retry and complete personal/public private workflows; 17 fixture-only screenshots.",
+    "Both current-commit CI workflows and all six jobs succeeded: runs 39993673968 and 39993673977; dependency and diff checks passed.",
+    "Inline deployment/key/webhook steps, owner-only platform readiness and exact activation/rotation guide added. 0011 migration/downgrade tested only on disposable databases.",
+    "No actual database migration, private environment change, service restart, real Telegram credentials/requests/sends, merge or deployment."
   ],
-  "blockers": [],
+  "blockers": [
+    "Deferred product follow-up, permitted by TASK-0054: group discovery/current member and bot-send authorization, owner group visibility, multiple destinations and per-destination dedupe remain unimplemented.",
+    "Real local backend remains on its earlier version; usable activation requires separately reviewed/authorized migrations through 0011, protected encryption/feature/public-bot configuration as applicable, and service activation."
+  ],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
-  "commit_sha": "2ae2f6ecf8e94bd9499b876396dbbe7526f6deaa",
-  "next_action": "Implement encrypted personal-bot control verification, exclusive update ingestion/private proof, owner operations and redesigned setup/status UI; verify mocked security, migrations and responsive regression."
+  "commit_sha": "fd3bc935af66ea45ab8852cd07182c1eef1ff76a",
+  "next_action": "Review PR28 stacked on PR27 and docs/NOTIFICATIONS.md. Personal Bot/UI priority scope is implemented and mock-verified, not live activated. Authorize real backup/migrations/configuration/activation separately if desired; 0010 clears old bindings. Issue a formal scoped group/multi-target follow-up when ready; no next task is created or started."
 }
