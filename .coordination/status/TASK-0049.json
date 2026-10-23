@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0049",
+  "signal_version": 49,
+  "state": "running",
+  "updated_at": "2026-10-23T13:51:10.913Z",
+  "summary": "Claimed unified account/review center, borderless directory and accessible custom dropdown task on existing PR28.",
+  "checks": [
+    "New ready version, clean existing branch; no same-task PR/status or local execution."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
+  "commit_sha": "f6f925056a438ca7cba876880f09de891122287a",
+  "next_action": "Inspect registration review contracts and implement isolated UI/API changes with permission and concurrency regression."
+}
