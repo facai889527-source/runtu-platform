@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0054",
+  "signal_version": 54,
+  "state": "running",
+  "updated_at": "2026-10-23T16:54:54.327Z",
+  "summary": "Claimed personal Telegram Bot lifecycle and usable settings redesign on clean existing PR28 branch.",
+  "checks": [
+    "Ready version 54 verified; local key absent, no same-task PR or remote status, outbox empty; branch clean at 2ae2f6e."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
+  "commit_sha": "2ae2f6ecf8e94bd9499b876396dbbe7526f6deaa",
+  "next_action": "Implement encrypted personal-bot control verification, exclusive update ingestion/private proof, owner operations and redesigned setup/status UI; verify mocked security, migrations and responsive regression."
+}
