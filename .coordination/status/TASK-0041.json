@@ -1,0 +1,13 @@
+{
+  "task_id": "TASK-0041",
+  "signal_version": 41,
+  "state": "running",
+  "updated_at": "2026-10-23T09:31:39.328494+00:00",
+  "summary": "Inspecting local development service and schema compatibility after reboot.",
+  "checks": [],
+  "blockers": [],
+  "branch": null,
+  "pr_url": null,
+  "commit_sha": null,
+  "next_action": "Inspect ports and schema read-only before starting compatible services."
+}
