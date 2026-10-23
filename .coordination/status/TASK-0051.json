@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0051",
+  "signal_version": 51,
+  "state": "running",
+  "updated_at": "2026-10-23T15:05:30.678Z",
+  "summary": "Claimed per-account verified Telegram binding and private notification routing on existing PR28.",
+  "checks": [
+    "Remote ready version checked; no same-task PR/status/local execution; existing PR branch clean."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
+  "commit_sha": "449082b1b6331c41219ba77fc473033042e26e3a",
+  "next_action": "Replace singleton semantics with self-scoped settings, verified one-time private-chat pairing, secure callback and recipient-specific delivery."
+}
