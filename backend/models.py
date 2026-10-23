@@ -137,6 +137,9 @@ class AccountNotification(Base):
     __tablename__ = 'account_notifications'
     __table_args__ = (CheckConstraint('revision >= 0', name='ck_account_notification_revision'),)
     user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
+    bot_mode: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    bot_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    private_target: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
     chat_id: Mapped[str | None] = mapped_column(String(16), unique=True, nullable=True)
     bound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
@@ -149,6 +152,7 @@ class AccountNotification(Base):
 class TelegramChallenge(Base):
     __tablename__ = 'telegram_challenges'
     user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
+    initiator_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     token_hash: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     session_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     chat_id: Mapped[str | None] = mapped_column(String(16), nullable=True)

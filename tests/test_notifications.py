@@ -27,13 +27,13 @@ WEBHOOK='fixture_webhook_'*4
 
 
 def payload(revision=0, enabled=False, registration=False):
-    return dict(enabled=enabled,events=dict(registration=registration,account_security=False,tool_outcomes=False,system_errors=False),expected_revision=revision)
+    return dict(enabled=enabled,private_target=enabled,events=dict(registration=registration,account_security=False,tool_outcomes=False,system_errors=False),expected_revision=revision)
 
 
 def exercise_notification_preferences(client):
     current=client.get(PATH)
     assert current.status_code==200 and current.headers['cache-control']=='no-store'
-    assert set(current.json())=={'enabled','revision','available','bound','destination','paused','pairing','events','supported'}
+    assert set(current.json())=={'enabled','revision','available','bound','destination','paused','pairing','events','supported','bot_mode','public_available','private_target'}
     assert current.json()['bound'] is False and current.json()['destination'] is None
     saved=client.put(PATH,json=payload(),headers=headers(client))
     assert saved.status_code==200 and saved.json()['revision']==0
@@ -58,6 +58,9 @@ def callback(client, token, chat=123456789, **changes):
 
 
 def begin(client):
+    current=client.get(PATH).json()
+    if current['bot_mode'] is None:
+        assert client.post(PATH+'/choose-public',json={'expected_revision':current['revision']},headers=headers(client)).status_code==200
     revision=client.get(PATH).json()['revision']
     result=client.post(PATH+'/connect',json={'expected_revision':revision},headers=headers(client))
     assert result.status_code==200

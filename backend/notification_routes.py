@@ -17,36 +17,46 @@ def install_notifications(app):
     service = NotificationService(app.state.auth_service)
     app.state.notifications = service
     app.state.registration.notification = service.registration_committed
-    router = APIRouter(prefix='/api/me/notifications')
+    router = APIRouter()
+
+    def owner_scope(request, identity, target):
+        if request.query_params: raise auth_error(422, 'Unexpected notification query')
+        if target is not None and (not request.url.path.startswith('/api/admin/notifications/users/') or identity.role != 'owner'):
+            raise auth_error(403, 'Notification access denied')
 
     def key(request): return digest(token_from(request, service.auth))
     def result(value): return JSONResponse(value, headers={'Cache-Control': 'no-store'})
 
-    @router.get('')
-    def read(request: Request, identity=Depends(require_authenticated)):
-        if request.query_params: raise auth_error(422, 'Unexpected notification query')
-        try: return result(service.read(identity.id, key(request)))
+    @router.get('/api/me/notifications')
+    @router.get('/api/admin/notifications/users/{target}')
+    def read(request: Request, identity=Depends(require_authenticated), target: str | None = None):
+        owner_scope(request, identity, target)
+        try: return result(service.read(identity.id, key(request), target))
         except AuthDenied: raise auth_error(403, 'Notification access denied') from None
 
-    @router.put('')
-    async def save(request: Request, identity=Depends(require_authenticated)):
+    @router.put('/api/me/notifications')
+    @router.put('/api/admin/notifications/users/{target}')
+    async def save(request: Request, identity=Depends(require_authenticated), target: str | None = None):
+        owner_scope(request, identity, target)
         value = await body(request, NotificationInput)
-        try: return result(await run_in_threadpool(service.save, identity.id, key(request), value))
+        try: return result(await run_in_threadpool(service.save, identity.id, key(request), value, target))
         except AuthDenied: raise auth_error(403, 'Notification access denied') from None
         except NotificationIncomplete: raise auth_error(422, 'Verified Telegram binding required') from None
 
-    @router.post('/{action}')
-    async def action(action: str, request: Request, identity=Depends(require_authenticated)):
-        if action not in ('connect', 'confirm', 'disconnect', 'test'): raise auth_error(404, 'Action unavailable')
+    @router.post('/api/me/notifications/{action}')
+    @router.post('/api/admin/notifications/users/{target}/{action}')
+    async def action(action: str, request: Request, identity=Depends(require_authenticated), target: str | None = None):
+        owner_scope(request, identity, target)
+        if action not in ('choose-public', 'connect', 'confirm', 'disconnect', 'test'): raise auth_error(404, 'Action unavailable')
         value = await body(request, TestInput)
         try:
             if action == 'test':
-                future = await run_in_threadpool(service.test, identity.id, key(request), value.expected_revision)
+                future = await run_in_threadpool(service.test, identity.id, key(request), value.expected_revision, target)
                 success = await asyncio.wait_for(asyncio.shield(asyncio.wrap_future(future)), timeout=3)
                 if not success: raise auth_error(502, 'Telegram delivery not confirmed; refresh settings')
                 return result({'state': 'sent'})
-            method = {'connect': service.begin, 'confirm': service.confirm, 'disconnect': service.unlink}[action]
-            return result(await run_in_threadpool(method, identity.id, key(request), value.expected_revision))
+            method = {'choose-public': service.choose_public, 'connect': service.begin, 'confirm': service.confirm, 'disconnect': service.unlink}[action]
+            return result(await run_in_threadpool(method, identity.id, key(request), value.expected_revision, target))
         except AuthDenied: raise auth_error(403, 'Notification access denied') from None
         except NotificationIncomplete: raise auth_error(422, 'Verified Telegram binding or platform setup required') from None
         except TimeoutError: raise auth_error(504, 'Delivery unconfirmed; do not retry immediately') from None

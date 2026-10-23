@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readNotifications, saveNotifications, testNotifications, connectTelegram, confirmTelegram, disconnectTelegram } from '../src/api/notifications.js'
+import { readNotifications, saveNotifications, testNotifications, connectTelegram, confirmTelegram, disconnectTelegram, choosePublicBot } from '../src/api/notifications.js'
 import { parseRoute, returnTarget } from '../src/navigation/history.js'
-const value=()=>({enabled:false,revision:0,available:true,bound:false,destination:null,paused:false,pairing:{state:'none',expires_at:null,candidate:null},events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:false,account_security:false,tool_outcomes:false,system_errors:false}})
+const value=()=>({enabled:false,revision:0,available:false,bot_mode:null,public_available:true,private_target:false,bound:false,destination:null,paused:false,pairing:{state:'none',expires_at:null,candidate:null},events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:false,account_security:false,tool_outcomes:false,system_errors:false}})
 
 test('self notification requests never carry target user or chat and use CSRF for pairing and delivery',async()=>{
  const previous=globalThis.fetch,calls=[]
@@ -29,5 +29,28 @@ test('self notification failures use safe messages and never invent delivery con
  try{
   for(const status of [403,404,409,422,429,502,503,504]){globalThis.fetch=async()=>({ok:false,status,json:async()=>({detail:'private-fixture'})});await assert.rejects(readNotifications(),e=>e.status===status&&!e.message.includes('private-fixture'))}
   globalThis.fetch=async p=>({ok:true,json:async()=>p==='/api/auth/csrf'?{csrf_token:'a'.repeat(64)}:{state:'queued'}});await assert.rejects(testNotifications(0),/未确认/)
+ }finally{globalThis.fetch=previous}
+})
+
+
+test('owner notification scope uses an explicit path, encodes no target in self payload and rejects malformed scope',async()=>{
+ const previous=globalThis.fetch,calls=[]
+ try{
+  globalThis.fetch=async(url,options)=>{calls.push([url,options]);return{ok:true,json:async()=>url==='/api/auth/csrf'?{csrf_token:'a'.repeat(64)}:value()}}
+  await readNotifications(undefined,'fixture-target')
+  await choosePublicBot(0,undefined,'fixture-target')
+  await disconnectTelegram(1,undefined,'fixture-target')
+  assert.ok(calls.filter(([url])=>url!=='/api/auth/csrf').every(([url])=>url.startsWith('/api/admin/notifications/users/fixture-target')))
+  for(const target of ['../self','?target=other','x'.repeat(37)])await assert.rejects(readNotifications(undefined,target),/范围无效/)
+ }finally{globalThis.fetch=previous}
+})
+
+test('unbound or unverified DTO cannot imply selected routes or enabled delivery',async()=>{
+ const previous=globalThis.fetch
+ try{
+  for(const patch of [{bot_mode:'personal'},{enabled:true},{private_target:true},{available:'true'},{public_available:null}]){
+   globalThis.fetch=async()=>({ok:true,json:async()=>({...value(),...patch})})
+   await assert.rejects(readNotifications(),/格式异常/)
+  }
  }finally{globalThis.fetch=previous}
 })
