@@ -1,15 +1,27 @@
 {
   "task_id": "TASK-0058",
   "signal_version": 58,
-  "state": "running",
-  "updated_at": "2026-10-24T12:30:07.814Z",
-  "summary": "Claimed notification UI redesign, concurrent proof reliability, verified identity and bounded custom test messages. Existing real Bot/binding/key/database and services must remain unchanged.",
+  "state": "completed",
+  "updated_at": "2026-10-24T12:55:44.771Z",
+  "summary": "Implemented compact connected Telegram settings, full verified identities, robust concurrent pairing and bounded custom plaintext tests in existing stacked PR28. All final-commit CI passed. Real database, Bot, pairing, keys and running services were left unchanged; new backend activation is not performed.",
   "checks": [
-    "Fetched ready version 58; local same-version record absent, no running task, no all-state same-task PR or remote status; outbox empty; product checkout clean at a9447247377dc09b4a542ff6d91b936fad3d16e0."
+    "Final commit 2e8de365c1cd3dbfc3927b90247794d7c8f27c90; clean product worktree; PR28 remains stacked on PR27 without merge, retarget or deployment.",
+    "Local and final Linux full Python: 254 passed, 11 optional PostgreSQL skipped; targeted reliability/migration/permissions: 17 passed. Separate PostgreSQL CI: 11 required passed, zero skipped.",
+    "Final-commit workflows 40095695852 and 40095695791 both succeeded, all six jobs. Node 42 passed; Vite 95 modules.",
+    "Full and focused mocked Chrome regression passed at 1440/390/360; 19 fixture screenshots. Connected overview, identity/copy controls, destination/subscription alignment, custom plaintext, exact candidate acknowledgement, danger-action dialog/Escape/focus and legacy backend capability state verified.",
+    "100 simultaneous mocked-service challenge starts, atomic proof consumption and concurrent confirmations passed; independent links, immutable sender IDs, replay and wrong-ID rejection, original-session confirmation and no cross-account mixing. No real Telegram API or sends.",
+    "Bounded polling validates/sorts out-of-order IDs before consumption; identical duplicates idempotent, conflicting IDs roll entire batch back. Shared source lease/offset and post-network authority/version/source checks retained; empty webhook secret rejected.",
+    "Custom plaintext limited to 4096 UTF-16 units; rejects blank/invalid/oversize/recipient/parse-mode fields; existing CSRF/Origin/RBAC, rate limits, destination selection and send-time authorization preserved. No test body persistence or raw secret exposure.",
+    "Disposable 0012 to 0013 identity migration preserves existing binding, preferences, ciphertext and public source; pre-existing sender proof IDs backfilled, unknown names remain null. No real migration, key generation, reset, unlink, Token replacement or service restart performed.",
+    "Existing loopback listeners remain backend PID 30588 / frontend PID 19316. Frontend accepts legacy DTO without fabricating identity and disables unsupported custom-text capability; current real backend remains the earlier activated version."
   ],
-  "blockers": [],
+  "blockers": [
+    "Activating new full identity persistence and custom-message backend requires separate explicit approval for REAL local 0013 migration and local backend restart; earlier TASK-0057 authorization is not reused.",
+    "Names/usernames are display metadata, not proof. Short-lived links are bearer proofs; user must recognize and explicitly confirm the full immutable candidate User ID, declining unfamiliar identities.",
+    "Groups, membership filtering, multiple destinations and per-target deduplication remain explicit formal follow-ups; unsupported event sources stay disabled."
+  ],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
-  "commit_sha": "a9447247377dc09b4a542ff6d91b936fad3d16e0",
-  "next_action": "Implement and test on disposable DB and mocked Telegram; preserve real bindings/keys and running services; do not execute real migrations or messages. Update stacked PR28 and report exact activation gaps."
+  "commit_sha": "2e8de365c1cd3dbfc3927b90247794d7c8f27c90",
+  "next_action": "Review PR28 and fixture screenshots. If local activation is desired, obtain new explicit owner approval for reviewed 0013 real migration and backend restart, preserving the existing verified Bot/binding/key. Until then do not migrate, restart, re-key, unbind or send live Telegram messages; keep original three-minute monitor unchanged."
 }
