@@ -1,16 +1,24 @@
 {
   "task_id": "TASK-0057",
   "signal_version": 57,
-  "state": "running",
-  "updated_at": "2026-10-24T12:06:53.812Z",
-  "summary": "Claimed explicitly approved LOCAL DEV activation: new protected consistent backup, real SQLite 0007 to 0012, protected key provisioning, feature enablement and local backend restart.",
+  "state": "completed",
+  "updated_at": "2026-10-24T12:13:28.136Z",
+  "summary": "Explicitly approved LOCAL DEV activation completed: real SQLite upgraded once from 0007 to 0012, protected local encryption key provisioned, feature enabled and local backend restarted. Existing data preserved; real owner login/UI verification remains for the owner.",
   "checks": [
-    "Formal TASK-0057 contains explicit owner approval superseding TASK-0056 activation blocker; no same-version local execution, all-state PR or remote status; outbox empty.",
-    "Checkout clean at a9447247377dc09b4a542ff6d91b936fad3d16e0; only this local activation task is running."
+    "Formal TASK-0057 explicitly approved migration including 0010 legacy notification cleanup, local key provisioning, feature enablement and local restart; no repeat approval requested.",
+    "New consistent ACL-protected backup verified with integrity_check and per-table content comparison before migration; protected repository-relative backup: secrets/local-dev/backups/TASK-0057-20261024T120851291565Z/before-0012.sqlite3. Backup contents and private local records were not uploaded.",
+    "Real database now 0012_owner_public_bot; SQLite integrity_check ok and foreign_key_check empty. All pre-existing table data preserved immediately after migration; two existing accounts and active owner preserved. No old Telegram bindings existed; no account/password reset or rollback.",
+    "Fernet key generated only into ignored OS-protected private storage; local environment file protected; DB/auth origin unchanged. Runtime inspection confirms feature enabled and encryption ready. Public Bot credentials remain empty; no real Telegram requests or sends.",
+    "Restarted verified local FastAPI listener PID 30588 on 127.0.0.1:8000; existing Vite PID 19316 remains on 127.0.0.1:5173. Backend health 200/database ready; frontend /notifications 200; same-origin unauthenticated notification/platform endpoints return 401. Direct wrong-origin API access remains 403.",
+    "Real available browser opens login redirect for /notifications; no authenticated owner session was available, so authenticated UI/API acceptance is explicitly unverified and no session was fabricated.",
+    "Three targeted isolated key-provisioning/access-control tests passed; clean worktree at a9447247377dc09b4a542ff6d91b936fad3d16e0. No product code change or new PR; no merge or production deployment."
   ],
-  "blockers": [],
+  "blockers": [
+    "Owner must complete real login and confirm message settings shows enabled Bind Telegram Bot action; authenticated owner UI/API could not be verified without an existing signed-in session.",
+    "Actual Bot identity/private proof/public availability requires owner-entered Token in protected local UI. Public Bot remains unavailable until verified; do not provide Token in chat."
+  ],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": null,
   "commit_sha": "a9447247377dc09b4a542ff6d91b936fad3d16e0",
-  "next_action": "Inspect real local DB/services, make new protected consistent backup, verify reviewed migration effects, perform approved migration exactly once, enable protected storage, restart backend and verify safely without credentials or Telegram sends."
+  "next_action": "Owner opens http://127.0.0.1:5173/notifications, logs in using existing credentials, verifies direct Bind Telegram Bot action and optionally supplies Token only in protected UI. Keep 3-minute monitor unchanged. Do not repeat migration, key initialization, administrator bootstrap or send real Telegram messages automatically."
 }
