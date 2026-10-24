@@ -86,3 +86,29 @@ test('owner setup uses CSRF without key material and validates owner DTO',async(
   globalThis.fetch=async()=>({ok:true,json:async()=>({...value(),owner_account:'owner'})});await assert.rejects(readNotifications(),/格式异常/)
  }finally{globalThis.fetch=previous}
 })
+
+
+test('full verified identity is scoped and typed; legacy DTO has no invented identity or custom capability',async()=>{
+ const previous=globalThis.fetch
+ const identity={user_id:'123456789',chat_id:'123456789',first_name:'<b>Plain</b>',last_name:null,username:null,display_name:'<b>Plain</b>'}
+ const extended={...value(),bot_mode:'public',bound:true,destination:'••••6789',identity,candidate_identity:null,custom_test_available:true}
+ try{
+  globalThis.fetch=async()=>({ok:true,json:async()=>extended});assert.deepEqual((await readNotifications()).identity,identity)
+  for(const bad of [{...identity,user_id:123456789},{...identity,user_id:'123456788'},{...identity,token:'private'},{...identity,username:'<script>'}]){
+   globalThis.fetch=async()=>({ok:true,json:async()=>({...extended,identity:bad})});await assert.rejects(readNotifications(),/身份格式异常/)
+  }
+  globalThis.fetch=async()=>({ok:true,json:async()=>value()});const legacy=await readNotifications();assert.equal(legacy.identity,null);assert.equal(legacy.custom_test_available,false)
+ }finally{globalThis.fetch=previous}
+})
+
+test('custom test text and confirmed immutable candidate use protected scoped requests, with no recipient override',async()=>{
+ const previous=globalThis.fetch,calls=[]
+ try{
+  globalThis.fetch=async(url,options)=>{calls.push([url,options]);return{ok:true,json:async()=>url==='/api/auth/csrf'?{csrf_token:'a'.repeat(64)}:url.endsWith('/test')?{state:'sent'}:value()}}
+  await testNotifications(4,undefined,'fixture-target','<b>plain</b> & 第二行')
+  assert.deepEqual(JSON.parse(calls.at(-1)[1].body),{expected_revision:4,message:'<b>plain</b> & 第二行'})
+  assert.equal(calls.at(-1)[0],'/api/admin/notifications/users/fixture-target/test')
+  await confirmTelegram(5,undefined,undefined,'123456789')
+  assert.deepEqual(JSON.parse(calls.at(-1)[1].body),{expected_revision:5,candidate_user_id:'123456789'})
+ }finally{globalThis.fetch=previous}
+})

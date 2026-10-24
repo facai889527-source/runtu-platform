@@ -9,13 +9,13 @@ from backend.auth.service import AuthDenied, digest
 from backend.registration import PolicyInput, Signup, RegistrationService
 
 
-async def body(request, model):
+async def body(request, model, max_bytes=4096):
     if request.headers.get('content-type', '').split(';')[0].strip() != 'application/json':
         raise auth_error(415, 'JSON required')
     raw = bytearray()
     try:
         async for chunk in request.stream():
-            if len(raw)+len(chunk)>4096: raise auth_error(413, 'Request too large')
+            if len(raw)+len(chunk)>max_bytes: raise auth_error(413, 'Request too large')
             raw.extend(chunk)
         try: return model.model_validate(json.loads(raw))
         except (ValueError, TypeError, UnicodeError, RecursionError):

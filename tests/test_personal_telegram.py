@@ -31,6 +31,7 @@ def personal(ready):
 
 
 def action(client,path,name,revision,**extra):
+    if name=='confirm':extra.setdefault('candidate_user_id',(client.get(path).json().get('candidate_identity') or {}).get('user_id'))
     return client.post(path+'/'+name,json={'expected_revision':revision,**extra},headers=headers(client))
 
 

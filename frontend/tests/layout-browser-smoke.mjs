@@ -6,7 +6,7 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 const origin = process.env.RUNTU_UI_BASE_URL || 'http://127.0.0.1:5173'
 assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:4173'].includes(origin), 'Only explicit loopback dev/preview origins are supported')
-const output = path.resolve('.git/codex-coordination/task56-after', new URL(origin).port)
+const output = path.resolve('.git/codex-coordination/task58-after', new URL(origin).port)
 await mkdir(output, { recursive: true })
 let occupied = false
 try { occupied = (await fetch('http://127.0.0.1:9229/json')).ok } catch { /* Free port. */ }
@@ -89,8 +89,9 @@ try {
   let apiRequests = 0, sessionWrites = 0
   let registrationPolicy = { enabled:false, approval_required:true, revision:0 }, registrationStatus = 200
   let applications = [], reviewStatus=200, reviewDetailStatus=200, reviewRequests=0
-  let notificationStatus=200, notificationSendStatus=200, notificationPersonalStatus=200, notificationReads=0, notificationSends=0
-  const notificationDefaults=()=>({enabled:false,revision:0,available:false,bot_mode:null,bot_username:null,personal_available:true,public_available:true,private_target:false,owner_account:false,bound:false,destination:null,paused:false,pairing:{state:'none',expires_at:null,candidate:null},events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:true,account_security:false,tool_outcomes:false,system_errors:false}})
+  let notificationStatus=200, notificationSendStatus=200, notificationPersonalStatus=200, notificationReads=0, notificationSends=0, notificationLastText=null, notificationLegacy=false
+  const fixtureIdentity=()=>({user_id:"123456789",chat_id:"123456789",first_name:"Lin",last_name:"Fixture",username:"fixture_telegram",display_name:"Lin Fixture"})
+  const notificationDefaults=()=>({identity:null,candidate_identity:null,custom_test_available:true,enabled:false,revision:0,available:false,bot_mode:null,bot_username:null,personal_available:true,public_available:true,private_target:false,owner_account:false,bound:false,destination:null,paused:false,pairing:{state:'none',expires_at:null,candidate:null},events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:true,account_security:false,tool_outcomes:false,system_errors:false}})
   let notificationPrefs=notificationDefaults()
   const managedNotificationPrefs=new Map()
   let managedNotificationReads=0
@@ -123,19 +124,20 @@ try {
           const value=JSON.parse(request.postData)
           for(const key of ['bot_token','chat_id','user_id'])assert.equal(value[key],undefined)
           if(value.expected_revision!==prefs.revision)code=409
-          else if(pathname.endsWith('/test')){notificationSends++;code=notificationSendStatus;if(code!==200)prefs={...prefs,enabled:false,paused:true,revision:prefs.revision+1}}
+          else if(pathname.endsWith('/test')){notificationSends++;notificationLastText=value.message;code=notificationSendStatus;if(code!==200)prefs={...prefs,enabled:false,paused:true,revision:prefs.revision+1}}
           else if(pathname.endsWith('/choose-personal')&&notificationPersonalStatus!==200)code=notificationPersonalStatus
           else if(pathname.endsWith('/choose-personal')){assert.equal(value.exclusive,true);assert.ok(value.token);prefs={...notificationDefaults(),available:true,bot_mode:'personal',bot_username:'PrivateFixtureBot',revision:prefs.revision+1,supported:prefs.supported}}
-          else if(pathname.endsWith('/sync-bot'))prefs={...prefs,pairing:{state:'confirm',expires_at:'2099-10-23T16:00:00Z',candidate:'••••6789'}}
+          else if(pathname.endsWith('/sync-bot'))prefs={...prefs,candidate_identity:fixtureIdentity(),pairing:{state:'confirm',expires_at:'2099-10-23T16:00:00Z',candidate:'••••6789'}}
           else if(pathname.endsWith('/rotate-secret'))prefs={...prefs}
           else if(pathname.endsWith('/choose-public'))prefs={...notificationDefaults(),available:true,bot_mode:'public',bot_username:'RuntuFixtureBot',revision:prefs.revision+1,supported:prefs.supported}
-          else if(pathname.endsWith('/connect')){prefs={...prefs,enabled:false,private_target:false,owner_account:false,bound:false,destination:null,revision:prefs.revision+1,pairing:{state:'waiting',expires_at:'2099-10-23T16:00:00Z',candidate:null}};connected={url:'https://t.me/'+prefs.bot_username+'?start='+'x'.repeat(43),revision:prefs.revision,expires_at:'2099-10-23T16:00:00Z'}}
-          else if(pathname.endsWith('/confirm'))prefs={...prefs,bound:true,destination:'••••6789',revision:prefs.revision+1,pairing:{state:'none',expires_at:null,candidate:null}}
+          else if(pathname.endsWith('/connect')){prefs={...prefs,identity:null,candidate_identity:null,enabled:false,private_target:false,owner_account:false,bound:false,destination:null,revision:prefs.revision+1,pairing:{state:'waiting',expires_at:'2099-10-23T16:00:00Z',candidate:null}};connected={url:'https://t.me/'+prefs.bot_username+'?start='+'x'.repeat(43),revision:prefs.revision,expires_at:'2099-10-23T16:00:00Z'}}
+          else if(pathname.endsWith('/confirm')){assert.equal(value.candidate_user_id,prefs.candidate_identity.user_id);prefs={...prefs,identity:prefs.candidate_identity,candidate_identity:null,bound:true,destination:'••••6789',revision:prefs.revision+1,pairing:{state:'none',expires_at:null,candidate:null}}}
           else if(pathname.endsWith('/disconnect'))prefs={...notificationDefaults(),supported:prefs.supported,revision:prefs.revision+1}
           else prefs={...prefs,enabled:value.enabled,private_target:value.private_target,events:value.events,revision:prefs.revision+1}
         }
         prefs={...prefs,owner_account:!target&&!viewer&&!admin}
         body=code!==200?{detail:'private-upstream-diagnostic'}:connected?connected:pathname.endsWith('/test')?{state:'sent'}:{...prefs,supported:{...prefs.supported,registration:!viewer},events:{...prefs.events,registration:!viewer&&prefs.events.registration}}
+        if(notificationLegacy&&code===200&&request.method==='GET'){body={...body};for(const key of ['identity','candidate_identity','custom_test_available'])delete body[key]}
         if(target)managedNotificationPrefs.set(target,prefs);else notificationPrefs=prefs
       }
       else if(pathname==='/api/admin/notifications/platform'){code=viewer||admin?403:200;body={feature_enabled:true,public_ready:true,token_present:true,username_present:true,webhook_secret_present:true,encryption_ready:true}}
@@ -464,7 +466,12 @@ try {
   }
 
   async function notificationChecks(capture=true) {
-    async function click(selector){await evaluate(`document.querySelector(${JSON.stringify(selector)}).focus();document.querySelector(${JSON.stringify(selector)}).click()`)}
+    async function click(selector){
+      if(['.rotate-secret','.telegram-disconnect'].includes(selector)){await evaluate(`document.querySelector('.connection-actions').open=true`)}
+      if(selector==='.telegram-confirm'){await evaluate(`document.querySelector('.candidate-acknowledgement input').click()`);await until(`!document.querySelector('.telegram-confirm').disabled`)}
+      await evaluate(`document.querySelector(${JSON.stringify(selector)}).focus();document.querySelector(${JSON.stringify(selector)}).click()`)
+      if(['.rotate-secret','.telegram-disconnect'].includes(selector)){await until(`document.querySelector('dialog[open]')`);await evaluate(`document.querySelector('.confirm-action').click()`)}
+    }
     authenticated=true;viewer=false;admin=false;notificationStatus=200;notificationSendStatus=200;notificationPrefs=notificationDefaults()
     await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false})
     for(const width of [1440,390,360]){
@@ -479,7 +486,7 @@ try {
     await click('.refresh-notifications');await until(`document.querySelector('.activation-needed')`)
     assert.equal(await evaluate(`!document.querySelector('.telegram-setup,.platform-telegram,.choose-public')`),true)
     if(capture)await screenshot('telegram-deploy-needed-360')
-    notificationStatus=200;await click('.refresh-notifications');await until(`!document.querySelector('.choose-personal').disabled`)
+    notificationStatus=200;await click('.refresh-notifications');await until(`!document.querySelector('.choose-personal').disabled`);assert.equal(await evaluate(`!document.querySelector('.activation-needed')`),true)
     await click('.choose-personal');await until(`document.querySelector('.personal-bot-form')`)
     notificationPersonalStatus=502
     await evaluate(`document.querySelector('#personal-bot-token').value='fixture-only-'+crypto.randomUUID();document.querySelector('#personal-bot-token').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.exclusive-control input').click();document.querySelector('.personal-bot-form').requestSubmit()`)
@@ -493,13 +500,21 @@ try {
     await click('.telegram-connect');await until(`document.querySelector('.telegram-pair-link')`)
     assert.equal(await evaluate(`document.querySelector('.telegram-pair-link').getAttribute('rel')`),'noopener noreferrer')
     if(capture)await screenshot('telegram-personal-pairing-360')
-    await click('.sync-personal');await until(`document.querySelector('.telegram-confirm')`)
-    await click('.telegram-confirm');await until(`document.querySelector('.notification-fields')`)
+    await click('.sync-personal');await until(`document.querySelector('.telegram-confirm')`);if(capture)await screenshot('telegram-candidate-identity-360')
+    await click('.telegram-confirm');await until(`document.querySelector('.notification-fields')`);assert.equal(await evaluate(`!document.querySelector('.owner-bind-panel')&&document.querySelector('.verified-identity').textContent.includes('123456789')`),true)
     await evaluate(`document.querySelector('.notification-fields input[role=switch]').focus()`)
     await send('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});await send('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32})
     await click('.notification-fields .policy-switch:nth-of-type(2) input');await click('.notification-fields .policy-switch:nth-of-type(3) input')
     await click('.notification-save');await until(`document.querySelector('.notification-success')?.textContent.includes('已保存')`)
+    await evaluate(`document.querySelector('#telegram-test-message').value='<b>fixture-only plain text</b>';document.querySelector('#telegram-test-message').dispatchEvent(new Event('input',{bubbles:true}))`);
+    if(capture)await screenshot('telegram-custom-message-360')
     await click('.notification-test button');await until(`document.querySelector('.notification-success')?.textContent.includes('发送成功')`)
+    assert.equal(notificationLastText,'<b>fixture-only plain text</b>')
+    await evaluate(`document.querySelector('.connection-actions').open=true;document.querySelector('.telegram-disconnect').focus();document.querySelector('.telegram-disconnect').click()`)
+    await until(`document.querySelector('dialog[open]')`);if(capture)await screenshot('telegram-confirm-disconnect-360')
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27})
+    await until(`!document.querySelector('dialog[open]')&&document.activeElement.classList.contains('telegram-disconnect')`)
+    assert.equal(notificationPrefs.bound,true)
     await click('.rotate-secret');await until(`document.querySelector('.notification-success')?.textContent.includes('重新加密')`)
     for(const width of [1440,390,360]){
       await send('Emulation.setDeviceMetricsOverride',{width,height:width===1440?900:844,deviceScaleFactor:1,mobile:width<760})
@@ -508,8 +523,9 @@ try {
       await evaluate(`document.querySelector('.notification-test').scrollIntoView({block:'end'})`);await noOverflow()
       if(capture)await screenshot('telegram-personal-events-'+width)
     }
+    notificationLegacy=true;await visit('/notifications');await until(`document.querySelector('.identity-missing')`);assert.equal(await evaluate(`document.querySelector('#telegram-test-message').disabled&&!document.querySelector('.owner-bind-panel')`),true);if(capture)await screenshot('telegram-legacy-connected-360');notificationLegacy=false;await click('.refresh-notifications');await until(`!document.querySelector('#telegram-test-message').disabled`)
     notificationSendStatus=502;await click('.notification-test button');await until(`document.querySelector('.notification-error')?.textContent.includes('未确认发送成功')`)
-    await click('.notification-section-heading button');await until(`document.querySelector('.telegram-binding')?.textContent.includes('通知已暂停')`)
+    await click('.refresh-notifications');await until(`document.querySelector('.telegram-binding')?.textContent.includes('通知已暂停')`)
     await click('.telegram-disconnect');await until(`!document.querySelector('.telegram-binding')&&document.querySelector('.choose-personal:not(:disabled)')`)
     assert.equal(notificationPrefs.bot_mode,null);assert.equal(notificationPrefs.private_target,false)
     assert.equal(await evaluate(`!document.querySelector('.choose-public,.telegram-setup,.platform-telegram')`),true)

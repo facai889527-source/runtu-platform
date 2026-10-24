@@ -35,7 +35,7 @@ def payload(revision=0, enabled=False, registration=False):
 def exercise_notification_preferences(client):
     current=client.get(PATH)
     assert current.status_code==200 and current.headers['cache-control']=='no-store'
-    assert set(current.json())=={'enabled','revision','available','bound','destination','paused','pairing','events','supported','bot_mode','bot_username','personal_available','public_available','private_target','owner_account'}
+    assert set(current.json())=={'enabled','revision','available','bound','destination','paused','pairing','events','supported','bot_mode','bot_username','personal_available','public_available','private_target','owner_account','identity','candidate_identity','custom_test_available'}
     assert current.json()['bound'] is False and current.json()['destination'] is None
     saved=client.put(PATH,json=payload(),headers=headers(client))
     assert saved.status_code==200 and saved.json()['revision']==0
@@ -90,7 +90,7 @@ def bind(client, chat=123456789, registration=False):
     token,revision=begin(client)
     assert callback(client,token,chat).json()=={'ok':True}
     assert client.get(PATH).json()['bound'] is False
-    result=client.post(PATH+'/confirm',json={'expected_revision':revision},headers=headers(client))
+    result=client.post(PATH+'/confirm',json={'expected_revision':revision,'candidate_user_id':client.get(PATH).json().get('candidate_identity',{}).get('user_id')},headers=headers(client))
     assert result.status_code==200
     row=result.json()
     assert row['bound'] and not row['enabled']
@@ -203,12 +203,12 @@ def test_complete_pair_confirm_single_use_masked_and_no_secret_echo(ready,caplog
     assert callback(client,token).json()=={'ok':True}
     assert callback(client,token,987654321).json()=={'ok':True}
     row=client.get(PATH).json();assert row['pairing']['candidate']=='••••6789' and not row['bound']
-    result=client.post(PATH+'/confirm',json={'expected_revision':revision},headers=headers(client))
+    result=client.post(PATH+'/confirm',json={'expected_revision':revision,'candidate_user_id':client.get(PATH).json().get('candidate_identity',{}).get('user_id')},headers=headers(client))
     assert result.status_code==200 and result.json()['bound']
     assert client.post(PATH+'/confirm',json={'expected_revision':revision},headers=headers(client)).status_code==409
     assert callback(client,token).json()=={'ok':True}
     assert notifications.transport.send.call_count==0
-    for secret in (TOKEN,WEBHOOK,token,'123456789'):
+    for secret in (TOKEN,WEBHOOK,token):
         assert secret not in client.get(PATH).text and secret not in caplog.text
 
 
@@ -277,7 +277,7 @@ def test_pairing_race_only_one_confirmation_and_settings_audit_rollback(ready):
     token,revision=begin(client);callback(client,token)
     key=digest(client.cookies.get('__Host-runtu_session'))
     def confirm(_):
-        try:notifications.confirm(actor,key,revision);return 'bound'
+        try:notifications.confirm(actor,key,revision,candidate_user_id='123456789');return 'bound'
         except UserConflict:return 'conflict'
     with ThreadPoolExecutor(max_workers=2) as pool:assert sorted(pool.map(confirm,range(2)))==['bound','conflict']
     revision=client.get(PATH).json()['revision']

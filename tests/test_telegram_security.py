@@ -9,9 +9,9 @@ from backend.config import Settings
 from backend.telegram_security import TelegramAPI, TelegramBusy, TelegramUnavailable, TelegramVault, SecretStorageUnavailable
 
 
-def test_secret_encryption_binds_owner_rotates_and_fails_closed():
+def test_secret_encryption_binds_owner_rotates_and_fails_closed(tmp_path):
     first,second=Fernet.generate_key().decode(),Fernet.generate_key().decode()
-    settings=Settings(_env_file=None,notification_encryption_keys=first)
+    settings=Settings(_env_file=None,notification_encryption_keys=first,notification_key_file=str(tmp_path/"absent.key"))
     vault=TelegramVault(settings);secret=SecretStr('fixture-personal-secret')
     sealed=vault.seal('account-a',secret)
     assert secret.get_secret_value() not in sealed and vault.open('account-a',sealed)==secret

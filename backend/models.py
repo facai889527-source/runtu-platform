@@ -149,6 +149,12 @@ class AccountNotification(Base):
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+    telegram_user_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    telegram_first_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    telegram_last_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    telegram_username: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
 class TelegramChallenge(Base):
     __tablename__ = 'telegram_challenges'
     user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
@@ -157,6 +163,12 @@ class TelegramChallenge(Base):
     session_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     chat_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+    telegram_user_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    telegram_first_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    telegram_last_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    telegram_username: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class NotificationDelivery(Base):

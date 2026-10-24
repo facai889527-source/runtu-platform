@@ -7,9 +7,10 @@ import json
 from queue import Empty, Full, Queue
 import re
 import secrets
+import unicodedata
 from threading import Event, Lock, Thread
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
 from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 
@@ -47,6 +48,40 @@ class NotificationInput(BaseModel):
 class TestInput(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     expected_revision: int = Field(ge=0, le=2147483646)
+
+class ConfirmInput(TestInput):
+    candidate_user_id: str | None = Field(default=None, pattern=r'^[1-9][0-9]{0,15}$')
+
+class CustomTestInput(TestInput):
+    message: str | None = Field(default=None, min_length=1, max_length=4096)
+
+    @field_validator('message')
+    @classmethod
+    def plaintext(cls,value):
+        if value is None:return value
+        try:units=len(value.encode('utf-16-le'))//2
+        except UnicodeError:raise ValueError('Invalid plaintext') from None
+        if not value.strip() or units>4096 or any(ord(c)<32 and c not in '\n\t\r' for c in value):
+            raise ValueError('Invalid plaintext')
+        return value
+
+def sender_metadata(sender):
+    names=[]
+    for field in ('first_name','last_name'):
+        value=sender.get(field)
+        if value is not None and (not isinstance(value,str) or len(value)>64):return None
+        names.append(''.join(c for c in value if not unicodedata.category(c).startswith('C')) if value else None)
+    username=sender.get('username')
+    if username is not None and (not isinstance(username,str) or not re.fullmatch(r'[A-Za-z0-9_]{1,32}',username)):return None
+    return dict(telegram_user_id=str(sender['id']),telegram_first_name=names[0],telegram_last_name=names[1],telegram_username=username)
+
+def public_identity(row):
+    if not row or not row.chat_id or not row.telegram_user_id:return None
+    return dict(user_id=row.telegram_user_id,chat_id=row.chat_id,first_name=row.telegram_first_name,last_name=row.telegram_last_name,
+                username=row.telegram_username,display_name=' '.join(v for v in (row.telegram_first_name,row.telegram_last_name) if v) or 'Telegram 账户')
+
+def clear_identity(row):
+    row.telegram_user_id=row.telegram_first_name=row.telegram_last_name=row.telegram_username=None
 
 class TelegramTransport:
     def send(self, token, chat_id, text):
@@ -174,7 +209,7 @@ class NotificationService:
         session.execute(delete(TelegramChallenge).where(TelegramChallenge.user_id.in_(recipients)))
         session.execute(update(AccountNotification).where(AccountNotification.bot_mode=='public').values(
             bot_mode=None,bot_key=None,chat_id=None,bound_at=None,private_target=False,enabled=False,
-            registration=False,paused=False,revision=AccountNotification.revision+1,changed_at=self.auth.clock()))
+            registration=False,paused=False,telegram_user_id=None,telegram_first_name=None,telegram_last_name=None,telegram_username=None,revision=AccountNotification.revision+1,changed_at=self.auth.clock()))
 
     def clear(self, session, row):
         platform=session.get(TelegramPlatform,1)
@@ -183,6 +218,7 @@ class NotificationService:
             platform.owner_id,platform.fingerprint,platform.public_key=None,None,None
         session.execute(delete(PersonalTelegramBot).where(PersonalTelegramBot.user_id==row.user_id))
         session.execute(delete(TelegramChallenge).where(TelegramChallenge.user_id == row.user_id))
+        clear_identity(row)
         row.bot_mode, row.bot_key = None, None
         row.chat_id, row.bound_at = None, None
         row.enabled, row.registration, row.paused, row.private_target = False, False, False, False
@@ -219,10 +255,11 @@ class NotificationService:
         privileged = user.role in PRIVILEGED
         try:_,username=self.context(session,row)
         except (NotificationIncomplete,SecretStorageUnavailable,TelegramUnavailable):username=None
-        return dict(enabled=row.enabled, revision=row.revision, available=self.selected(row,session),
-            bot_mode=row.bot_mode, bot_username=username, public_available=self.public_ready(session), personal_available=self.personal.ready(session), owner_account=user.role=='owner', private_target=row.private_target,
+        return dict(enabled=row.enabled, revision=row.revision, available=bool(user.active and self.selected(row,session)),
+            bot_mode=row.bot_mode, bot_username=username, public_available=bool(user.active and self.public_ready(session)), personal_available=bool(user.active and self.personal.ready(session)), owner_account=user.role=='owner', private_target=row.private_target,
             bound=bool(row.chat_id and row.bound_at), destination='••••'+row.chat_id[-4:] if row.chat_id else None,
-            paused=row.paused, pairing=pairing,
+            paused=row.paused, pairing=pairing, identity=public_identity(row) if row.bound_at else None,
+            candidate_identity=public_identity(challenge) if valid and challenge.chat_id else None, custom_test_available=True,
             events=dict(registration=row.registration if privileged else False,
                 account_security=False, tool_outcomes=False, system_errors=False),
             supported=dict(registration=privileged, account_security=False, tool_outcomes=False, system_errors=False))
@@ -243,11 +280,12 @@ class NotificationService:
             return self.public(session, user, row)
 
     def begin(self, actor, key, revision, target=None):
-        self.auth._reserve([('telegram-pair:'+actor, 5), ('telegram-pair-global', 30)])
+        self.auth._reserve([('telegram-pair:'+actor, 5), ('telegram-pair-global', 300)])
         token = secrets.token_urlsafe(32)
         with self.own(actor, key, True, target) as (session, user):
             row = self.profile(session, user.id, True); self.expect(row, revision)
             if not self.selected(row,session) or not user.active: raise NotificationIncomplete()
+            clear_identity(row)
             row.registration, row.private_target = False, False
             row.enabled, row.chat_id, row.bound_at, row.paused = False, None, None, False
             self.change(row)
@@ -283,10 +321,13 @@ class NotificationService:
         user=session.get(AuthUser,challenge.user_id);row=session.get(AccountNotification,challenge.user_id)
         if (not user or not user.active or not row or row.bot_mode!=mode or row.bot_key!=fingerprint or not self.selected(row,session)
                 or (principal.id!=user.id and principal.role!='owner')):return
+        metadata=sender_metadata(sender)
+        if metadata is None:return
         challenge.token_hash,challenge.chat_id=None,str(chat_id)
+        for field,value in metadata.items():setattr(challenge,field,value)
         session.flush()
 
-    def confirm(self, actor, key, revision, target=None):
+    def confirm(self, actor, key, revision, target=None, candidate_user_id=None):
         try:
             with self.own(actor, key, True, target) as (session, user):
                 row = self.profile(session, user.id, True); self.expect(row, revision)
@@ -294,9 +335,12 @@ class NotificationService:
                 challenge = session.get(TelegramChallenge, user.id)
                 if (not challenge or challenge.initiator_id != actor or challenge.session_hash != key or not challenge.chat_id
                         or challenge.token_hash is not None or aware(challenge.expires_at) <= self.auth.clock()): raise UserConflict()
+                if not candidate_user_id or candidate_user_id!=challenge.telegram_user_id:raise UserConflict()
                 if session.scalar(select(AccountNotification.user_id).where(AccountNotification.chat_id == challenge.chat_id,
                         AccountNotification.user_id != user.id)) is not None: raise UserConflict()
                 row.chat_id, row.bound_at, row.enabled, row.paused = challenge.chat_id, self.auth.clock(), False, False
+                for field in ('telegram_user_id','telegram_first_name','telegram_last_name','telegram_username'):
+                    setattr(row,field,getattr(challenge,field))
                 self.change(row); session.delete(challenge)
                 if user.role=='owner' and row.bot_mode=='personal':
                     self.revoke_public(session)
@@ -348,14 +392,15 @@ class NotificationService:
 
     def registration_committed(self, event_id): self._offer(('registration', event_id))
 
-    def test(self, actor, key, revision, target=None):
+    def test(self, actor, key, revision, target=None, message=None):
         with self.own(actor, key, target=target) as (session, user):
             recipient = user.id
             row = self.profile(session, recipient); self.expect(row, revision)
             if not self.selected(row,session) or not user.active or not row.private_target or not row.enabled or not row.chat_id or not row.bound_at: raise NotificationIncomplete()
         self.auth._reserve([('telegram-test:'+actor, 1), ('telegram-test-global', 20)])
+        message=CustomTestInput(expected_revision=revision,message=message).message or 'Runtu：Telegram 个人消息设置测试。'
         future = Future()
-        if not self._offer(('test', recipient, key, revision, self.auth.clock(), actor, future)): future.set_result(False)
+        if not self._offer(('test', recipient, key, revision, self.auth.clock(), actor, message, future)): future.set_result(False)
         return future
 
     def _deliver(self, actor, revision, text, event_id=None, key=None, queued_at=None, principal=None):
@@ -423,8 +468,8 @@ class NotificationService:
             success = False
             try:
                 if item[0] == 'test':
-                    _, actor, key, revision, queued_at, principal, _ = item
-                    success = self._deliver(actor, revision, 'Runtu：Telegram 个人消息设置测试。', key=key, queued_at=queued_at, principal=principal)
+                    _, actor, key, revision, queued_at, principal, text, _ = item
+                    success = self._deliver(actor, revision, text, key=key, queued_at=queued_at, principal=principal)
                 else: self._registration(item[1], stopped)
             except Exception: pass  # Never log credentials, callback payloads or transport errors.
             finally:

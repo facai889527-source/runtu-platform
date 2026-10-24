@@ -6,8 +6,16 @@ const path = '/api/me/notifications'
 const events = ['registration','account_security','tool_outcomes','system_errors']
 const exact = (v,keys) => v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === keys.length && keys.every(k=>Object.hasOwn(v,k))
 const date = v => typeof v === 'string' && Number.isFinite(Date.parse(v))
+const identityKeys=['user_id','chat_id','first_name','last_name','username','display_name']
+function validIdentity(v){
+ return v===null || (exact(v,identityKeys)&&['user_id','chat_id'].every(k=>typeof v[k]==='string'&&/^[1-9][0-9]{0,15}$/.test(v[k])&&Number(v[k])<2**52)
+  && v.user_id===v.chat_id && ['first_name','last_name'].every(k=>v[k]===null||(typeof v[k]==='string'&&v[k].length<=128&&!/[\u0000-\u001f\u007f]/.test(v[k])))
+  && (v.username===null||(typeof v.username==='string'&&/^[A-Za-z0-9_]{1,32}$/.test(v.username)))&&typeof v.display_name==='string'&&v.display_name.length>0&&v.display_name.length<=258)
+}
 export function preferences(v) {
-  if (!exact(v,['enabled','revision','available','bound','destination','paused','pairing','events','supported','bot_mode','bot_username','personal_available','public_available','private_target','owner_account'])
+  const extended=Object.hasOwn(v||{},'custom_test_available')
+  const additions=extended?['identity','candidate_identity','custom_test_available']:[]
+  if (!exact(v,['enabled','revision','available','bound','destination','paused','pairing','events','supported','bot_mode','bot_username','personal_available','public_available','private_target','owner_account',...additions])
     || ['enabled','available','bound','paused','public_available','personal_available','private_target','owner_account'].some(k=>typeof v[k]!=='boolean')
     || ![null,'public','personal'].includes(v.bot_mode)
     || !(v.bot_username===null || (typeof v.bot_username==='string' && /^[A-Za-z][A-Za-z0-9_]{1,28}[Bb][Oo][Tt]$/.test(v.bot_username))) || (v.bot_mode===null && (v.bound || v.enabled || v.private_target || v.pairing?.state!=='none'))
@@ -20,7 +28,8 @@ export function preferences(v) {
     || !exact(v.events,events) || !exact(v.supported,events)
     || events.some(k=>typeof v.events[k]!=='boolean'||typeof v.supported[k]!=='boolean'||(v.events[k]&&!v.supported[k]))
     || events.slice(1).some(k=>v.supported[k])) throw new Error('个人消息设置格式异常，请刷新。')
-  return v
+  if(extended&&((v.identity&&v.destination!=='••••'+v.identity.chat_id?.slice(-4))||(v.candidate_identity&&v.pairing.candidate!=='••••'+v.candidate_identity.chat_id?.slice(-4))||!validIdentity(v.identity)||!validIdentity(v.candidate_identity)||typeof v.custom_test_available!=='boolean'||(v.identity&&!v.bound)||(v.candidate_identity&&v.pairing.state!=='confirm')))throw new Error('Telegram 身份格式异常，请刷新。')
+  return extended?v:{...v,identity:null,candidate_identity:null,custom_test_available:false}
 }
 async function request(suffix,method,value,signal,target) {
   if(target && (typeof target!=='string' || target.length>36 || !/^[A-Za-z0-9-]+$/.test(target))) throw new Error('账户范围无效。')
@@ -28,10 +37,10 @@ async function request(suffix,method,value,signal,target) {
   const headers=method==='GET'?{Accept:'application/json'}:await securityHeaders(signal)
   const r=await sessionFetch(scoped+suffix,{method,signal,credentials:'same-origin',headers,...(value===undefined?{}:{body:JSON.stringify(value)})})
   if(!r.ok) throw new ApiError(r.status,{
-    401:'登录已失效，请重新登录。',403:'身份或安全校验已失效，请刷新身份。',404:'当前后端尚未部署消息接口，请按下方步骤部署后重试。',
-    409:'配置已变化，或 Bot 已被其他账户、Webhook 或轮询占用。请刷新；不要接管其他部署。',422:suffix==='/choose-personal'?'Token 格式或专用控制确认无效，请重新核对 BotFather 提供的 Token。':'请先选择 Bot、完成私聊验证并选择接收目标；检查服务端启用状态。',
+    401:'登录已失效，请重新登录。',403:'身份或安全校验已失效，请刷新身份。',404:'当前消息接口不可用，请重新检查状态。',
+    409:'配置已变化，或 Bot 已被其他账户、Webhook 或轮询占用。请刷新；不要接管其他部署。',422:suffix==='/test'?'测试内容无效：请使用最多4096字符的纯文本，并确认私聊目标已启用。':suffix==='/choose-personal'?'Token 格式或专用控制确认无效，请重新核对 BotFather 提供的 Token。':'请先选择 Bot、完成私聊验证并选择接收目标；检查服务端启用状态。',
     429:'操作已限流，请五分钟后重试。',502:suffix==='/test'?'未确认发送成功，通知可能已暂停。请刷新并检查机器人是否被屏蔽。':'Telegram 验证或同步失败，请检查 Bot Token、网络和原部署状态。',
-    503:'消息服务暂不可用，可能需要部署、迁移或配置加密密钥。请查看下方启用步骤。',504:'发送结果未确认，请勿立即重试。',
+    503:'消息服务暂不可用，请稍后重新检查状态。',504:'发送结果未确认，请勿立即重试。',
   }[r.status]||'操作结果未确认，请刷新。')
   return r.json()
 }
@@ -43,10 +52,10 @@ export async function connectTelegram(revision,signal,target) {
     || typeof v.url!=='string' || !/^https:\/\/t\.me\/[A-Za-z][A-Za-z0-9_]{1,28}[Bb][Oo][Tt]\?start=[A-Za-z0-9_-]{43}$/.test(v.url)) throw new Error('配对链接未确认，请重新连接。')
   return v
 }
-export const confirmTelegram=async (revision,signal,target)=>preferences(await request('/confirm','POST',{expected_revision:revision},signal,target))
+export const confirmTelegram=async (revision,signal,target,candidateId)=>preferences(await request('/confirm','POST',{expected_revision:revision,...(candidateId?{candidate_user_id:candidateId}:{})},signal,target))
 export const disconnectTelegram=async (revision,signal,target)=>preferences(await request('/disconnect','POST',{expected_revision:revision},signal,target))
-export async function testNotifications(revision,signal,target) {
-  const v=await request('/test','POST',{expected_revision:revision},signal,target)
+export async function testNotifications(revision,signal,target,message) {
+  const v=await request('/test','POST',{expected_revision:revision,...(message===undefined?{}:{message})},signal,target)
   if(!exact(v,['state'])||v.state!=='sent') throw new Error('发送结果未确认，请勿立即重试。')
   return v
 }

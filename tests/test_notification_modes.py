@@ -14,7 +14,8 @@ from tests.test_notifications import ready, PATH, TOKEN, bind, begin, callback, 
 
 
 def post(client, path, action, revision):
-    return client.post(path+'/'+action, json={'expected_revision':revision}, headers=headers(client))
+    extra={'candidate_user_id':(client.get(path).json().get('candidate_identity') or {}).get('user_id')} if action=='confirm' else {}
+    return client.post(path+'/'+action, json={'expected_revision':revision,**extra}, headers=headers(client))
 
 
 def test_explicit_choice_target_and_complete_disconnect(ready):

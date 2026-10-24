@@ -1,6 +1,7 @@
 import asyncio
 import hmac
 import json
+import re
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Request
@@ -9,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 from backend.auth.routes import auth_error, require_authenticated, token_from
 from backend.auth.service import AuthDenied, digest
-from backend.notifications import NotificationIncomplete, NotificationInput, NotificationService, TestInput
+from backend.notifications import NotificationIncomplete, NotificationInput, NotificationService, TestInput, ConfirmInput, CustomTestInput
 from backend.registration_routes import body
 from backend.personal_telegram import PersonalBotInput
 from backend.telegram_security import SecretStorageUnavailable, TelegramUnavailable, TelegramBusy
@@ -50,17 +51,18 @@ def install_notifications(app):
     async def action(action: str, request: Request, identity=Depends(require_authenticated), target: str | None = None):
         owner_scope(request, identity, target)
         if action not in ('choose-public', 'choose-personal', 'sync-personal', 'sync-bot', 'rotate-secret', 'connect', 'confirm', 'disconnect', 'test'): raise auth_error(404, 'Action unavailable')
-        value = await body(request, PersonalBotInput if action=='choose-personal' else TestInput)
+        value = await body(request, PersonalBotInput if action=='choose-personal' else CustomTestInput if action=='test' else ConfirmInput if action=='confirm' else TestInput, max_bytes=32768 if action=='test' else 4096)
         try:
             if action=='choose-personal':return result(await run_in_threadpool(service.personal.bind,identity.id,key(request),value,target))
             if action in ('sync-personal','sync-bot','rotate-secret'):
                 method=service.personal.sync if action in ('sync-personal','sync-bot') else service.personal.rotate
                 return result(await run_in_threadpool(method,identity.id,key(request),value.expected_revision,target))
             if action == 'test':
-                future = await run_in_threadpool(service.test, identity.id, key(request), value.expected_revision, target)
+                future = await run_in_threadpool(service.test, identity.id, key(request), value.expected_revision, target, value.message)
                 success = await asyncio.wait_for(asyncio.shield(asyncio.wrap_future(future)), timeout=3)
                 if not success: raise auth_error(502, 'Telegram delivery not confirmed; refresh settings')
                 return result({'state': 'sent'})
+            if action=='confirm':return result(await run_in_threadpool(service.confirm,identity.id,key(request),value.expected_revision,target,value.candidate_user_id))
             method = {'choose-public': service.choose_public, 'connect': service.begin, 'confirm': service.confirm, 'disconnect': service.unlink}[action]
             return result(await run_in_threadpool(method, identity.id, key(request), value.expected_revision, target))
         except AuthDenied: raise auth_error(403, 'Notification access denied') from None
@@ -98,7 +100,7 @@ def install_notifications(app):
         if not service.configured: raise auth_error(503, 'Telegram binding unavailable')
         origin = urlsplit(config.auth_origin or '')
         if (request.url.scheme != 'https' or origin.scheme != 'https' or request.headers.get('host','').lower() != origin.netloc
-                or not hmac.compare_digest(supplied.encode(), expected.encode())):
+                or not re.fullmatch(r'[A-Za-z0-9_-]{32,256}',expected) or not hmac.compare_digest(supplied.encode(), expected.encode())):
             raise auth_error(403, 'Callback denied')
         if request.headers.get('content-type','').split(';')[0].strip() != 'application/json': raise auth_error(415, 'JSON required')
         raw = bytearray()

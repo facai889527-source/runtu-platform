@@ -118,9 +118,16 @@ class PersonalBots:
                 bot=session.get(PersonalTelegramBot,recipient)
                 if (not user.active or not bot or bot.lease_id!=lease or not bot.lease_until or aware(bot.lease_until)<=self.n.auth.clock()
                         or bot.fingerprint!=fingerprint or row.bot_mode!=request_mode or row.bot_key!=request_key or not self.n.selected(row,session)):raise UserConflict()
-                next_offset=offset
+                # Validate/deduplicate the entire bounded batch before consuming
+                # proofs. Sort so out-of-order replies cannot skip older proofs.
+                ordered={}
                 for update in updates:
                     if not isinstance(update,dict) or type(update.get('update_id')) is not int or not 0<=update['update_id']<2147483647:raise TelegramUnavailable()
+                    ident=update['update_id']
+                    if ident in ordered and ordered[ident]!=update:raise TelegramUnavailable()
+                    ordered[ident]=update
+                next_offset=offset
+                for _,update in sorted(ordered.items()):
                     if update['update_id']<next_offset:continue
                     self.n.process_pair_message(session,update,'personal',fingerprint,recipient)
                     try:
