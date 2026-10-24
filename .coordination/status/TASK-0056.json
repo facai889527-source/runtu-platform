@@ -1,15 +1,25 @@
 {
   "task_id": "TASK-0056",
   "signal_version": 56,
-  "state": "running",
-  "updated_at": "2026-10-24T11:26:10.729Z",
-  "summary": "Claimed owner-first Bot UX, encrypted owner-managed public Bot and one-time setup; real SQLite migration requires explicit owner approval after backup/impact review.",
+  "state": "blocked_user_action",
+  "updated_at": "2026-10-24T11:56:20.384Z",
+  "summary": "Owner-first encrypted public Bot and protected one-time setup delivered in PR28. Local activation awaits explicit owner approval for the real SQLite upgrade; verified backup and disposable rehearsal are complete.",
   "checks": [
-    "Ready version checked; outbox empty, no local same-version execution, no all-state same-task PR and no remote status; existing PR28 branch clean."
+    "Final commit a9447247377dc09b4a542ff6d91b936fad3d16e0; clean worktree; PR28 remains stacked on PR27 without merge or deployment.",
+    "Local full Python 245 passed/11 optional skipped before final downgrade case; final owner suite 6 passed and cleanup contract 2 passed. Final Linux full CI 246 passed/11 optional skipped.",
+    "Node 40 passed; Vite 89 modules; full and focused mocked Chrome regression passed at 1440/390/360; 15 fixture screenshots.",
+    "Both final-commit workflows 40091736898 and 40091736914 succeeded, all six jobs; PostgreSQL 11 required passed, zero skipped.",
+    "Protected consistent SQLite backup integrity ok; disposable copy upgraded 0007_login_activity to 0012_owner_public_bot; all pre-existing table data preserved. Real database remains 0007; no existing Telegram bindings.",
+    "0010 clears legacy bindings/subscriptions/challenges; 0011 adds personal ciphertext table; 0012 adds default-disabled public source metadata. No real Telegram credentials, network requests or sends; no administrator initialization.",
+    "Owner Bot becomes public only after private proof; admin/viewer explicit opt-in; encrypted credentials, CSRF/owner setup, source revocation and bounded shared polling verified."
   ],
-  "blockers": [],
+  "blockers": [
+    "Explicit owner approval is required by TASK-0056 before real local SQLite migration 0007 to 0012 and local backend restart to load the new code.",
+    "Real Telegram verification requires the owner to enter their Token in the protected UI after activation; never send it through chat.",
+    "Groups, membership filtering, multiple targets and per-target deduplication remain an explicitly reported formal follow-up."
+  ],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
-  "commit_sha": "fd3bc935af66ea45ab8852cd07182c1eef1ff76a",
-  "next_action": "Implement/test owner-first management and protected key/bootstrap/public secret store on disposable DB; inspect real migration effects and backup integrity; request owner approval only for concrete real migration."
+  "commit_sha": "a9447247377dc09b4a542ff6d91b936fad3d16e0",
+  "next_action": "Ask owner to explicitly approve the reviewed real local migration 0007 to 0012 (including 0010 cleanup) and local backend restart. Until new explicit input, retain blocked state; do not repeat migration, backup rehearsal, setup or administrator bootstrap."
 }
