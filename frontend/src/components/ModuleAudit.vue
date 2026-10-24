@@ -35,11 +35,11 @@ function timeLabel(value) { return new Date(value).toLocaleString('zh-CN', { hou
       <p v-if="records.pending.value" role="status">正在加载操作记录…</p>
       <div v-else-if="records.error.value" role="alert"><p>{{ records.error.value.message }}</p><button type="button" @click="load">重试加载</button></div>
       <template v-else-if="records.data.value">
-        <p v-if="!records.data.value.items.length" class="subtle">{{ cursor === null ? '此模块暂无操作记录。保存模块变更后会在这里显示。' : '此页没有更早的记录，请返回较新记录或刷新。' }}</p>
+        <p v-if="!records.data.value.items.length" class="subtle">{{ cursor === null ? '此工具暂无操作记录。保存工具变更后会在这里显示。' : '此页没有更早的记录，请返回较新记录或刷新。' }}</p>
         <ol v-else class="audit-list">
           <li v-for="item in records.data.value.items" :key="item.revision">
-            <div class="audit-entry-heading"><strong>更新模块设置</strong><span class="audit-revision">版本 {{ item.revision }}</span></div>
-            <dl><div><dt>操作者标识</dt><dd>{{ item.actor_id }}</dd></div><div><dt>模块</dt><dd>{{ item.module_id }}</dd></div><div><dt>时间（本地）</dt><dd><time :datetime="item.created_at">{{ timeLabel(item.created_at) }}</time></dd></div></dl>
+            <div class="audit-entry-heading"><strong>更新工具设置</strong><span class="audit-revision">版本 {{ item.revision }}</span></div>
+            <dl><div><dt>操作者标识</dt><dd>{{ item.actor_id }}</dd></div><div><dt>工具</dt><dd>{{ item.module_id }}</dd></div><div><dt>时间（本地）</dt><dd><time :datetime="item.created_at">{{ timeLabel(item.created_at) }}</time></dd></div></dl>
           </li>
         </ol>
       </template>

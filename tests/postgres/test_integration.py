@@ -24,7 +24,7 @@ from scripts.pg_guard import GuardRefused, guarded_test_url
 
 
 def test_registration_policy_approval_and_migration_guard(pg_auth):
-    from tests.test_registration import exercise_registration_contract
+    from tests.test_registration import exercise_registration_contract, exercise_rejection_contract
     from tests.test_module_management import headers
     from backend.registration import PolicyInput
     from backend.models import RegistrationPolicy
@@ -35,7 +35,10 @@ def test_registration_policy_approval_and_migration_guard(pg_auth):
     with TestClient(app,base_url='https://runtu.test') as client:
         proof=client.get('/api/auth/csrf').json()['csrf_token']
         assert client.post('/api/auth/login',json={'username':'operator','password':password},headers={'Origin':'https://runtu.test','X-CSRF-Token':proof}).status_code==200
-        exercise_registration_contract(client,app)
+        exercise_registration_contract(client,app,include_rejection=False)
+        from tests.test_notifications import exercise_notification_preferences, exercise_verified_binding_contract
+        exercise_notification_preferences(client)
+        exercise_verified_binding_contract(client)
         key=digest(client.cookies.get('__Host-runtu_session'))
         def save(_):
             try:
@@ -58,6 +61,9 @@ def test_registration_policy_approval_and_migration_guard(pg_auth):
             command.downgrade(config,'0005_user_module_access')
         migrate_database(db)
         assert client.get('/api/auth/registration-policy').json()==dict(enabled=False,approval_required=True)
+        from tests.test_registration import set_policy
+        assert set_policy(client).status_code == 200
+        exercise_rejection_contract(client, app)
 
 
 def test_assigned_module_grants_public_contract_and_atomicity(pg_auth):
@@ -314,8 +320,9 @@ def test_auth_api_rbac_rotation_csrf_and_disable(pg_auth):
     app = create_app(settings)
     for permission in PERMISSIONS | {'unknown'}:
         app.add_api_route('/pg-probe/' + permission, lambda: {'ok': True}, dependencies=[Depends(require_permission(permission))])
-    with TestClient(app, base_url='https://runtu.test') as client:
+    with TestClient(app, base_url='https://runtu.test', client=('198.51.100.30', 5000)) as client:
         assert client.get('/api/admin/me').status_code == 401
+        assert client.get('/api/auth/activity').status_code == 401
         for role in ('viewer', 'admin', 'owner'):
             with db.transaction() as session:
                 session.get(AuthUser, user_id).role = role
@@ -327,6 +334,11 @@ def test_auth_api_rbac_rotation_csrf_and_disable(pg_auth):
             assert client.cookies.get('__Host-runtu_session') != old
             with db.transaction() as session:
                 assert session.get(AuthSession, digest(old)) is None
+            history = client.get('/api/auth/activity')
+            assert history.headers['cache-control'] == 'no-store'
+            previous = history.json()['previous_login']
+            assert previous is None if role == 'viewer' else previous['ip'] == '198.51.100.30'
+            assert client.get('/api/auth/activity?user_id=another').status_code == 422
             info = client.get('/api/admin/me').json()
             assert set(info) == {'id', 'username', 'role', 'permissions'}
             assert set(info['permissions']) == permissions_for(role)

@@ -4,12 +4,14 @@ import { parseRoute, modulePath, createNavigation, returnTarget, loginPath } fro
 
 test('known pages, encoded detail, trailing slash and route 404', () => {
   assert.equal(parseRoute('/').page, 'dashboard')
-  assert.equal(parseRoute('/modules/').title, '模块管理')
+  assert.equal(parseRoute('/').title, '首页')
+  assert.equal(parseRoute('/settings').title, '全局设置')
+  assert.equal(parseRoute('/modules/').title, '全局设置')
   assert.equal(parseRoute('/settings').page, 'settings')
   assert.equal(parseRoute('/users/').page, 'users')
   assert.equal(parseRoute('/register').page, 'register')
   assert.equal(parseRoute('/modules/%64emo').moduleId, 'demo')
-  assert.equal(parseRoute('/modules/missing').title, '模块详情')
+  assert.equal(parseRoute('/modules/missing').title, '工具详情')
   for (const path of ['/unknown','/modules/demo/extra','/modules/%','/modules/%2f%2fevil.test','/modules/..','/modules/a%5Cb','/modules/中文','/modules/'+ 'a'.repeat(65)]) assert.equal(parseRoute(path).page, 'not-found', path)
   assert.equal(modulePath('demo_2'), '/modules/demo_2')
   for (const id of ['https://evil.test', '../demo', 'a/b', '', 'Demo', null, undefined]) assert.throws(() => modulePath(id))
@@ -52,6 +54,6 @@ test('navigation never accepts an external origin or backslash path', () => {
 })
 
 test('login return targets survive URL encoding and reject external/auth/unknown paths', () => {
-  for (const path of ['/', '/modules', '/modules/demo', '/users', '/settings']) assert.equal(returnTarget(loginPath(path).split('?')[1]), path)
+  for (const path of ['/', '/tools', '/modules', '/modules/demo', '/users', '/settings']) assert.equal(returnTarget(loginPath(path).split('?')[1]), path)
   for (const path of ['//evil.test', '/\\evil.test', 'https://evil.test', '/login', '/register', '/absent', '/modules/demo?secret=x', '/modules/demo#x']) assert.equal(returnTarget('?returnTo=' + encodeURIComponent(path)), '/')
 })

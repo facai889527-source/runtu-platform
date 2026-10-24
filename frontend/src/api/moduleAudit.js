@@ -12,7 +12,7 @@ export async function readModuleAudit(id, beforeRevision, signal) {
   })
   if (!response.ok) throw new ApiError(response.status, {
     401: '登录已失效，请重新登录后查看。', 403: '当前身份没有查看操作记录的权限。',
-    404: '模块已移除，请返回目录。', 422: '记录分页位置无效，请刷新。',
+    404: '工具已移除，请返回目录。', 422: '记录分页位置无效，请刷新。',
     503: '操作记录暂不可用，请稍后重试。',
   }[response.status] || '操作记录加载失败，请重试。')
   const page = await response.json()

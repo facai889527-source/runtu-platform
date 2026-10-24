@@ -68,3 +68,7 @@ TASK-0009 提供浅色中文仪表盘、只读模块管理（搜索、状态筛�
 TASK-0037 的隔离迁移与注册→审核→登录→模块授权完整链路验证见 [基础集成验证](docs/FOUNDATION_INTEGRATION.md)。
 
 TASK-0038 的登录/注册视觉更新与隔离截图见 [认证页面设计](docs/AUTH_UI.md)。
+
+TASK-0046 个性化首页与本人上次成功登录信息需审查 `0007_login_activity`；真实开发库尚未升级，本任务仅在隔离数据库验证迁移。接口、代理来源限制和隐私边界见 [认证安全说明](docs/AUTH_SECURITY.md#task-0046当前账户的上次成功登录)。
+
+TASK-0051 将 TASK-0050 的共享配置替换为每账户独立 Telegram 绑定与偏好，普通用户也可使用。平台统一 Bot 密钥仅由服务端管理，私聊需短时一次性配对、网页确认后才能启用；注册提醒仅发给当前合格且主动订阅的 owner/admin。`0008_notifications` 与 `0009_account_notifications` 仅在隔离库验证，真实库未升级、服务未重启。迁移转换、webhook 安全部署与投递限制见 [个人消息设置说明](docs/NOTIFICATIONS.md)。

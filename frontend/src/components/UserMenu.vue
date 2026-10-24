@@ -7,8 +7,8 @@ const props = defineProps({ identity: Object, access: Object, pending: Boolean, 
 const emit = defineEmits(['signed-out', 'refresh-identity'])
 const busy = ref(false), error = ref('')
 const disclosure = useTemplateRef('disclosure')
-const names = { owner: '所有者', admin: '管理员', viewer: '只读成员' }
-const role = computed(() => props.access.data.value ? `${names[props.access.data.value.role]} · ${props.access.data.value.role}` : '')
+const names = { owner: '所有者', admin: '管理员', viewer: '普通用户' }
+const role = computed(() => props.access.data.value ? names[props.access.data.value.role] : '')
 const avatar = computed(() => props.identity?.user?.username?.slice(0, 1).toUpperCase() || '')
 let controller, timer
 function close(event) {
@@ -73,4 +73,5 @@ onUnmounted(() => {
 .sign-out { width: 100%; color: var(--danger); }
 .account-error { color: var(--danger); font-size: 12px; width: 100%; margin: 0; }
 @media (max-width: 760px) { .user-name { max-width: 80px; } }
+@media(max-width:400px){.user-name{display:none}}
 </style>

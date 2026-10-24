@@ -173,7 +173,8 @@ def test_grant_migration_preserves_users_and_only_drops_new_tables(tmp_path):
     db=app.state.database
     try:
         migrate_database(db,'0004_module_management')
-        actor=app.state.auth_service.bootstrap('operator',secrets.token_urlsafe(24))
+        from tests.legacy_auth import seed_legacy_owner
+        actor=seed_legacy_owner(db,secrets.token_urlsafe(24))
         with pytest.raises(AuthUnavailable): app.state.module_access.page(actor,actor,own=True)
         migrate_database(db)
         app.state.module_access.save(actor,actor,'alpha',GrantInput(granted=True,expected_granted=False))

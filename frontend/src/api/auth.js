@@ -37,3 +37,14 @@ async function changeSession(path, data, signal) {
 
 export const login = (username, password, signal) => changeSession('login', { username, password }, signal)
 export const logout = (signal) => changeSession('logout', {}, signal)
+
+export async function readLoginActivity(signal) {
+  const response = await sessionFetch('/api/auth/activity', { credentials: 'same-origin', signal, headers: { Accept: 'application/json' } })
+  if (!response.ok) throw new ApiError(response.status, '登录记录暂不可用，请稍后重试。')
+  const data = await response.json(), previous = data?.previous_login
+  if (!data || Object.keys(data).length !== 1 || !Object.hasOwn(data, 'previous_login') || (previous !== null &&
+    (!previous || Object.keys(previous).sort().join(',') !== 'at,ip' || typeof previous.at !== 'string' ||
+    !/Z$|[+]00:00$/.test(previous.at) || !Number.isFinite(Date.parse(previous.at)) ||
+    !(previous.ip === null || (typeof previous.ip === 'string' && previous.ip.length <= 45 && /^[0-9a-f:.]+$/i.test(previous.ip)))))) throw new Error('登录记录格式异常。')
+  return data
+}

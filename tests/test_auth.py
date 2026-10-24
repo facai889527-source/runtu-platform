@@ -21,7 +21,7 @@ PASSWORD = 'disposable-test-password-14'
 
 @pytest.fixture
 def auth(tmp_path):
-    app = create_app(Settings(_env_file=None, database_url=f'sqlite:///{tmp_path / "auth.db"}', auth_origin=ORIGIN))
+    app = create_app(Settings(_env_file=None, notification_key_file=str(tmp_path/'telegram'/'store.key'), database_url=f'sqlite:///{tmp_path / "auth.db"}', auth_origin=ORIGIN))
     migrate_database(app.state.database)
     service = app.state.auth_service
     user_id = service.bootstrap('operator', PASSWORD)

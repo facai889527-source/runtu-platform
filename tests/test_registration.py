@@ -9,7 +9,7 @@ from sqlalchemy.exc import OperationalError
 
 from backend.auth.service import AuthDenied, HASHER, digest
 from backend.models import AuthEvent, AuthSession, AuthUser, RegistrationApplication, UserModuleGrant
-from backend.migrations import migration_config
+from backend.migrations import migration_config, migrate_database
 from backend.registration import PolicyInput, Signup
 from tests.test_auth import auth, login, ORIGIN
 from tests.test_module_management import headers
@@ -33,7 +33,7 @@ def signup(client, name='candidate', **extra):
     return result,password
 
 
-def exercise_registration_contract(owner, app):
+def exercise_registration_contract(owner, app, *, include_rejection=True):
     assert owner.get('/api/auth/registration-policy').json()==dict(enabled=False,approval_required=True)
     with applicant(app) as guest:
         assert signup(guest)[0].status_code==403
@@ -55,8 +55,22 @@ def exercise_registration_contract(owner, app):
         assert access['role']=='viewer' and 'users.manage' not in access['permissions']
         assert guest.get('/api/me/modules').json()['items']==[]
         assert owner.get(PENDING).json()['items']==[]
+    if include_rejection: exercise_rejection_contract(owner, app)
     return row['id']
 
+
+def exercise_rejection_contract(owner, app):
+    with applicant(app) as denied:
+        result, password = signup(denied, 'denied-candidate')
+        assert result.status_code == 202
+        review = owner.get(PENDING).json()['items'][0]
+        path = PENDING+'/'+review['id']
+        assert owner.get(path).json()['state'] == 'pending'
+        assert owner.post(path+'/reject',headers=headers(owner)).json() == {'state':'rejected'}
+        assert owner.get(PENDING+'?state=rejected').json()['items'][0]['id'] == review['id']
+        assert owner.post(path+'/approve',headers=headers(owner)).status_code == 409
+        assert login(denied,password,'denied-candidate').status_code == 401
+        assert review['id'] not in {item['id'] for item in owner.get('/api/admin/users').json()['items']}
 
 def test_default_registration_approval_and_no_privilege(auth,caplog):
     client,service,_=auth
@@ -162,6 +176,7 @@ def test_pending_downgrade_refused_and_missing_policy_fails_closed(auth):
         with service.database.engine.begin() as connection:
             config=migration_config();config.attributes['connection']=connection
             command.downgrade(config,'0005_user_module_access')
+    migrate_database(service.database)  # Restore newer columns before using the current application.
     row=owner.get(PENDING).json()['items'][0]
     assert owner.post(PENDING+'/'+row['id']+'/approve',headers=headers(owner)).status_code==200
     with service.database.engine.begin() as connection:

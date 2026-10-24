@@ -26,7 +26,7 @@ onUnmounted(() => { live = false; controller?.abort(); clearTimeout(timer); if (
 </script>
 <template>
   <section class="register-panel" aria-labelledby="register-title"><h1 id="register-title">申请平台账户</h1>
-    <p class="subtle">新账户为只读成员，业务模块需要管理员另行授权。</p>
+    <p class="subtle">新账户为普通用户，业务工具需要管理员另行授权。</p>
     <p v-if="busy" role="status">正在处理…</p>
     <div v-if="submitted" role="status"><h2>申请已提交</h2><p>如该用户名可用且需要审核，新申请将处于待审核状态，批准前无法登录。已有账户不会被重复创建或更改。</p><p>请联系管理员确认。若注册时无需审核，可使用新账户登录。</p></div>
     <div v-else-if="policy && !policy.enabled" class="registration-closed" role="status"><span class="closed-symbol" aria-hidden="true">—</span><h2>暂未开放注册</h2></div>

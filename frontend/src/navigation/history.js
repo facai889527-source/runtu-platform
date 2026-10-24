@@ -8,9 +8,11 @@ export function modulePath(id) {
 export function parseRoute(pathname) {
   const path = pathname.length > 1 ? pathname.replace(/\/$/, '') : pathname
   const pages = {
-    '/': { page: 'dashboard', title: '仪表盘' },
-    '/modules': { page: 'modules', title: '模块管理' },
-    '/settings': { page: 'settings', title: '设置' },
+    '/': { page: 'dashboard', title: '首页' },
+    '/tools': { page: 'tools', title: '我的工具' },
+    '/modules': { page: 'modules', title: '全局设置' },
+    '/settings': { page: 'settings', title: '全局设置' },
+    '/notifications': { page: 'notifications', title: '消息设置' },
     '/users': { page: 'users', title: '用户管理' },
     '/login': { page: 'login', title: '管理员登录' },
     '/register': { page: 'register', title: '申请账户' },
@@ -20,7 +22,7 @@ export function parseRoute(pathname) {
   if (match) {
     try {
       const moduleId = decodeURIComponent(match[1])
-      if (moduleIdPattern.test(moduleId)) return { page: 'modules', title: '模块详情', path, moduleId }
+      if (moduleIdPattern.test(moduleId)) return { page: 'modules', title: '工具详情', path, moduleId }
     } catch { /* Malformed encoding belongs to the route 404, never the API. */ }
   }
   return { page: 'not-found', title: '页面不存在', path, moduleId: null }
@@ -54,6 +56,6 @@ export function returnTarget(search) {
   const value = new URLSearchParams(search).get('returnTo')
   if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\') || value.includes('?') || value.includes('#')) return '/'
   const route = parseRoute(value)
-  return ['dashboard', 'modules', 'settings', 'users'].includes(route.page) ? route.path : '/'
+  return ['dashboard', 'tools', 'modules', 'settings', 'users', 'notifications'].includes(route.page) ? route.path : '/'
 }
 export const loginPath = path => '/login?returnTo=' + encodeURIComponent(path)

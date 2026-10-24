@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import ipaddress
 import hashlib
 import hmac
 import re
@@ -80,9 +81,11 @@ class AuthService:
         except SQLAlchemyError:
             raise AuthUnavailable('Authentication storage unavailable') from None
 
-    def _event(self, session, event, source, user_id=None):
-        session.add(AuthEvent(id=str(uuid4()), event=event, user_id=user_id,
+    def _event(self, session, event, source, user_id=None, source_ip=None):
+        event_id = str(uuid4())
+        session.add(AuthEvent(id=event_id, event=event, user_id=user_id, source_ip=source_ip,
                               source_hash=digest(source), created_at=self.clock()))
+        return event_id
 
     def _valid(self, row):
         if row is None:
@@ -159,7 +162,7 @@ class AuthService:
             row.last_seen_at = self.clock()
             return Identity(user.id, user.username, user.role)
 
-    def login(self, token, username, password, source):
+    def login(self, token, username, password, source, source_ip=None):
         username = username.strip().lower()
         self._reserve([(f'login-ip:{source}', 20), (f'login-account:{source}:{username}', 5)])
         with self.transaction() as session:
@@ -184,15 +187,39 @@ class AuthService:
                 removed = session.execute(delete(AuthSession).where(AuthSession.token_hash == digest(token)))
                 if removed.rowcount == 1:
                     now = self.clock()
+                    previous_id = user.last_login_event_id
+                    event_id = self._event(session, 'login_success', source, user.id, source_ip)
+                    advanced = session.execute(update(AuthUser).where(AuthUser.id == user.id,
+                        AuthUser.last_login_event_id == previous_id).values(last_login_event_id=event_id))
+                    if advanced.rowcount != 1:
+                        raise AuthUnavailable('Concurrent login; retry')
                     session.add(AuthSession(token_hash=digest(next_token), user_id=user.id, created_at=now,
+                        previous_login_event_id=previous_id,
                         last_seen_at=now, expires_at=now + timedelta(seconds=self.settings.auth_session_seconds)))
+                    user.last_login_event_id = event_id
                     if HASHER.check_needs_rehash(encoded):
                         user.password_hash = HASHER.hash(password)
                     identity = Identity(user.id, user.username, user.role)
-            self._event(session, 'login_success' if identity else 'login_failed', source, user_id)
+            if identity is None:
+                self._event(session, 'login_failed', source, user_id)
         if identity is None:
             raise AuthDenied('Invalid credentials')
         return next_token, identity
+
+    def previous_login(self, token, user_id):
+        with self.transaction() as session:
+            row = session.get(AuthSession, digest(token)) if token else None
+            user = session.get(AuthUser, user_id)
+            if not self._valid(row) or row.user_id != user_id or not user or not user.active:
+                raise AuthDenied('Authentication required')
+            event = session.get(AuthEvent, row.previous_login_event_id) if row.previous_login_event_id else None
+            if not event or event.user_id != user_id or event.event != 'login_success':
+                return None
+            try:
+                address = str(ipaddress.ip_address(event.source_ip)) if event.source_ip and '%' not in event.source_ip else None
+            except ValueError:
+                address = None
+            return {'at': aware(event.created_at).astimezone(timezone.utc).isoformat(), 'ip': address}
 
     def logout(self, token, source):
         with self.transaction() as session:

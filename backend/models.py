@@ -45,6 +45,7 @@ class AuthUser(Base):
     __table_args__ = (CheckConstraint("role IN ('owner', 'admin', 'viewer')", name="ck_auth_users_role"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True)
+    last_login_event_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -54,6 +55,7 @@ class AuthUser(Base):
 
 class AuthSession(Base):
     __tablename__ = "auth_sessions"
+    previous_login_event_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str | None] = mapped_column(ForeignKey("auth_users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -66,6 +68,7 @@ class AuthEvent(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     event: Mapped[str] = mapped_column(String(32))
     user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    source_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     source_hash: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
@@ -116,3 +119,82 @@ class RegistrationApplication(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
     pending: Mapped[bool] = mapped_column(Boolean, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class NotificationPreferences(Base):
+    # Legacy 0008 singleton retained only for explicit rollback review; never used for routing.
+    __tablename__ = 'notification_preferences'
+    __table_args__ = (CheckConstraint('id = 1', name='ck_notification_singleton'),
+                      CheckConstraint('revision >= 0', name='ck_notification_revision'))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    chat_id: Mapped[str] = mapped_column(String(21), nullable=False)
+    registration: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class AccountNotification(Base):
+    __tablename__ = 'account_notifications'
+    __table_args__ = (CheckConstraint('revision >= 0', name='ck_account_notification_revision'),)
+    user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
+    bot_mode: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    bot_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    private_target: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
+    chat_id: Mapped[str | None] = mapped_column(String(16), unique=True, nullable=True)
+    bound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    registration: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    paused: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+    telegram_user_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    telegram_first_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    telegram_last_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    telegram_username: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class TelegramChallenge(Base):
+    __tablename__ = 'telegram_challenges'
+    user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
+    initiator_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    token_hash: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    session_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    chat_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+    telegram_user_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    telegram_first_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    telegram_last_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    telegram_username: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class NotificationDelivery(Base):
+    __tablename__ = 'notification_deliveries'
+    event_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
+    binding_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PersonalTelegramBot(Base):
+    __tablename__ = 'personal_telegram_bots'
+    user_id: Mapped[str] = mapped_column(ForeignKey('auth_users.id'), primary_key=True)
+    ciphertext: Mapped[str] = mapped_column(String(2048), nullable=False)
+    bot_id: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(32), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    update_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    lease_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class TelegramPlatform(Base):
+    __tablename__='telegram_platform'
+    id: Mapped[int] = mapped_column(Integer,primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean,nullable=False)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey('auth_users.id'),nullable=True)
+    fingerprint: Mapped[str | None] = mapped_column(String(64),nullable=True)
+    public_key: Mapped[str | None] = mapped_column(String(64),nullable=True)
