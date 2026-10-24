@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 from backend.auth.service import digest
 from backend.migrations import migration_config
-from backend.models import AccountNotification, AuthSession, AuthUser, TelegramChallenge
+from backend.models import AccountNotification, AuthSession, AuthUser, TelegramChallenge, TelegramPlatform
 from tests.test_auth import auth
 from tests.test_module_management import headers
 from tests.test_notifications import ready, PATH, TOKEN, bind, begin, callback, other, payload
@@ -104,14 +104,14 @@ def test_owner_origin_csrf_stale_revision_and_revoked_pairing(ready):
 def test_bot_configuration_rotation_blocks_old_challenges_and_delivery(ready):
     client,service,actor,notifications=ready
     row=bind(client)
-    service.settings.telegram_bot_token=SecretStr('987654321:'+'fixture_'*5)
+    with service.transaction() as session:session.get(TelegramPlatform,1).public_key='rotated-generation'
     assert not client.get(PATH).json()['available']
     assert not notifications._deliver(actor,row['revision'],'fixture')
     assert post(client,PATH,'test',row['revision']).status_code==422
     new=post(client,PATH,'choose-public',row['revision']).json()
     assert new['available'] and not new['bound'] and not new['private_target'] and not new['enabled']
     token,revision=begin(client)
-    service.settings.telegram_bot_token=SecretStr(TOKEN)
+    with service.transaction() as session:session.get(TelegramPlatform,1).public_key='second-generation'
     callback(client,token)
     with service.transaction() as session:assert session.get(TelegramChallenge,actor).chat_id is None
     assert post(client,PATH,'confirm',revision).status_code==422
@@ -134,6 +134,9 @@ def test_owner_queued_test_rechecks_current_authority_and_target_active(ready):
 
 def test_migration_resets_existing_bindings_without_selecting_bot(ready):
     client,service,actor,_=ready
+    with service.transaction() as session:
+        source=session.get(TelegramPlatform,1);owner=source.owner_id
+        notifications=client.app.state.notifications;notifications.clear(session,session.get(AccountNotification,owner))
     with service.database.engine.begin() as connection:
         config=migration_config();config.attributes['connection']=connection
         command.downgrade(config,'0009_account_notifications')

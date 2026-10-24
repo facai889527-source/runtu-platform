@@ -5,6 +5,7 @@ import re
 
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 from pydantic import SecretStr
+from backend.private_key_store import PrivateKeyStore, PrivateKeyError
 
 
 class SecretStorageUnavailable(Exception): pass
@@ -13,11 +14,15 @@ class TelegramBusy(TelegramUnavailable): pass
 
 
 class TelegramVault:
-    def __init__(self, settings): self.settings = settings
+    def __init__(self, settings):
+        self.settings = settings
+        self.store = PrivateKeyStore(settings.notification_key_file)
 
     def cipher(self):
         raw = self.settings.notification_encryption_keys
-        if not raw: raise SecretStorageUnavailable()
+        if not raw:
+            try:raw=self.store.read()
+            except PrivateKeyError:raise SecretStorageUnavailable() from None
         try:
             keys = raw.get_secret_value().split(',')
             if not 1 <= len(keys) <= 4 or any(k != k.strip() for k in keys): raise ValueError()

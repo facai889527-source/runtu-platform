@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readNotifications, saveNotifications, testNotifications, connectTelegram, confirmTelegram, disconnectTelegram, choosePublicBot, choosePersonalBot, syncPersonalBot, rotatePersonalSecret, readTelegramPlatform } from '../src/api/notifications.js'
+import { readNotifications, saveNotifications, testNotifications, connectTelegram, confirmTelegram, disconnectTelegram, choosePublicBot, choosePersonalBot, syncPersonalBot, rotatePersonalSecret, readTelegramPlatform, initializeTelegram } from '../src/api/notifications.js'
 import { parseRoute, returnTarget } from '../src/navigation/history.js'
-const value=()=>({enabled:false,revision:0,available:false,bot_mode:null,bot_username:null,personal_available:true,public_available:true,private_target:false,bound:false,destination:null,paused:false,pairing:{state:'none',expires_at:null,candidate:null},events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:false,account_security:false,tool_outcomes:false,system_errors:false}})
+const value=()=>({enabled:false,revision:0,available:false,bot_mode:null,bot_username:null,personal_available:true,public_available:true,private_target:false,owner_account:false,bound:false,destination:null,paused:false,pairing:{state:'none',expires_at:null,candidate:null},events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:false,account_security:false,tool_outcomes:false,system_errors:false}})
 
 test('self notification requests never carry target user or chat and use CSRF for pairing and delivery',async()=>{
  const previous=globalThis.fetch,calls=[]
@@ -73,5 +73,16 @@ test('personal Bot uses protected scoped POST; responses reject ciphertext and p
   }
   globalThis.fetch=async()=>({ok:true,json:async()=>({feature_enabled:true,public_ready:false,token_present:false,username_present:false,webhook_secret_present:false,encryption_ready:true,token:'leak'})})
   await assert.rejects(readTelegramPlatform(),/状态未确认/)
+ }finally{globalThis.fetch=previous}
+})
+
+
+test('owner setup uses CSRF without key material and validates owner DTO',async()=>{
+ const previous=globalThis.fetch,calls=[]
+ try{
+  globalThis.fetch=async(url,options)=>{calls.push([url,options]);return {ok:true,json:async()=>url==='/api/auth/csrf'?{csrf_token:'a'.repeat(64)}:{...value(),owner_account:true}}}
+  const result=await initializeTelegram();assert.equal(result.owner_account,true)
+  const [url,options]=calls.at(-1);assert.equal(url,'/api/admin/notifications/setup');assert.equal(options.method,'POST');assert.equal(options.credentials,'same-origin');assert.equal(options.headers['X-CSRF-Token'],'a'.repeat(64));assert.deepEqual(JSON.parse(options.body),{expected_revision:0})
+  globalThis.fetch=async()=>({ok:true,json:async()=>({...value(),owner_account:'owner'})});await assert.rejects(readNotifications(),/格式异常/)
  }finally{globalThis.fetch=previous}
 })

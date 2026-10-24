@@ -177,3 +177,12 @@ class PersonalTelegramBot(Base):
     update_offset: Mapped[int] = mapped_column(Integer, nullable=False)
     lease_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class TelegramPlatform(Base):
+    __tablename__='telegram_platform'
+    id: Mapped[int] = mapped_column(Integer,primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean,nullable=False)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey('auth_users.id'),nullable=True)
+    fingerprint: Mapped[str | None] = mapped_column(String(64),nullable=True)
+    public_key: Mapped[str | None] = mapped_column(String(64),nullable=True)

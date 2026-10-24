@@ -1,16 +1,14 @@
 <script setup>
 import { computed,ref,watch,onUnmounted } from 'vue'
 import { readUsers } from '../api/users.js'
-import { readTelegramPlatform } from '../api/notifications.js'
 import AccountSelect from '../components/AccountSelect.vue'
 import NotificationSettings from '../components/NotificationSettings.vue'
-import TelegramSetup from '../components/TelegramSetup.vue'
 const props=defineProps({access:Object,selfId:String})
 const owner=computed(()=>props.access?.data.value?.role==='owner')
-const target=ref(''),accounts=ref([]),next=ref(null),pending=ref(false),error=ref(''),managerOpen=ref(false),platformOpen=ref(false),platform=ref(null),platformError=ref('')
+const target=ref(''),accounts=ref([]),next=ref(null),pending=ref(false),error=ref(''),managerOpen=ref(false)
 const options=computed(()=>[{value:'',label:'我的消息'},...accounts.value.filter(u=>u.id!==props.selfId).map(u=>({value:u.id,label:u.username+(u.active?'':'（已禁用）')}))])
 const targetName=computed(()=>accounts.value.find(u=>u.id===target.value)?.username||'所选账户')
-let controller,platformController,generation=0
+let controller,generation=0
 async function load(after=null){
  controller?.abort();controller=new AbortController();const id=++generation;pending.value=true;error.value=''
  try{const page=await readUsers(after,controller.signal);if(id===generation){accounts.value=page.items;next.value=page.next_after_username;target.value=''}}
@@ -18,12 +16,7 @@ async function load(after=null){
  finally{if(id===generation)pending.value=false}
 }
 function managerToggle(event){managerOpen.value=event.target.open;if(event.target.open&&owner.value&&!accounts.value.length)load()}
-async function platformToggle(event){
- platformOpen.value=event.target.open;if(!event.target.open||!owner.value)return
- platformController?.abort();platformController=new AbortController();platformError.value=''
- try{platform.value=await readTelegramPlatform(platformController.signal)}catch(e){if(e.name!=='AbortError')platformError.value=e.message}
-}
-watch(owner,()=>{target.value='';managerOpen.value=false;platformOpen.value=false;generation++;controller?.abort();platformController?.abort();accounts.value=[];platform.value=null;pending.value=false})
+watch(owner,()=>{target.value='';managerOpen.value=false;generation++;controller?.abort();accounts.value=[];pending.value=false})
 onUnmounted(()=>{generation++;controller?.abort();platformController?.abort()})
 </script>
 <template>
@@ -33,7 +26,6 @@ onUnmounted(()=>{generation++;controller?.abort();platformController?.abort()})
   <NotificationSettings :key="target" :target="target" :owner="owner" />
   <aside v-if="owner" class="owner-tools" aria-label="所有者管理">
    <p class="owner-caption">所有者管理</p>
-   <details class="platform-telegram" @toggle="platformToggle"><summary><span>平台公共 Bot 管理<small>检查服务端状态与启用清单</small></span><span aria-hidden="true">＋</span></summary><div v-if="platformOpen" class="owner-panel"><p v-if="platformError" role="alert">{{platformError}}</p><div v-if="platform" class="platform-status"><span>通知功能 <b>{{platform.feature_enabled?'已启用':'未启用'}}</b></span><span>公共 Bot <b>{{platform.public_ready?'已就绪':'待配置'}}</b></span><span>Token <b>{{platform.token_present?'已设置':'未设置'}}</b></span><span>Bot 用户名 <b>{{platform.username_present?'已设置':'未设置'}}</b></span><span>回调密钥 <b>{{platform.webhook_secret_present?'已设置':'未设置'}}</b></span><span>加密存储 <b>{{platform.encryption_ready?'已就绪':'待配置'}}</b></span></div><TelegramSetup owner /></div></details>
    <details class="notification-manager" @toggle="managerToggle"><summary><span>管理其他账户<small>仅所有者可读写其他账户的消息配置</small></span><span aria-hidden="true">＋</span></summary><div v-if="managerOpen" class="owner-panel"><AccountSelect v-model="target" :options="options" label="选择消息配置所属账户" :disabled="pending" /><p v-if="pending" role="status">正在读取账户…</p><p v-if="error" role="alert">{{error}}</p><div v-if="next" class="manager-pages"><span>当前为已加载批次</span><button type="button" :disabled="pending" @click="load(next)">更多账户</button></div><button v-if="!next&&accounts.length>=20" type="button" :disabled="pending" @click="load()">返回首批账户</button></div></details>
   </aside>
  </section>

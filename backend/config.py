@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     telegram_webhook_secret: SecretStr | None = None
     telegram_binding_enabled: bool = False
     notification_encryption_keys: SecretStr | None = None
+    notification_key_file: str = "secrets/telegram/store.key"
 
     @model_validator(mode="after")
     def validate_auth_origin(self):

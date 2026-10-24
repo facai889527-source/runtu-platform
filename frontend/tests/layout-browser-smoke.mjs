@@ -6,7 +6,7 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 const origin = process.env.RUNTU_UI_BASE_URL || 'http://127.0.0.1:5173'
 assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:4173'].includes(origin), 'Only explicit loopback dev/preview origins are supported')
-const output = path.resolve('.git/codex-coordination/task54-after', new URL(origin).port)
+const output = path.resolve('.git/codex-coordination/task56-after', new URL(origin).port)
 await mkdir(output, { recursive: true })
 let occupied = false
 try { occupied = (await fetch('http://127.0.0.1:9229/json')).ok } catch { /* Free port. */ }
@@ -90,7 +90,7 @@ try {
   let registrationPolicy = { enabled:false, approval_required:true, revision:0 }, registrationStatus = 200
   let applications = [], reviewStatus=200, reviewDetailStatus=200, reviewRequests=0
   let notificationStatus=200, notificationSendStatus=200, notificationPersonalStatus=200, notificationReads=0, notificationSends=0
-  const notificationDefaults=()=>({enabled:false,revision:0,available:false,bot_mode:null,bot_username:null,personal_available:true,public_available:true,private_target:false,bound:false,destination:null,paused:false,pairing:{state:'none',expires_at:null,candidate:null},events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:true,account_security:false,tool_outcomes:false,system_errors:false}})
+  const notificationDefaults=()=>({enabled:false,revision:0,available:false,bot_mode:null,bot_username:null,personal_available:true,public_available:true,private_target:false,owner_account:false,bound:false,destination:null,paused:false,pairing:{state:'none',expires_at:null,candidate:null},events:{registration:false,account_security:false,tool_outcomes:false,system_errors:false},supported:{registration:true,account_security:false,tool_outcomes:false,system_errors:false}})
   let notificationPrefs=notificationDefaults()
   const managedNotificationPrefs=new Map()
   let managedNotificationReads=0
@@ -126,14 +126,15 @@ try {
           else if(pathname.endsWith('/test')){notificationSends++;code=notificationSendStatus;if(code!==200)prefs={...prefs,enabled:false,paused:true,revision:prefs.revision+1}}
           else if(pathname.endsWith('/choose-personal')&&notificationPersonalStatus!==200)code=notificationPersonalStatus
           else if(pathname.endsWith('/choose-personal')){assert.equal(value.exclusive,true);assert.ok(value.token);prefs={...notificationDefaults(),available:true,bot_mode:'personal',bot_username:'PrivateFixtureBot',revision:prefs.revision+1,supported:prefs.supported}}
-          else if(pathname.endsWith('/sync-personal'))prefs={...prefs,pairing:{state:'confirm',expires_at:'2099-10-23T16:00:00Z',candidate:'••••6789'}}
+          else if(pathname.endsWith('/sync-bot'))prefs={...prefs,pairing:{state:'confirm',expires_at:'2099-10-23T16:00:00Z',candidate:'••••6789'}}
           else if(pathname.endsWith('/rotate-secret'))prefs={...prefs}
           else if(pathname.endsWith('/choose-public'))prefs={...notificationDefaults(),available:true,bot_mode:'public',bot_username:'RuntuFixtureBot',revision:prefs.revision+1,supported:prefs.supported}
-          else if(pathname.endsWith('/connect')){prefs={...prefs,enabled:false,private_target:false,bound:false,destination:null,revision:prefs.revision+1,pairing:{state:'waiting',expires_at:'2099-10-23T16:00:00Z',candidate:null}};connected={url:'https://t.me/'+prefs.bot_username+'?start='+'x'.repeat(43),revision:prefs.revision,expires_at:'2099-10-23T16:00:00Z'}}
+          else if(pathname.endsWith('/connect')){prefs={...prefs,enabled:false,private_target:false,owner_account:false,bound:false,destination:null,revision:prefs.revision+1,pairing:{state:'waiting',expires_at:'2099-10-23T16:00:00Z',candidate:null}};connected={url:'https://t.me/'+prefs.bot_username+'?start='+'x'.repeat(43),revision:prefs.revision,expires_at:'2099-10-23T16:00:00Z'}}
           else if(pathname.endsWith('/confirm'))prefs={...prefs,bound:true,destination:'••••6789',revision:prefs.revision+1,pairing:{state:'none',expires_at:null,candidate:null}}
           else if(pathname.endsWith('/disconnect'))prefs={...notificationDefaults(),supported:prefs.supported,revision:prefs.revision+1}
           else prefs={...prefs,enabled:value.enabled,private_target:value.private_target,events:value.events,revision:prefs.revision+1}
         }
+        prefs={...prefs,owner_account:!target&&!viewer&&!admin}
         body=code!==200?{detail:'private-upstream-diagnostic'}:connected?connected:pathname.endsWith('/test')?{state:'sent'}:{...prefs,supported:{...prefs.supported,registration:!viewer},events:{...prefs.events,registration:!viewer&&prefs.events.registration}}
         if(target)managedNotificationPrefs.set(target,prefs);else notificationPrefs=prefs
       }
@@ -470,13 +471,13 @@ try {
       await send('Emulation.setDeviceMetricsOverride',{width,height:width===1440?900:844,deviceScaleFactor:1,mobile:width<760})
       await visit('/notifications');await until(`document.querySelector('.choose-personal')`);await noOverflow()
       assert.equal(await evaluate(`!document.querySelector('.notification-fields,.notification-manager [role=combobox]')`),true)
-      assert.equal(await evaluate(`document.querySelector('.notification-manager').open || document.querySelector('.platform-telegram').open`),false)
+      assert.equal(await evaluate(`document.querySelector('.notification-manager').open`),false)
       if(capture)await screenshot('telegram-choices-'+width)
     }
     // Actionable unavailable state, with both choices truthfully disabled.
     notificationStatus=404
-    await click('.refresh-notifications');await until(`document.querySelector('.telegram-setup')`)
-    assert.equal(await evaluate(`document.querySelector('.telegram-setup').textContent.includes('0011_personal_telegram_bot')`),true)
+    await click('.refresh-notifications');await until(`document.querySelector('.activation-needed')`)
+    assert.equal(await evaluate(`!document.querySelector('.telegram-setup,.platform-telegram,.choose-public')`),true)
     if(capture)await screenshot('telegram-deploy-needed-360')
     notificationStatus=200;await click('.refresh-notifications');await until(`!document.querySelector('.choose-personal').disabled`)
     await click('.choose-personal');await until(`document.querySelector('.personal-bot-form')`)
@@ -509,18 +510,9 @@ try {
     }
     notificationSendStatus=502;await click('.notification-test button');await until(`document.querySelector('.notification-error')?.textContent.includes('未确认发送成功')`)
     await click('.notification-section-heading button');await until(`document.querySelector('.telegram-binding')?.textContent.includes('通知已暂停')`)
-    await click('.telegram-disconnect');await until(`document.querySelector('.choose-public')`)
+    await click('.telegram-disconnect');await until(`!document.querySelector('.telegram-binding')&&document.querySelector('.choose-personal:not(:disabled)')`)
     assert.equal(notificationPrefs.bot_mode,null);assert.equal(notificationPrefs.private_target,false)
-    await click('.choose-public');await until(`document.querySelector('.telegram-connect')`)
-    await click('.telegram-connect');await until(`document.querySelector('.telegram-pair-link')`)
-    notificationPrefs.pairing={state:'confirm',expires_at:'2099-10-23T16:00:00Z',candidate:'••••6789'}
-    await click('.notification-section-heading button');await until(`document.querySelector('.telegram-confirm')`)
-    await click('.telegram-confirm');await until(`document.querySelector('.notification-fields')`)
-    if(capture)await screenshot('telegram-public-bound-360')
-    await click('.telegram-disconnect');await until(`document.querySelector('.choose-personal')`)
-    await click('.platform-telegram summary');await until(`document.querySelector('.platform-status')`);await noOverflow()
-    if(capture)await screenshot('telegram-owner-platform-360')
-    await click('.platform-telegram summary')
+    assert.equal(await evaluate(`!document.querySelector('.choose-public,.telegram-setup,.platform-telegram')`),true)
     await click('.notification-manager summary');await until(`document.querySelector('.notification-manager [role=combobox]:not(:disabled)')`)
     await click('.notification-manager [role=combobox]');await until(`document.querySelector('[role=listbox]')`)
     await send('Input.dispatchKeyEvent',{type:'keyDown',key:'ArrowDown',code:'ArrowDown',windowsVirtualKeyCode:40})
@@ -531,7 +523,7 @@ try {
     await until(`document.querySelector('.telegram-connect')`)
     assert.equal(notificationPrefs.bot_mode,null);assert.ok([...managedNotificationPrefs.values()].some(p=>p.bot_mode==='personal'))
     await noOverflow();if(capture)await screenshot('telegram-owner-managed-360')
-    await click('.telegram-disconnect');await until(`document.querySelector('.choose-personal')`)
+    await click('.telegram-disconnect');await until(`!document.querySelector('.telegram-binding')&&document.querySelector('.choose-personal:not(:disabled)')`)
     const reads=managedNotificationReads
     for(const role of ['viewer','admin']){
       viewer=role==='viewer';admin=role==='admin';notificationPrefs=notificationDefaults()
@@ -546,7 +538,7 @@ try {
     assert.equal(notificationReads,before)
     authenticated=true;viewer=false;admin=false;notificationStatus=200;notificationSendStatus=200
     assert.deepEqual(errors,[])
-    console.log('PASS usable Telegram UI: personal token clear, bind/start/sync/confirm/target/test/rotation/unlink; public proof preserved; owner secondary management/platform status; unavailable deployment checklist; admin/viewer isolation, keyboard and 1440/390/360. All API and Telegram effects mocked; groups remain unavailable.')
+    console.log('PASS usable Telegram UI: personal token clear, bind/start/sync/confirm/target/test/rotation/unlink; public proof preserved; owner direct binding and secondary management; unavailable activation state; admin/viewer isolation, keyboard and 1440/390/360. All API and Telegram effects mocked; groups remain unavailable.')
   }
 
   if(process.env.RUNTU_NOTIFICATIONS_ONLY==='1'){await notificationChecks()}

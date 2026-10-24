@@ -8,12 +8,14 @@ from urllib.parse import parse_qs, urlsplit
 from alembic import command
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
+from cryptography.fernet import Fernet
+from uuid import uuid4
 import pytest
 from sqlalchemy import delete, event, inspect, select
 from sqlalchemy.exc import OperationalError
 
 from backend.auth.service import AuthDenied, digest
-from backend.models import AccountNotification, TelegramChallenge, NotificationDelivery, NotificationPreferences, AuthEvent, AuthRateLimit, AuthSession, AuthUser
+from backend.models import AccountNotification, TelegramChallenge, NotificationDelivery, NotificationPreferences, AuthEvent, AuthRateLimit, AuthSession, AuthUser, PersonalTelegramBot, TelegramPlatform
 from backend.migrations import migration_config, migrate_database
 from backend.notifications import NotificationInput, TelegramTransport
 from backend.user_management import CreateUser, UserConflict
@@ -33,12 +35,27 @@ def payload(revision=0, enabled=False, registration=False):
 def exercise_notification_preferences(client):
     current=client.get(PATH)
     assert current.status_code==200 and current.headers['cache-control']=='no-store'
-    assert set(current.json())=={'enabled','revision','available','bound','destination','paused','pairing','events','supported','bot_mode','bot_username','personal_available','public_available','private_target'}
+    assert set(current.json())=={'enabled','revision','available','bound','destination','paused','pairing','events','supported','bot_mode','bot_username','personal_available','public_available','private_target','owner_account'}
     assert current.json()['bound'] is False and current.json()['destination'] is None
     saved=client.put(PATH,json=payload(),headers=headers(client))
     assert saved.status_code==200 and saved.json()['revision']==0
     assert client.put(PATH,json=payload(1),headers=headers(client)).status_code==409
     assert client.get('/api/admin/notifications/telegram').status_code==404
+
+
+def seed_public(notifications):
+    service=notifications.auth
+    if not notifications.personal.vault.available:service.settings.notification_encryption_keys=SecretStr(Fernet.generate_key().decode())
+    with service.transaction() as session:
+        source=session.get(TelegramPlatform,1)
+        existing=session.scalar(select(AuthUser).where(AuthUser.username=='public-bot-fixture'))
+        if not existing:
+            existing=AuthUser(id=str(uuid4()),username='public-bot-fixture',password_hash='unusable-test-hash',role='owner',active=True,is_admin=True,created_at=service.clock())
+            session.add(existing);session.flush()
+        if not session.get(PersonalTelegramBot,existing.id):
+            session.add(PersonalTelegramBot(user_id=existing.id,ciphertext=notifications.personal.vault.seal(existing.id,SecretStr(TOKEN)),bot_id='123456789',username='RuntuFixtureBot',fingerprint=digest(TOKEN),update_offset=0,lease_id=None,lease_until=None))
+            session.add(AccountNotification(user_id=existing.id,bot_mode='personal',bot_key=digest(TOKEN),chat_id='111111111',bound_at=service.clock(),private_target=False,enabled=False,registration=False,paused=False,revision=1,changed_at=service.clock()))
+        source.owner_id,source.fingerprint,source.public_key=existing.id,digest(TOKEN),digest('fixture-public-generation')
 
 
 @pytest.fixture
@@ -48,6 +65,7 @@ def ready(auth):
     config=service.settings;config.telegram_bot_token=SecretStr(TOKEN);config.telegram_bot_username='RuntuFixtureBot'
     config.telegram_webhook_secret=SecretStr(WEBHOOK);config.telegram_binding_enabled=True
     notifications=client.app.state.notifications;notifications.transport=Mock();notifications.transport.send.return_value=True
+    seed_public(notifications)
     return client,service,actor,notifications
 
 
@@ -90,6 +108,7 @@ def exercise_verified_binding_contract(client):
         config.telegram_bot_token=SecretStr(TOKEN);config.telegram_bot_username='RuntuFixtureBot'
         config.telegram_webhook_secret=SecretStr(WEBHOOK);config.telegram_binding_enabled=True
         notifications.transport=Mock();notifications.transport.send.return_value=True
+        seed_public(notifications)
         row=bind(client,55556789,True)
         assert client.post(PATH+'/test',json={'expected_revision':row['revision']},headers=headers(client)).json()=={'state':'sent'}
         notifications.transport.send.assert_called_once_with(TOKEN,'55556789','Runtu：Telegram 个人消息设置测试。')
@@ -371,6 +390,10 @@ def test_pair_callback_size_schema_and_downgrade_guards(ready):
         command.check(config)
         with pytest.raises(RuntimeError,match='Unlink'):command.downgrade(config,'0008_notifications')
     assert client.post(PATH+'/disconnect',json={'expected_revision':row['revision']},headers=headers(client)).status_code==200
+    with service.transaction() as session:source_owner=session.get(TelegramPlatform,1).owner_id
+    source_path='/api/admin/notifications/users/'+source_owner
+    source_row=client.get(source_path).json()
+    assert client.post(source_path+'/disconnect',json={'expected_revision':source_row['revision']},headers=headers(client)).status_code==200
     with service.database.engine.begin() as connection:
         config=migration_config();config.attributes['connection']=connection;command.downgrade(config,'0008_notifications')
     assert client.get(PATH).status_code==503

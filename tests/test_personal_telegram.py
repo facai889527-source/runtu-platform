@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from backend.auth.service import digest
-from backend.models import AccountNotification,AuthUser,PersonalTelegramBot,TelegramChallenge,AuthEvent
+from backend.models import AccountNotification,AuthUser,PersonalTelegramBot,TelegramChallenge,AuthEvent,TelegramPlatform
 from backend.migrations import migration_config
 from backend.telegram_security import TelegramBusy,TelegramUnavailable
 from backend.user_management import UserConflict
@@ -23,7 +23,7 @@ TOKEN='987654321:'+'personal_fixture_'*3
 @pytest.fixture
 def personal(ready):
     client,service,actor,notifications=ready
-    service.settings.notification_encryption_keys=SecretStr(Fernet.generate_key().decode())
+    if not notifications.personal.vault.available:service.settings.notification_encryption_keys=SecretStr(Fernet.generate_key().decode())
     api=Mock()
     api.call.side_effect=lambda token,method,data=None: {'getMe':{'id':987654321,'is_bot':True,'username':'PrivateFixtureBot'},'getWebhookInfo':{'url':''},'getUpdates':[]}[method]
     notifications.personal.api=api
@@ -82,6 +82,7 @@ def test_personal_lifecycle_encrypted_proof_verified_send_and_pristine_unlink(pe
 def test_personal_works_without_shared_bot_and_fails_closed_without_keys(personal):
     client,service,actor,notifications,api=personal
     service.settings.telegram_bot_token=None;service.settings.telegram_webhook_secret=None
+    with service.transaction() as session:session.get(TelegramPlatform,1).owner_id=None
     row=choose(client)
     assert row['available'] and not row['public_available']
     assert action(client,PATH,'connect',row['revision']).status_code==200
