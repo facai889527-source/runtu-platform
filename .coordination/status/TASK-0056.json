@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0056",
+  "signal_version": 56,
+  "state": "running",
+  "updated_at": "2026-10-24T11:26:10.729Z",
+  "summary": "Claimed owner-first Bot UX, encrypted owner-managed public Bot and one-time setup; real SQLite migration requires explicit owner approval after backup/impact review.",
+  "checks": [
+    "Ready version checked; outbox empty, no local same-version execution, no all-state same-task PR and no remote status; existing PR28 branch clean."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
+  "commit_sha": "fd3bc935af66ea45ab8852cd07182c1eef1ff76a",
+  "next_action": "Implement/test owner-first management and protected key/bootstrap/public secret store on disposable DB; inspect real migration effects and backup integrity; request owner approval only for concrete real migration."
+}
