@@ -1,0 +1,16 @@
+{
+  "task_id": "TASK-0057",
+  "signal_version": 57,
+  "state": "running",
+  "updated_at": "2026-10-24T12:06:53.812Z",
+  "summary": "Claimed explicitly approved LOCAL DEV activation: new protected consistent backup, real SQLite 0007 to 0012, protected key provisioning, feature enablement and local backend restart.",
+  "checks": [
+    "Formal TASK-0057 contains explicit owner approval superseding TASK-0056 activation blocker; no same-version local execution, all-state PR or remote status; outbox empty.",
+    "Checkout clean at a9447247377dc09b4a542ff6d91b936fad3d16e0; only this local activation task is running."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": null,
+  "commit_sha": "a9447247377dc09b4a542ff6d91b936fad3d16e0",
+  "next_action": "Inspect real local DB/services, make new protected consistent backup, verify reviewed migration effects, perform approved migration exactly once, enable protected storage, restart backend and verify safely without credentials or Telegram sends."
+}
