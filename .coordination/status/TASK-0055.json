@@ -1,0 +1,16 @@
+{
+  "task_id": "TASK-0055",
+  "signal_version": 55,
+  "state": "running",
+  "updated_at": "2026-10-24T11:03:50.411Z",
+  "summary": "Claimed operational-only local service recovery; checking listeners, established launch procedures and code/schema compatibility before any start.",
+  "checks": [
+    "Outbox empty; new ready version checked against local state, all-state PR search and absent remote status; product worktree clean.",
+    "No listeners observed on development ports 8000 or 5173."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": null,
+  "commit_sha": "fd3bc935af66ea45ab8852cd07182c1eef1ff76a",
+  "next_action": "Check existing local schema version read-only and startup records. Start only compatible existing services; do not migrate, change credentials, activate new Telegram features or change checkout."
+}
