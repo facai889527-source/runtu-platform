@@ -1,0 +1,15 @@
+{
+  "task_id": "TASK-0058",
+  "signal_version": 58,
+  "state": "running",
+  "updated_at": "2026-10-24T12:30:07.814Z",
+  "summary": "Claimed notification UI redesign, concurrent proof reliability, verified identity and bounded custom test messages. Existing real Bot/binding/key/database and services must remain unchanged.",
+  "checks": [
+    "Fetched ready version 58; local same-version record absent, no running task, no all-state same-task PR or remote status; outbox empty; product checkout clean at a9447247377dc09b4a542ff6d91b936fad3d16e0."
+  ],
+  "blockers": [],
+  "branch": "codex/TASK-0043-internal-ui",
+  "pr_url": "https://github.com/facai889527-source/runtu-platform/pull/28",
+  "commit_sha": "a9447247377dc09b4a542ff6d91b936fad3d16e0",
+  "next_action": "Implement and test on disposable DB and mocked Telegram; preserve real bindings/keys and running services; do not execute real migrations or messages. Update stacked PR28 and report exact activation gaps."
+}
