@@ -114,6 +114,11 @@ def exercise_verified_binding_contract(client):
         notifications.transport.send.assert_called_once_with(TOKEN,'55556789','Runtu：Telegram 个人消息设置测试。')
         assert client.post(PATH+'/disconnect',json={'expected_revision':row['revision']},headers=headers(client)).status_code==200
         assert client.get(PATH).json()['destination'] is None
+        # The shared contract also owns the encrypted source fixture. Unlink it
+        # before a later PostgreSQL downgrade check; retain all downgrade guards.
+        with notifications.auth.transaction() as session:
+            source=session.get(TelegramPlatform,1)
+            notifications.clear(session,session.get(AccountNotification,source.owner_id))
     finally:
         config.telegram_bot_token,config.telegram_bot_username,config.telegram_webhook_secret,config.telegram_binding_enabled,notifications.transport=previous
 
