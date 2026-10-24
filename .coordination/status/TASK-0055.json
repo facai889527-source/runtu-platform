@@ -1,16 +1,21 @@
 {
   "task_id": "TASK-0055",
   "signal_version": 55,
-  "state": "running",
-  "updated_at": "2026-10-24T11:03:50.411Z",
-  "summary": "Claimed operational-only local service recovery; checking listeners, established launch procedures and code/schema compatibility before any start.",
+  "state": "completed",
+  "updated_at": "2026-10-24T11:08:34.815Z",
+  "summary": "Restored local FastAPI and Vite development services after reboot using existing installed runtimes/configuration; verified live listeners and HTTP responses.",
   "checks": [
-    "Outbox empty; new ready version checked against local state, all-state PR search and absent remote status; product worktree clean.",
-    "No listeners observed on development ports 8000 or 5173."
+    "Checked documented launch procedures and actual listeners before launch; no instances were listening on 8000 or 5173, so no duplicate service was started.",
+    "Started hidden detached existing-environment processes; backend launcher PID 13144, backend listener PID 2508, frontend PID 19316. Both remained listening across subsequent independent verification calls.",
+    "GET http://127.0.0.1:8000/api/health returned 200 with status=ok and database=ready. This checks base module storage, not new Telegram schema readiness.",
+    "GET http://127.0.0.1:5173/ and /notifications returned 200 with the SPA HTML entry; verified listeners bind only 127.0.0.1 on ports 8000 and 5173.",
+    "Startup diagnostics confirmed application startup complete, Uvicorn listening and Vite ready; no secret-bearing logs or configuration were uploaded.",
+    "Read-only schema check before/after startup remains 0007_login_activity. Telegram feature flag remains false; new notification tables absent and new Telegram functionality was not activated.",
+    "No code change, dependency upgrade, checkout, merge, deployment, migration, database copy/reset, credentials change or administrator bootstrap. Product worktree remains clean."
   ],
   "blockers": [],
   "branch": "codex/TASK-0043-internal-ui",
   "pr_url": null,
   "commit_sha": "fd3bc935af66ea45ab8852cd07182c1eef1ff76a",
-  "next_action": "Check existing local schema version read-only and startup records. Start only compatible existing services; do not migrate, change credentials, activate new Telegram features or change checkout."
+  "next_action": "Use the restored local development services. New Telegram functionality still requires a separate reviewed and authorized activation task; /notifications HTML availability is not feature activation. No additional task was started and the existing three-minute monitor schedule was unchanged."
 }
